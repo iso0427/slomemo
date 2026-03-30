@@ -33,10 +33,15 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.activity.enableEdgeToEdge
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, true)
 
         // データベースの準備
         val db = Room.databaseBuilder(
@@ -98,15 +103,18 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) { refreshData() }
 
         Scaffold(
-            modifier = Modifier.statusBarsPadding(),
+            // 【追加】ステータスバーとナビゲーションバーの分だけ、外側に余白を作る
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
             floatingActionButton = {
                 FloatingActionButton(onClick = { showSheet = true }) {
                     Icon(Icons.Default.Add, contentDescription = "入力")
                 }
             }
         ) { padding ->
-            Column(
-                modifier = Modifier
+            Column(modifier = Modifier
                     .padding(padding)
                     .fillMaxSize()
             ) {
