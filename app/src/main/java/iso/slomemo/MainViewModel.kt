@@ -2,46 +2,24 @@ package iso.slomemo
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.room.Room
-import iso.slomemo.db.AppDatabase
-import iso.slomemo.db.RowEntity
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.mutableStateListOf
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = Room.databaseBuilder(
+    // ① 新しい場所にある AppDatabase を使う
+    val db = Room.databaseBuilder(
         application,
         AppDatabase::class.java,
         "slomemo-db"
-    ).build()
+    )
+        // 構造が変わったので、古いデータがある場合は一旦消して作り直す設定
+        .fallbackToDestructiveMigration()
+        .build()
 
-    private val dao = db.rowDao()
+    // ② 新しい memoDao を使う
+    val dao = db.memoDao()
 
-    var rows = mutableStateListOf<RowEntity>()
-        private set
-
-    init {
-        viewModelScope.launch {
-            val data = dao.getAll()
-
-            if (data.isEmpty()) {
-                repeat(100) {
-                    dao.insert(RowEntity())
-                }
-                rows.addAll(dao.getAll())
-            } else {
-                rows.addAll(data)
-            }
-        }
-    }
-
-    fun updateRow(index: Int, newRow: RowEntity) {
-        rows[index] = newRow
-
-        viewModelScope.launch {
-            dao.update(newRow)
-        }
-    }
+    // ※ ここから下の「rows」などの処理は、
+    // 今後「入力したメモ一覧を表示する機能」を作る際に、
+    // 新しいデータ構造に合わせて書き直していきます。
 }
