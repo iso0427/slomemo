@@ -44,7 +44,17 @@ interface MemoDao {
     @Query("DELETE FROM MemoValue WHERE recordId = :recordId")
     suspend fun deleteValuesByRecordId(recordId: Int)
 
+    // 項目本体を削除
+    @Delete
+    suspend fun deleteColumn(column: ColumnSetting)
 
+    // 項目に紐付く選択肢を削除
+    @Query("DELETE FROM SelectionOption WHERE columnId = :columnId")
+    suspend fun deleteOptionsByColumnId(columnId: Int)
+
+    // 項目に紐付く入力値を削除（重要：これをしないと表がズレる原因になります）
+    @Query("DELETE FROM MemoValue WHERE columnId = :columnId")
+    suspend fun deleteValuesByColumnId(columnId: Int)
 
 
 

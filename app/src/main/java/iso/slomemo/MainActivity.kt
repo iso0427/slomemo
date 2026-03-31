@@ -3,78 +3,101 @@ package iso.slomemo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import kotlinx.coroutines.launch
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.ExperimentalMaterial3Api // これも必要になる場合があります
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.AssistChip // 似た部品を使う場合
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Card
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.activity.enableEdgeToEdge
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, true)
+        // 【修正1】全画面表示（EdgeToEdge）を有効にする
+        enableEdgeToEdge()
 
-        // データベースの準備
         val db = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,
             "memo-db"
-        ).fallbackToDestructiveMigration()
-            .build()
+        ).fallbackToDestructiveMigration().build()
 
-        // --- ここから追加・修正 ---
         setContent {
+            // 【修正2】システムバー（上下の帯）の色とアイコンの色を「強制」する
             val view = androidx.compose.ui.platform.LocalView.current
             if (!view.isInEditMode) {
                 androidx.compose.runtime.SideEffect {
                     val window = (view.context as android.app.Activity).window
-                    // ステータスバー（上）とナビゲーションバー（下）の背景を黒にする
+
+                    // 背景を「黒」に固定
                     window.statusBarColor = android.graphics.Color.BLACK
                     window.navigationBarColor = android.graphics.Color.BLACK
 
-                    // アイコンや文字を「白」にする設定（背景が黒なので）
-                    androidx.core.view.WindowCompat.getInsetsController(
-                        window,
-                        view
-                    ).isAppearanceLightStatusBars = false
+                    // 文字を「白」にする (isAppearanceLightStatusBars = false)
+                    val controller =
+                        androidx.core.view.WindowCompat.getInsetsController(window, view)
+                    controller.isAppearanceLightStatusBars = false
+                    controller.isAppearanceLightNavigationBars = false
                 }
             }
 
-            // あなたのプロジェクトのテーマ（例: MyBookmarkAppTheme）で囲む
-            // ここでは仮に MaterialTheme で囲みます
             androidx.compose.material3.MaterialTheme {
+                // 【修正3】Surfaceの背景色を黒にすると、ステータスバーとの隙間が目立たなくなります
                 androidx.compose.material3.Surface(
                     modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.background
+                    color = androidx.compose.ui.graphics.Color.Black // ここを黒に変更
                 ) {
                     TestColumnApp(db)
                 }
@@ -82,7 +105,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
     @Composable
     fun TestColumnApp(db: AppDatabase) {
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
@@ -92,6 +115,23 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         var selectedColumnId by remember { mutableStateOf<Int?>(null) }
         var newOptionName by remember { mutableStateOf("") }
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val view = androidx.compose.ui.platform.LocalView.current
+
+        if (!view.isInEditMode) {
+            androidx.compose.runtime.SideEffect {
+                val window = (view.context as android.app.Activity).window
+                // ステータスバーとナビゲーションバーを「黒」に固定
+                window.statusBarColor = android.graphics.Color.BLACK
+                window.navigationBarColor = android.graphics.Color.BLACK
+
+                // 文字を「白」にする
+                val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
+                controller.isAppearanceLightStatusBars = false
+                controller.isAppearanceLightNavigationBars = false
+            }
+        }
+
 
         fun refreshData() {
             scope.launch {
@@ -99,220 +139,173 @@ class MainActivity : ComponentActivity() {
                 records = db.memoDao().getAllRecords()
             }
         }
-
         LaunchedEffect(Unit) { refreshData() }
 
-        Scaffold(
-            // 【追加】ステータスバーとナビゲーションバーの分だけ、外側に余白を作る
-            modifier = androidx.compose.ui.Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-            floatingActionButton = {
-                FloatingActionButton(onClick = { showSheet = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "入力")
+        // --- 右側からメニューを出すための設定 ---
+        CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    // ↓ ここから
+                    CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
+                        ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+                            Text(
+                                "メニュー",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            Divider()
+
+                            androidx.compose.material3.TextButton(onClick = { scope.launch { drawerState.close() } }) {
+                                Text(
+                                    "実戦データ入力",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                )
+                            }
+
+                            androidx.compose.material3.TextButton(onClick = { scope.launch { drawerState.close() } }) {
+                                Text(
+                                    "項目・選択肢の設定",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-        ) { padding ->
-            Column(modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize()
             ) {
+                // ★ここを追加：メイン画面は「左から右(Ltr)」に戻す！
+                CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
 
-                // --- 1. 履歴表示エリア ---
-                Text(
-                    "履歴一覧",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.titleLarge
-                )
-
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(records) { record ->
-                        HistoryItem(
-                            db = db,
-                            record = record,
-                            columns = columns,
-                            onDelete = { refreshData() } // 削除されたらリストを読み込み直す
-                        )
-                    }
-                }
-
-                // --- 設定エリア (ここから上書き) ---
-                Divider()
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-
-                    // --- A. 項目（親）の追加 ---
-                    Text(
-                        "1. 項目を追加 (例: 契機, pt)",
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = newColumnName,
-                            onValueChange = { newColumnName = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("項目名") }
-                        )
-                        Button(
-                            onClick = {
-                                if (newColumnName.isNotBlank()) {
-                                    scope.launch {
-                                        db.memoDao().insertColumn(
-                                            ColumnSetting(
-                                                name = newColumnName,
-                                                orderIndex = columns.size
-                                            )
-                                        )
-                                        newColumnName = ""
-                                        refreshData()
-                                    }
-                                }
-                            }, modifier = Modifier
-                                .padding(start = 8.dp)
-                                .height(56.dp)
-                        ) {
-                            Text("追加")
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // --- B. 選択肢（子）の登録 ---
-                    Text(
-                        "2. 選択肢を登録 (項目を選んでから入力)",
-                        style = MaterialTheme.typography.labelSmall
-                    )
-
-                    Row(
+                    // 外側のBoxで画面全体の背景（ステータスバーの裏側）を黒にする
+                    Box(
                         modifier = Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .padding(vertical = 8.dp)
+                            .fillMaxSize()
+                            .background(Color.Black)
                     ) {
-                        columns.forEach { col ->
-                            FilterChip(
-                                selected = selectedColumnId == col.id,
-                                onClick = { selectedColumnId = col.id },
-                                label = { Text(col.name) }
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                        }
-                    }
+                        Scaffold(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .statusBarsPadding(), // ★ここで「ステータスバーの下から」と指定
 
-                    if (selectedColumnId != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedTextField(
-                                value = newOptionName,
-                                onValueChange = { newOptionName = it },
-                                modifier = Modifier.weight(1f),
-                                label = { Text("例: スイカ, 強チェ") }
-                            )
-                            Button(
-                                onClick = {
-                                    if (newOptionName.isNotBlank()) {
-                                        scope.launch {
-                                            db.memoDao().insertOption(
-                                                SelectionOption(
-                                                    columnId = selectedColumnId!!,
-                                                    optionName = newOptionName
-                                                )
+                            // ここを背景色（白など）に戻す
+                            containerColor = MaterialTheme.colorScheme.background,
+
+                            topBar = {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .statusBarsPadding()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "実戦データ",
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+
+                                    // --- ここから新しいメニュー ---
+                                    Box {
+                                        var expanded by remember { mutableStateOf(false) } // メニューが開いているか
+
+                                        IconButton(onClick = { expanded = true }) {
+                                            Icon(
+                                                Icons.Default.Menu,
+                                                contentDescription = "メニュー"
                                             )
-                                            newOptionName = ""
+                                        }
+
+                                        // 画像のような浮き出るメニュー
+                                        DropdownMenu(
+                                            expanded = expanded,
+                                            onDismissRequest = { expanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("実戦データ入力") },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Default.Add,
+                                                        contentDescription = null
+                                                    )
+                                                },
+                                                onClick = { /* ここで画面切り替え */ expanded =
+                                                    false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("項目・選択肢の設定") },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Default.Settings,
+                                                        contentDescription = null
+                                                    )
+                                                },
+                                                onClick = { /* ここで画面切り替え */ expanded =
+                                                    false
+                                                }
+                                            )
                                         }
                                     }
-                                }, modifier = Modifier
-                                    .padding(start = 8.dp)
-                                    .height(56.dp)
+                                }
+                            }
+                        ) { padding ->
+                            Column(
+                                modifier = Modifier
+                                    .padding(padding)
+                                    .fillMaxSize()
                             ) {
-                                Text("登録")
+                                // ヘッダー
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .padding(vertical = 8.dp, horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "時間",
+                                        modifier = Modifier.width(50.dp),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                    columns.forEach { col ->
+                                        Text(
+                                            text = col.name,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(horizontal = 2.dp),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(32.dp))
+                                }
+
+                                // 履歴リスト
+                                LazyColumn(modifier = Modifier.weight(1f)) {
+                                    items(records) { record ->
+                                        HistoryRow(
+                                            db = db,
+                                            record = record,
+                                            columns = columns,
+                                            onDelete = { refreshData() })
+                                    }
+                                }
+                            }
+
+                            if (showSheet) {
+                                ModalBottomSheet(onDismissRequest = { showSheet = false }) {
+                                    InputFormContent(db = db, columns = columns, onSave = {
+                                        showSheet = false
+                                        refreshData()
+                                    })
+                                }
                             }
                         }
                     }
-                }
-                // --- 設定エリア (ここまで) ---
-            } // ← これは Scaffold 内の Column を閉じるカッコです。消さないよう注意！
-
-            if (showSheet) {
-                ModalBottomSheet(onDismissRequest = { showSheet = false }) {
-                    InputFormContent(db = db, columns = columns, onSave = {
-                        showSheet = false
-                        refreshData()
-                    })
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun HistoryItem(
-        db: AppDatabase,
-        record: MemoRecord,
-        columns: List<ColumnSetting>,
-        onDelete: () -> Unit // ← 削除した後に画面を更新するための合図を追加
-    ) {
-        var values by remember { mutableStateOf(listOf<MemoValue>()) }
-        val scope = rememberCoroutineScope()
-
-        LaunchedEffect(record.id) {
-            values = db.memoDao().getValuesForRecord(record.id)
-        }
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 左：時間
-                val timeText = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                    .format(record.timestamp)
-                Text(
-                    text = timeText,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.Gray
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // 中：データ内容
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(rememberScrollState())
-                ) {
-                    columns.forEach { col ->
-                        val valObj = values.find { it.columnId == col.id }
-                        if (valObj != null) {
-                            Column(modifier = Modifier.padding(end = 12.dp)) {
-                                Text(
-                                    col.name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(valObj.value, style = MaterialTheme.typography.bodyLarge)
-                            }
-                        }
-                    }
-                }
-
-                // 右：削除ボタン（ゴミ箱アイコン）
-                IconButton(onClick = {
-                    scope.launch {
-                        db.memoDao().deleteValuesByRecordId(record.id) // 紐付く値を消す
-                        db.memoDao().deleteRecord(record)              // 履歴本体を消す
-                        onDelete()                                     // 画面をリフレッシュ
-                    }
-                }) {
-                    Icon(Icons.Default.Delete, contentDescription = "削除", tint = Color.LightGray)
                 }
             }
         }
@@ -343,7 +336,6 @@ class MainActivity : ComponentActivity() {
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
-
                 OutlinedTextField(
                     value = inputValues[column.id] ?: "",
                     onValueChange = { inputValues[column.id] = it },
@@ -372,10 +364,7 @@ class MainActivity : ComponentActivity() {
             Button(
                 onClick = {
                     scope.launch {
-                        // 1. まず「新しい1行」の枠を作る（IDを取得）
                         val newRecordId = db.memoDao().insertRecord(MemoRecord())
-
-                        // 2. 各項目（契機、ptなど）の入力値をループで保存
                         inputValues.forEach { (columnId, text) ->
                             if (text.isNotBlank()) {
                                 db.memoDao().insertValue(
@@ -387,7 +376,6 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                        // 3. 画面を閉じて、メイン画面を更新（onSave()の中でrefreshDataを呼ぶ）
                         onSave()
                     }
                 },
@@ -397,6 +385,67 @@ class MainActivity : ComponentActivity() {
             ) {
                 Text("保存して履歴に追加")
             }
+        }
+    }
+
+    @Composable
+    fun HistoryRow(
+        db: AppDatabase,
+        record: MemoRecord,
+        columns: List<ColumnSetting>,
+        onDelete: () -> Unit
+    ) {
+        var values by remember { mutableStateOf(listOf<MemoValue>()) }
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(record.id) {
+            values = db.memoDao().getValuesForRecord(record.id)
+        }
+
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp, horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val timeText = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                    .format(record.timestamp)
+                Text(
+                    text = timeText,
+                    modifier = Modifier.width(50.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+
+                columns.forEach { col ->
+                    val valObj = values.find { it.columnId == col.id }
+                    Text(
+                        text = valObj?.value ?: "-",
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 2.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1
+                    )
+                }
+
+                IconButton(onClick = {
+                    scope.launch {
+                        db.memoDao().deleteValuesByRecordId(record.id)
+                        db.memoDao().deleteRecord(record)
+                        onDelete()
+                    }
+                }, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "削除",
+                        tint = Color.LightGray.copy(alpha = 0.5f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+            Divider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.2f))
         }
     }
 }
