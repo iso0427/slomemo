@@ -26,22 +26,27 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -105,33 +110,16 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
     @Composable
     fun TestColumnApp(db: AppDatabase) {
-        // 画面切り替えのスイッチ
         var currentScreen by remember { mutableStateOf("main") }
-
-        // データ関連
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
         var showSheet by remember { mutableStateOf(false) }
 
-        // 設定ページ用の変数
         var newColumnName by remember { mutableStateOf("") }
         var selectedColumnId by remember { mutableStateOf<Int?>(null) }
         var newOptionName by remember { mutableStateOf("") }
 
         val scope = rememberCoroutineScope()
-        val view = androidx.compose.ui.platform.LocalView.current
-
-        // ステータスバー・ナビゲーションバーを黒にする設定
-        if (!view.isInEditMode) {
-            androidx.compose.runtime.SideEffect {
-                val window = (view.context as android.app.Activity).window
-                window.statusBarColor = android.graphics.Color.BLACK
-                window.navigationBarColor = android.graphics.Color.BLACK
-                val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
-                controller.isAppearanceLightStatusBars = false
-                controller.isAppearanceLightNavigationBars = false
-            }
-        }
 
         fun refreshData() {
             scope.launch {
@@ -141,11 +129,10 @@ class MainActivity : ComponentActivity() {
         }
         LaunchedEffect(Unit) { refreshData() }
 
-        // --- 画面全体の背景を黒にする（ステータスバーとの一体感のため） ---
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             Scaffold(
                 modifier = Modifier.fillMaxSize().statusBarsPadding(),
-                containerColor = Color.White, // 画面の基本背景は白
+                containerColor = Color.White,
                 topBar = {
                     Row(
                         modifier = Modifier
@@ -155,64 +142,55 @@ class MainActivity : ComponentActivity() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // タイトルを画面の状態に合わせて変える
                         Text(
                             text = if (currentScreen == "main") "実戦データ" else "項目・選択肢の設定",
                             style = MaterialTheme.typography.titleLarge,
                             color = Color.Black
                         )
 
-                        // メニュー部分（位置調整版）
                         Box {
                             var expanded by remember { mutableStateOf(false) }
-
                             IconButton(
                                 onClick = { expanded = true },
-                                // ★「≡」ボタン自体の位置を微調整
-                                modifier = Modifier.offset(x = (12).dp, y = 0.dp)
+                                modifier = Modifier.offset(x = (10).dp, y = 0.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "メニュー",
-                                    tint = Color.Black
-                                )
+                                Icon(Icons.Default.Menu, contentDescription = "メニュー", tint = Color.Black)
                             }
 
                             DropdownMenu(
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false },
-                                // ★メニュー窓の位置をボタンに合わせて微調整
-                                offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 0.dp),
+                                offset = androidx.compose.ui.unit.DpOffset(x = (-10).dp, y = 0.dp),
                                 modifier = Modifier.background(Color.White)
                             ) {
-                                val menuTextStyle = androidx.compose.ui.text.TextStyle(
-                                    fontSize = 18.sp,
-                                    color = Color.Black
-                                )
-
+                                val menuTextStyle = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, color = Color.Black)
                                 DropdownMenuItem(
                                     text = { Text("実戦データ入力", style = menuTextStyle) },
                                     leadingIcon = { Icon(Icons.Default.Add, null, tint = Color.Gray) },
-                                    onClick = {
-                                        currentScreen = "main"
-                                        expanded = false
-                                    }
+                                    onClick = { currentScreen = "main"; expanded = false }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("項目・選択肢の設定", style = menuTextStyle) },
                                     leadingIcon = { Icon(Icons.Default.Settings, null, tint = Color.Gray) },
-                                    onClick = {
-                                        currentScreen = "settings"
-                                        expanded = false
-                                    }
+                                    onClick = { currentScreen = "settings"; expanded = false }
                                 )
                             }
+                        }
+                    }
+                },
+                // ★追加：メイン画面の時だけ、右下に入力ボタンを出す
+                floatingActionButton = {
+                    if (currentScreen == "main") {
+                        androidx.compose.material3.FloatingActionButton(
+                            onClick = { showSheet = true },
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "入力")
                         }
                     }
                 }
             ) { padding ->
                 if (currentScreen == "main") {
-                    // --- メイン画面：履歴リスト ---
                     Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                         Row(
                             modifier = Modifier
@@ -227,7 +205,6 @@ class MainActivity : ComponentActivity() {
                             }
                             Spacer(modifier = Modifier.width(32.dp))
                         }
-
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(records) { record ->
                                 HistoryRow(db = db, record = record, columns = columns, onDelete = { refreshData() })
@@ -235,27 +212,120 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 } else {
-                    // --- 設定画面：これから中身を移す場所 ---
                     Column(
-                        modifier = Modifier
-                            .padding(padding)
-                            .fillMaxSize()
-                            .padding(16.dp)
-                            .verticalScroll(rememberScrollState())
+                        modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
                     ) {
-                        Text("設定画面ページ（ここにTextFieldなどを移します）", color = Color.Gray)
+                        Text("項目の追加", style = MaterialTheme.typography.titleMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextField(
+                                value = newColumnName,
+                                onValueChange = { newColumnName = it },
+                                label = { Text("項目名（例：BB回数）") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(
+                                onClick = {
+                                    if (newColumnName.isNotBlank()) {
+                                        scope.launch {
+                                            db.memoDao().insertColumn(ColumnSetting(name = newColumnName))
+                                            newColumnName = ""
+                                            refreshData()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) { Text("追加") }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Divider()
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text("選択肢の編集", style = MaterialTheme.typography.titleMedium)
+                        Row(modifier = Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+                            columns.forEach { col ->
+                                FilterChip(
+                                    selected = selectedColumnId == col.id,
+                                    onClick = { selectedColumnId = col.id },
+                                    label = { Text(col.name) },
+                                    modifier = Modifier.padding(end = 4.dp)
+                                )
+                            }
+                        }
+
+                        selectedColumnId?.let { colId ->
+                            val selectedColumn = columns.find { it.id == colId }
+                            selectedColumn?.let { col ->
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("「${col.name}」の選択肢一覧", style = MaterialTheme.typography.bodyMedium)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextField(
+                                        value = newOptionName,
+                                        onValueChange = { newOptionName = it },
+                                        label = { Text("新しい選択肢") },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = {
+                                        if (newOptionName.isNotBlank()) {
+                                            scope.launch {
+                                                val currentOptions = col.options.toMutableList()
+                                                currentOptions.add(newOptionName)
+                                                db.memoDao().updateColumn(col.copy(options = currentOptions))
+                                                newOptionName = ""
+                                                refreshData()
+                                            }
+                                        }
+                                    }) { Icon(Icons.Default.Add, contentDescription = "追加") }
+                                }
+
+                                @OptIn(androidx.compose.layout.ExperimentalLayoutApi::class)
+                                androidx.compose.layout.FlowRow(modifier = Modifier.fillMaxWidth()) {
+                                    col.options.forEach { opt ->
+                                        InputChip(
+                                            selected = false,
+                                            onClick = {
+                                                scope.launch {
+                                                    val currentOptions = col.options.toMutableList()
+                                                    currentOptions.remove(opt)
+                                                    db.memoDao().updateColumn(col.copy(options = currentOptions))
+                                                    refreshData()
+                                                }
+                                            },
+                                            label = { Text(opt) },
+                                            trailingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) },
+                                            modifier = Modifier.padding(4.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            db.memoDao().deleteColumn(col)
+                                            selectedColumnId = null
+                                            refreshData()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("この項目自体を削除する") }
+                            }
+                        }
                     }
                 }
 
+                // ボトムシート（Scaffoldの閉じカッコの直前に配置）
                 if (showSheet) {
                     ModalBottomSheet(onDismissRequest = { showSheet = false }) {
                         InputFormContent(db = db, columns = columns, onSave = { showSheet = false; refreshData() })
                     }
                 }
-            }
-        }
-        }
-    }
+            } // Scaffoldの終わり
+        } // Boxの終わり
+    } // TestColumnApp関数の終わり
+
+    // --- ここから下は別の関数として独立させる ---
 
     @Composable
     fun InputFormContent(db: AppDatabase, columns: List<ColumnSetting>, onSave: () -> Unit) {
@@ -394,3 +464,4 @@ class MainActivity : ComponentActivity() {
             Divider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.2f))
         }
     }
+} // ← これが MainActivity クラス自体の閉じカッコ（一番最後に1つだけ！）
