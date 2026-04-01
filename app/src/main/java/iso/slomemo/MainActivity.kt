@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -58,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.room.Room
 import kotlinx.coroutines.launch
 
@@ -108,6 +110,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
     @Composable
     fun TestColumnApp(db: AppDatabase) {
+        var currentScreen by remember { mutableStateOf("main") } // "main" か "settings" を入れる
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
         var showSheet by remember { mutableStateOf(false) }
@@ -199,59 +202,63 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .statusBarsPadding()
+                                        .background(Color.White) // 背景を白に
                                         .padding(horizontal = 16.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
                                         text = "実戦データ",
-                                        style = MaterialTheme.typography.titleLarge
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = Color.Black
                                     )
 
-                                    // --- ここから新しいメニュー ---
+                                    // メニュー部分
                                     Box {
-                                        var expanded by remember { mutableStateOf(false) } // メニューが開いているか
+                                        var expanded by remember { mutableStateOf(false) }
 
-                                        IconButton(onClick = { expanded = true }) {
+                                        IconButton(
+                                            onClick = { expanded = true },
+                                            // ★「≡」ボタン自体の位置を Offset で調整
+                                            // x をプラスにすると右へ、マイナスにすると左へ動きます
+                                            modifier = Modifier.offset(x = (12).dp, y = 0.dp)
+                                        ) {
                                             Icon(
-                                                Icons.Default.Menu,
-                                                contentDescription = "メニュー"
+                                                imageVector = Icons.Default.Menu,
+                                                contentDescription = "メニュー",
+                                                tint = Color.Black
                                             )
                                         }
 
-                                        // 画像のような浮き出るメニュー
                                         DropdownMenu(
                                             expanded = expanded,
-                                            onDismissRequest = { expanded = false }
+                                            onDismissRequest = { expanded = false },
+                                            // ★メニュー窓の位置を Offset で調整
+                                            // ボタンの位置をずらした分、ここも調整すると綺麗に重なります
+                                            offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 0.dp),
+                                            modifier = Modifier.background(Color.White)
                                         ) {
+                                            val menuTextStyle = androidx.compose.ui.text.TextStyle(
+                                                fontSize = 18.sp,
+                                                color = Color.Black
+                                            )
+
                                             DropdownMenuItem(
-                                                text = { Text("実戦データ入力") },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        Icons.Default.Add,
-                                                        contentDescription = null
-                                                    )
-                                                },
-                                                onClick = { /* ここで画面切り替え */ expanded =
-                                                    false
-                                                }
+                                                text = { Text("実戦データ入力", style = menuTextStyle) },
+                                                leadingIcon = { Icon(Icons.Default.Add, null, tint = Color.Gray) },
+                                                onClick = { expanded = false }
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("項目・選択肢の設定") },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        Icons.Default.Settings,
-                                                        contentDescription = null
-                                                    )
-                                                },
-                                                onClick = { /* ここで画面切り替え */ expanded =
-                                                    false
-                                                }
+                                                text = { Text("項目・選択肢の設定", style = menuTextStyle) },
+                                                leadingIcon = { Icon(Icons.Default.Settings, null, tint = Color.Gray) },
+                                                onClick = { expanded = false }
                                             )
                                         }
                                     }
                                 }
-                            }
+                            },
+
+
                         ) { padding ->
                             Column(
                                 modifier = Modifier
