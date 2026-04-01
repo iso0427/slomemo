@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 
 @Dao
 interface MemoDao {
@@ -12,15 +13,8 @@ interface MemoDao {
     @Insert
     suspend fun insertColumn(column: ColumnSetting)
 
-    @Query("SELECT * FROM ColumnSetting ORDER BY orderIndex ASC")
+    @Query("SELECT * FROM ColumnSetting")
     suspend fun getAllColumns(): List<ColumnSetting>
-
-    // --- 選択肢（Option） ---
-    @Insert
-    suspend fun insertOption(option: SelectionOption)
-
-    @Query("SELECT * FROM SelectionOption WHERE columnId = :columnId")
-    suspend fun getOptionsForColumn(columnId: Int): List<SelectionOption>
 
     // --- 履歴本体（Record） ---
     @Insert
@@ -48,15 +42,12 @@ interface MemoDao {
     @Delete
     suspend fun deleteColumn(column: ColumnSetting)
 
-    // 項目に紐付く選択肢を削除
-    @Query("DELETE FROM SelectionOption WHERE columnId = :columnId")
-    suspend fun deleteOptionsByColumnId(columnId: Int)
-
     // 項目に紐付く入力値を削除（重要：これをしないと表がズレる原因になります）
     @Query("DELETE FROM MemoValue WHERE columnId = :columnId")
     suspend fun deleteValuesByColumnId(columnId: Int)
 
-
+    @Update
+    suspend fun updateColumn(column: ColumnSetting)
 
 
 

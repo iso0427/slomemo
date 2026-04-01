@@ -10,6 +10,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,9 +64,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.Room
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -132,9 +131,13 @@ class MainActivity : ComponentActivity() {
         }
         LaunchedEffect(Unit) { refreshData() }
 
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)) {
             Scaffold(
-                modifier = Modifier.fillMaxSize().statusBarsPadding(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
                 containerColor = Color.White,
                 topBar = {
                     Row(
@@ -153,29 +156,47 @@ class MainActivity : ComponentActivity() {
 
                         Box {
                             var expanded by remember { mutableStateOf(false) }
+
+                            // ★これがないと、メニュー表示中に戻るを押したときメニューが消えません
+                            if (expanded) {
+                                androidx.activity.compose.BackHandler {
+                                    expanded = false
+                                }
+                            }
+
                             IconButton(
                                 onClick = { expanded = true },
                                 modifier = Modifier.offset(x = (10).dp, y = 0.dp)
                             ) {
-                                Icon(Icons.Default.Menu, contentDescription = "メニュー", tint = Color.Black)
+                                Icon(Icons.Default.Menu, "メニュー", tint = Color.Black)
                             }
 
                             DropdownMenu(
                                 expanded = expanded,
-                                onDismissRequest = { expanded = false },
+                                // ★ここが最重要！戻るボタンや外タップを検知したらここが呼ばれます
+                                onDismissRequest = {
+                                    expanded = false
+                                },
                                 offset = androidx.compose.ui.unit.DpOffset(x = (-10).dp, y = 0.dp),
                                 modifier = Modifier.background(Color.White)
                             ) {
                                 val menuTextStyle = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, color = Color.Black)
+
                                 DropdownMenuItem(
                                     text = { Text("実戦データ入力", style = menuTextStyle) },
                                     leadingIcon = { Icon(Icons.Default.Add, null, tint = Color.Gray) },
-                                    onClick = { currentScreen = "main"; expanded = false }
+                                    onClick = {
+                                        currentScreen = "main"
+                                        expanded = false
+                                    }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("項目・選択肢の設定", style = menuTextStyle) },
                                     leadingIcon = { Icon(Icons.Default.Settings, null, tint = Color.Gray) },
-                                    onClick = { currentScreen = "settings"; expanded = false }
+                                    onClick = {
+                                        currentScreen = "settings"
+                                        expanded = false
+                                    }
                                 )
                             }
                         }
@@ -193,8 +214,17 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             ) { padding ->
+                // ★ここを追加：設定画面のときに戻るボタンが押されたら、メインに戻す
+                if (currentScreen == "settings") {
+                    androidx.activity.compose.BackHandler {
+                        currentScreen = "main"
+                    }
+                }
+
                 if (currentScreen == "main") {
-                    Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                    Column(modifier = Modifier
+                        .padding(padding)
+                        .fillMaxSize()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -202,21 +232,40 @@ class MainActivity : ComponentActivity() {
                                 .padding(vertical = 8.dp, horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("時間", modifier = Modifier.width(50.dp), style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                "時間",
+                                modifier = Modifier.width(50.dp),
+                                style = MaterialTheme.typography.labelMedium
+                            )
                             columns.forEach { col ->
-                                Text(text = col.name, modifier = Modifier.weight(1f).padding(horizontal = 2.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                Text(
+                                    text = col.name,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 2.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1
+                                )
                             }
                             Spacer(modifier = Modifier.width(32.dp))
                         }
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(records) { record ->
-                                HistoryRow(db = db, record = record, columns = columns, onDelete = { refreshData() })
+                                HistoryRow(
+                                    db = db,
+                                    record = record,
+                                    columns = columns,
+                                    onDelete = { refreshData() })
                             }
                         }
                     }
                 } else {
                     Column(
-                        modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
+                        modifier = Modifier
+                            .padding(padding)
+                            .fillMaxSize()
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState())
                     ) {
                         Text("項目の追加", style = MaterialTheme.typography.titleMedium)
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -230,7 +279,8 @@ class MainActivity : ComponentActivity() {
                                 onClick = {
                                     if (newColumnName.isNotBlank()) {
                                         scope.launch {
-                                            db.memoDao().insertColumn(ColumnSetting(name = newColumnName))
+                                            db.memoDao()
+                                                .insertColumn(ColumnSetting(name = newColumnName))
                                             newColumnName = ""
                                             refreshData()
                                         }
@@ -245,7 +295,11 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text("選択肢の編集", style = MaterialTheme.typography.titleMedium)
-                        Row(modifier = Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(vertical = 8.dp)
+                        ) {
                             columns.forEach { col ->
                                 FilterChip(
                                     selected = selectedColumnId == col.id,
@@ -260,7 +314,10 @@ class MainActivity : ComponentActivity() {
                             val selectedColumn = columns.find { it.id == colId }
                             selectedColumn?.let { col ->
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("「${col.name}」の選択肢一覧", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "「${col.name}」の選択肢一覧",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     TextField(
                                         value = newOptionName,
@@ -273,7 +330,8 @@ class MainActivity : ComponentActivity() {
                                             scope.launch {
                                                 val currentOptions = col.options.toMutableList()
                                                 currentOptions.add(newOptionName)
-                                                db.memoDao().updateColumn(col.copy(options = currentOptions))
+                                                db.memoDao()
+                                                    .updateColumn(col.copy(options = currentOptions))
                                                 newOptionName = ""
                                                 refreshData()
                                             }
@@ -281,8 +339,8 @@ class MainActivity : ComponentActivity() {
                                     }) { Icon(Icons.Default.Add, contentDescription = "追加") }
                                 }
 
-                                @OptIn(androidx.compose.layout.ExperimentalLayoutApi::class)
-                                androidx.compose.layout.FlowRow(modifier = Modifier.fillMaxWidth()) {
+                                @OptIn(ExperimentalLayoutApi::class)
+                                FlowRow(modifier = Modifier.fillMaxWidth()) {
                                     col.options.forEach { opt ->
                                         InputChip(
                                             selected = false,
@@ -290,12 +348,19 @@ class MainActivity : ComponentActivity() {
                                                 scope.launch {
                                                     val currentOptions = col.options.toMutableList()
                                                     currentOptions.remove(opt)
-                                                    db.memoDao().updateColumn(col.copy(options = currentOptions))
+                                                    db.memoDao()
+                                                        .updateColumn(col.copy(options = currentOptions))
                                                     refreshData()
                                                 }
                                             },
                                             label = { Text(opt) },
-                                            trailingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) },
+                                            trailingIcon = {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            },
                                             modifier = Modifier.padding(4.dp)
                                         )
                                     }
@@ -321,7 +386,10 @@ class MainActivity : ComponentActivity() {
                 // ボトムシート（Scaffoldの閉じカッコの直前に配置）
                 if (showSheet) {
                     ModalBottomSheet(onDismissRequest = { showSheet = false }) {
-                        InputFormContent(db = db, columns = columns, onSave = { showSheet = false; refreshData() })
+                        InputFormContent(
+                            db = db,
+                            columns = columns,
+                            onSave = { showSheet = false; refreshData() })
                     }
                 }
             } // Scaffoldの終わり
@@ -345,10 +413,7 @@ class MainActivity : ComponentActivity() {
             Spacer(modifier = Modifier.height(16.dp))
 
             columns.forEach { column ->
-                var options by remember { mutableStateOf(listOf<SelectionOption>()) }
-                LaunchedEffect(column.id) {
-                    options = db.memoDao().getOptionsForColumn(column.id)
-                }
+                val options = column.options
 
                 Text(
                     text = column.name,
@@ -370,8 +435,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         options.forEach { option ->
                             SuggestionChip(
-                                onClick = { inputValues[column.id] = option.optionName },
-                                label = { Text(option.optionName) },
+                                onClick = { inputValues[column.id] = option },
+                                label = { Text(option) },
                                 modifier = Modifier.padding(end = 4.dp)
                             )
                         }

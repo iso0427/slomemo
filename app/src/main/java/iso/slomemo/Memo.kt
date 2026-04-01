@@ -1,15 +1,15 @@
 package iso.slomemo
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
+import androidx.room.PrimaryKey
 
 // ① 項目名そのものを保存する（例：「pt」「契機」など）
 @Entity
 data class ColumnSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val name: String,        // 項目名
-    val orderIndex: Int      // 並び順
+    val name: String,
+    val options: List<String> = emptyList() // ★ここに追加！
 )
 
 // ② 1行分の「データのまとまり」を管理する
