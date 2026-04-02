@@ -136,26 +136,7 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-        ) {
-            // --- ここから一括管理（書き換え後） ---
-
-// 1. メニュー用の網（expandedがtrueの時だけ有効化）
-            androidx.activity.compose.BackHandler(enabled = expanded) {
-                expanded = false
-            }
-
-// 2. ボトムシート用の網（showSheetがtrueの時だけ有効化）
-            androidx.activity.compose.BackHandler(enabled = showSheet) {
-                showSheet = false
-            }
-
-// 3. 設定画面用の網（設定画面かつ、メニューもシートも閉じてる時だけ有効化）
-            androidx.activity.compose.BackHandler(enabled = currentScreen == "settings" && !expanded && !showSheet) {
-                currentScreen = "main"
-            }
-
-// --- ここまで ---
-
+        ) @@
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
@@ -187,11 +168,6 @@ class MainActivity : ComponentActivity() {
                                     contentDescription = "メニュー",
                                     tint = Color.Black
                                 )
-                            }
-
-                            // 【ここを追加！】メニューが開いている間、戻るボタンでメニューを閉じる
-                            androidx.activity.compose.BackHandler(enabled = expanded) {
-                                expanded = false
                             }
 
                             DropdownMenu(
