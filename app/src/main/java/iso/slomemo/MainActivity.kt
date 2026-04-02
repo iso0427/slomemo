@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
         var showSheet by remember { mutableStateOf(false) }
+        var expanded by remember { mutableStateOf(false) }
 
         var newColumnName by remember { mutableStateOf("") }
         var selectedColumnId by remember { mutableStateOf<Int?>(null) }
@@ -131,9 +132,30 @@ class MainActivity : ComponentActivity() {
         }
         LaunchedEffect(Unit) { refreshData() }
 
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            // --- ここから一括管理（書き換え後） ---
+
+// 1. メニュー用の網（expandedがtrueの時だけ有効化）
+            androidx.activity.compose.BackHandler(enabled = expanded) {
+                expanded = false
+            }
+
+// 2. ボトムシート用の網（showSheetがtrueの時だけ有効化）
+            androidx.activity.compose.BackHandler(enabled = showSheet) {
+                showSheet = false
+            }
+
+// 3. 設定画面用の網（設定画面かつ、メニューもシートも閉じてる時だけ有効化）
+            androidx.activity.compose.BackHandler(enabled = currentScreen == "settings" && !expanded && !showSheet) {
+                currentScreen = "main"
+            }
+
+// --- ここまで ---
+
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
@@ -155,36 +177,44 @@ class MainActivity : ComponentActivity() {
                         )
 
                         Box {
-                            var expanded by remember { mutableStateOf(false) }
-
-                            // ★これがないと、メニュー表示中に戻るを押したときメニューが消えません
-                            if (expanded) {
-                                androidx.activity.compose.BackHandler {
-                                    expanded = false
-                                }
-                            }
-
                             IconButton(
                                 onClick = { expanded = true },
                                 modifier = Modifier.offset(x = (10).dp, y = 0.dp)
                             ) {
-                                Icon(Icons.Default.Menu, "メニュー", tint = Color.Black)
+
+                                Icon(
+                                    Icons.Default.Menu,
+                                    contentDescription = "メニュー",
+                                    tint = Color.Black
+                                )
+                            }
+
+                            // 【ここを追加！】メニューが開いている間、戻るボタンでメニューを閉じる
+                            androidx.activity.compose.BackHandler(enabled = expanded) {
+                                expanded = false
                             }
 
                             DropdownMenu(
                                 expanded = expanded,
-                                // ★ここが最重要！戻るボタンや外タップを検知したらここが呼ばれます
-                                onDismissRequest = {
-                                    expanded = false
-                                },
-                                offset = androidx.compose.ui.unit.DpOffset(x = (-10).dp, y = 0.dp),
-                                modifier = Modifier.background(Color.White)
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.background(Color.White), // ★末尾にカンマを追加
+                                offset = androidx.compose.ui.unit.DpOffset(x = (-10).dp, y = 0.dp)
                             ) {
-                                val menuTextStyle = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, color = Color.Black)
+
+                                val menuTextStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 18.sp,
+                                    color = Color.Black
+                                )
 
                                 DropdownMenuItem(
                                     text = { Text("実戦データ入力", style = menuTextStyle) },
-                                    leadingIcon = { Icon(Icons.Default.Add, null, tint = Color.Gray) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Add,
+                                            null,
+                                            tint = Color.Gray
+                                        )
+                                    },
                                     onClick = {
                                         currentScreen = "main"
                                         expanded = false
@@ -192,7 +222,13 @@ class MainActivity : ComponentActivity() {
                                 )
                                 DropdownMenuItem(
                                     text = { Text("項目・選択肢の設定", style = menuTextStyle) },
-                                    leadingIcon = { Icon(Icons.Default.Settings, null, tint = Color.Gray) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Settings,
+                                            null,
+                                            tint = Color.Gray
+                                        )
+                                    },
                                     onClick = {
                                         currentScreen = "settings"
                                         expanded = false
@@ -213,18 +249,15 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                // 181行目付近
             ) { padding ->
-                // ★ここを追加：設定画面のときに戻るボタンが押されたら、メインに戻す
-                if (currentScreen == "settings") {
-                    androidx.activity.compose.BackHandler {
-                        currentScreen = "main"
-                    }
-                }
 
                 if (currentScreen == "main") {
-                    Column(modifier = Modifier
-                        .padding(padding)
-                        .fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .padding(padding)
+                            .fillMaxSize()
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -267,6 +300,8 @@ class MainActivity : ComponentActivity() {
                             .padding(16.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
+                        // ...（以下、設定画面の内容：変更なし）
+                        // ...（ここから下の「項目の追加」などは変更なし）
                         Text("項目の追加", style = MaterialTheme.typography.titleMedium)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TextField(
@@ -383,13 +418,21 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // ボトムシート（Scaffoldの閉じカッコの直前に配置）
                 if (showSheet) {
-                    ModalBottomSheet(onDismissRequest = { showSheet = false }) {
+                    ModalBottomSheet(
+                        onDismissRequest = {
+                            // 戻るボタンやスワイプでここが呼ばれる
+                            showSheet = false
+                        }
+                    ) {
                         InputFormContent(
                             db = db,
                             columns = columns,
-                            onSave = { showSheet = false; refreshData() })
+                            onSave = {
+                                showSheet = false // 保存時も確実に閉じる
+                                refreshData()
+                            }
+                        )
                     }
                 }
             } // Scaffoldの終わり
