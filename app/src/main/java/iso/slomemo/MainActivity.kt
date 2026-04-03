@@ -62,6 +62,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -123,6 +124,8 @@ class MainActivity : ComponentActivity() {
         var newOptionName by remember { mutableStateOf("") }
 
         val scope = rememberCoroutineScope()
+        val inputValues = remember { mutableStateMapOf<Int, String>() }
+        var editingRecordId by remember { mutableStateOf<Int?>(null) }
 
         fun refreshData() {
             scope.launch {
@@ -220,11 +223,15 @@ class MainActivity : ComponentActivity() {
                 floatingActionButton = {
                     if (currentScreen == "main" && !showInputArea) {
                         FloatingActionButton(
-                            onClick = { showInputArea = true },
+                            onClick = {
+                                inputValues.clear()
+                                editingRecordId = null
+                                showInputArea = true
+                            },
                             containerColor = Color(0xFF7E57C2),
                             contentColor = Color.White
                         ) {
-                            Icon(Icons.Default.Add, null)
+                            Icon(Icons.Default.Add, contentDescription = "入力")
                         }
                     }
                 }
@@ -263,26 +270,84 @@ class MainActivity : ComponentActivity() {
                             }
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
                                 items(records) { record ->
-                                    HistoryRow(db, record, columns) { refreshData() }
+                                    HistoryRow(
+                                        db = db,
+                                        record = record,
+                                        columns = columns,
+                                        onRowClick = {
+                                            scope.launch {
+                                                val currentValues =
+                                                    db.memoDao().getValuesForRecord(record.id)
+                                                inputValues.clear()
+                                                currentValues.forEach {
+                                                    inputValues[it.columnId] = it.value
+                                                }
+
+                                                editingRecordId = record.id // 【追加】これを編集モードにする
+                                                showInputArea = true
+                                            }
+                                        },
+                                        onDelete = { refreshData() }
+                                    )
                                 }
                             }
                         }
                     } else {
                         // --- 【設定画面】 ---
-                        Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
                             Text("項目の追加", style = MaterialTheme.typography.titleMedium)
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                TextField(value = newColumnName, onValueChange = { newColumnName = it }, label = { Text("項目名") }, modifier = Modifier.weight(1f))
-                                Button(onClick = { if (newColumnName.isNotBlank()) { scope.launch { db.memoDao().insertColumn(ColumnSetting(name = newColumnName)); newColumnName = ""; refreshData() } } }, modifier = Modifier.padding(start = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))) { Text("追加") }
+                                TextField(
+                                    value = newColumnName,
+                                    onValueChange = { newColumnName = it },
+                                    label = { Text("項目名") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(
+                                    onClick = {
+                                        if (newColumnName.isNotBlank()) {
+                                            scope.launch {
+                                                db.memoDao()
+                                                    .insertColumn(ColumnSetting(name = newColumnName)); newColumnName =
+                                                ""; refreshData()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.padding(start = 8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF7E57C2)
+                                    )
+                                ) { Text("追加") }
                             }
 
-                            Spacer(modifier = Modifier.height(24.dp)); Divider(); Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(24.dp)); Divider(); Spacer(
+                            modifier = Modifier.height(
+                                16.dp
+                            )
+                        )
 
-                            Text("項目の編集・選択肢の編集", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "項目の編集・選択肢の編集",
+                                style = MaterialTheme.typography.titleMedium
+                            )
                             // 項目選択チップ
-                            Row(modifier = Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(vertical = 8.dp)
+                            ) {
                                 columns.forEach { col ->
-                                    FilterChip(selected = selectedColumnId == col.id, onClick = { selectedColumnId = col.id }, label = { Text(col.name) }, modifier = Modifier.padding(end = 4.dp))
+                                    FilterChip(
+                                        selected = selectedColumnId == col.id,
+                                        onClick = { selectedColumnId = col.id },
+                                        label = { Text(col.name) },
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
                                 }
                             }
 
@@ -292,7 +357,11 @@ class MainActivity : ComponentActivity() {
 
                                 // 項目名の編集欄
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("項目名の編集", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Text(
+                                    "項目名の編集",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     TextField(
                                         value = col.name,
@@ -313,56 +382,106 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(16.dp))
 
                                 // 選択肢の追加・一覧
-                                Text("「${col.name}」の選択肢一覧", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "「${col.name}」の選択肢一覧",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    TextField(value = newOptionName, onValueChange = { newOptionName = it }, label = { Text("新しい選択肢") }, modifier = Modifier.weight(1f))
-                                    IconButton(onClick = { if (newOptionName.isNotBlank()) { scope.launch { val opts = col.options.toMutableList(); opts.add(newOptionName); db.memoDao().updateColumn(col.copy(options = opts)); newOptionName = ""; refreshData() } } }) { Icon(Icons.Default.Add, null) }
+                                    TextField(
+                                        value = newOptionName,
+                                        onValueChange = { newOptionName = it },
+                                        label = { Text("新しい選択肢") },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = {
+                                        if (newOptionName.isNotBlank()) {
+                                            scope.launch {
+                                                val opts = col.options.toMutableList(); opts.add(
+                                                newOptionName
+                                            ); db.memoDao()
+                                                .updateColumn(col.copy(options = opts)); newOptionName =
+                                                ""; refreshData()
+                                            }
+                                        }
+                                    }) { Icon(Icons.Default.Add, null) }
                                 }
                                 FlowRow(modifier = Modifier.fillMaxWidth()) {
                                     col.options.forEach { opt ->
-                                        InputChip(selected = false, onClick = { scope.launch { val opts = col.options.toMutableList(); opts.remove(opt); db.memoDao().updateColumn(col.copy(options = opts)); refreshData() } }, label = { Text(opt) }, trailingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) }, modifier = Modifier.padding(4.dp))
+                                        InputChip(
+                                            selected = false,
+                                            onClick = {
+                                                scope.launch {
+                                                    val opts =
+                                                        col.options.toMutableList(); opts.remove(opt); db.memoDao()
+                                                    .updateColumn(col.copy(options = opts)); refreshData()
+                                                }
+                                            },
+                                            label = { Text(opt) },
+                                            trailingIcon = {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            },
+                                            modifier = Modifier.padding(4.dp)
+                                        )
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(24.dp))
-                                Button(onClick = { scope.launch { db.memoDao().deleteColumn(col); selectedColumnId = null; refreshData() } }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E)), modifier = Modifier.fillMaxWidth()) { Text("この項目自体を削除する") }
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            db.memoDao().deleteColumn(col); selectedColumnId =
+                                            null; refreshData()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFB3261E)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("この項目自体を削除する") }
                             }
                         }
                     }
                 }
             }
-                    // --- 3. 入力エリア (オーバーレイ) ---
-                    if (showInputArea) {
-                        // 背後を暗くするレイヤー（ここは変更なし）
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.4f))
-                                .clickable { showInputArea = false }
+            // --- 3. 入力エリア (オーバーレイ) ---
+            if (showInputArea) {
+                // 背後を暗くするレイヤー（ここは変更なし）
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clickable { showInputArea = false }
+                )
+
+                // 入力フォーム本体
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.5f) // ★ここで画面の半分（50%）に固定
+                        .align(Alignment.BottomCenter)
+                        .background(Color.White)
+                        .navigationBarsPadding()
+                        .clickable(enabled = false) { }
+                ) {
+                    Column {
+                        // 紫色のライン
+                        Divider(thickness = 2.dp, color = Color(0xFF7E57C2))
+
+                        // TestColumnApp の中にある InputFormContent を呼び出している部分
+                        InputFormContent(
+                            db = db,
+                            columns = columns,
+                            inputValues = inputValues,
+                            editingRecordId = editingRecordId, // 【追加】
+                            onSave = {
+                                showInputArea = false
+                                refreshData()
+                            }
                         )
-
-                        // 入力フォーム本体
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(0.5f) // ★ここで画面の半分（50%）に固定
-                                .align(Alignment.BottomCenter)
-                                .background(Color.White)
-                                .navigationBarsPadding()
-                                .clickable(enabled = false) { }
-                        ) {
-                            Column {
-                                // 紫色のライン
-                                Divider(thickness = 2.dp, color = Color(0xFF7E57C2))
-
-                                // 中身（InputFormContent）
-                                // ※InputFormContent側で既に verticalScroll が設定されているので、
-                                // 項目が増えてもこの「半分サイズ」の中でスクロールしてくれます。
-                                InputFormContent(db, columns) {
-                                    showInputArea = false
-                                    refreshData()
-
-                        }
                     }
                 }
             }
@@ -370,8 +489,13 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun InputFormContent(db: AppDatabase, columns: List<ColumnSetting>, onSave: () -> Unit) {
-        val inputValues = remember { mutableStateMapOf<Int, String>() }
+    fun InputFormContent(
+        db: AppDatabase,
+        columns: List<ColumnSetting>,
+        inputValues: SnapshotStateMap<Int, String>,
+        editingRecordId: Int?, // ← これを 4つ目の引数として追加！
+        onSave: () -> Unit
+    ) {
         val scope = rememberCoroutineScope()
         Column(
             modifier = Modifier
@@ -411,16 +535,29 @@ class MainActivity : ComponentActivity() {
             Button(
                 onClick = {
                     scope.launch {
-                        val rid = db.memoDao().insertRecord(MemoRecord())
-                        inputValues.forEach { (cid, txt) ->
-                            if (txt.isNotBlank()) db.memoDao().insertValue(
-                                MemoValue(
-                                    recordId = rid.toInt(),
-                                    columnId = cid,
-                                    value = txt
-                                )
-                            )
+                        // 1. レコードIDの確定
+                        val rid = if (editingRecordId != null) {
+                            // 【重要】既存の値を物理削除して、クリーンな状態にする
+                            db.memoDao().deleteValuesByRecordId(editingRecordId)
+                            editingRecordId.toLong()
+                        } else {
+                            db.memoDao().insertRecord(MemoRecord())
                         }
+
+                        // 2. 新しい値を一つずつ保存
+                        inputValues.forEach { (cid, txt) ->
+                            if (txt.isNotBlank()) {
+                                db.memoDao().insertValue(
+                                    MemoValue(
+                                        recordId = rid.toInt(),
+                                        columnId = cid,
+                                        value = txt
+                                    )
+                                )
+                            }
+                        }
+
+                        // 3. 【ここが重要】保存が終わったことを親に伝えて画面を閉じる
                         onSave()
                     }
                 },
@@ -428,7 +565,9 @@ class MainActivity : ComponentActivity() {
                     .fillMaxWidth()
                     .padding(top = 16.dp, bottom = 32.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
-            ) { Text("保存して履歴に追加") }
+            ) {
+                Text(if (editingRecordId != null) "変更を保存" else "保存して履歴に追加")
+            }
         }
     }
 
@@ -437,15 +576,24 @@ class MainActivity : ComponentActivity() {
         db: AppDatabase,
         record: MemoRecord,
         columns: List<ColumnSetting>,
+        onRowClick: () -> Unit, // ← 「タップされた時の動き」を受け取れるように追加
         onDelete: () -> Unit
     ) {
         var values by remember { mutableStateOf(listOf<MemoValue>()) }
         val scope = rememberCoroutineScope()
-        LaunchedEffect(record.id) { values = db.memoDao().getValuesForRecord(record.id) }
-        Column {
+
+        LaunchedEffect(record.id) {
+            values = db.memoDao().getValuesForRecord(record.id)
+        }
+
+        Column(
+            // modifier に .clickable { onRowClick() } を追加して、行全体をボタンにします
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onRowClick() }
+        ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .padding(vertical = 4.dp, horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -457,6 +605,7 @@ class MainActivity : ComponentActivity() {
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
+
                 columns.forEach { col ->
                     val valObj = values.find { it.columnId == col.id }
                     Text(
@@ -468,15 +617,17 @@ class MainActivity : ComponentActivity() {
                         maxLines = 1
                     )
                 }
+
                 IconButton(onClick = {
                     scope.launch {
-                        db.memoDao().deleteValuesByRecordId(record.id); db.memoDao()
-                        .deleteRecord(record); onDelete()
+                        db.memoDao().deleteValuesByRecordId(record.id)
+                        db.memoDao().deleteRecord(record)
+                        onDelete()
                     }
                 }, modifier = Modifier.size(32.dp)) {
                     Icon(
-                        Icons.Default.Delete,
-                        null,
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "削除",
                         tint = Color.LightGray.copy(alpha = 0.5f),
                         modifier = Modifier.size(16.dp)
                     )
