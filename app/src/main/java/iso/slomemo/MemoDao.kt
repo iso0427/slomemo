@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MemoDao {
@@ -49,29 +50,11 @@ interface MemoDao {
     @Update
     suspend fun updateColumn(column: ColumnSetting)
 
+    @Query("SELECT * FROM MemoValue")
+    suspend fun getAllValues(): List<MemoValue>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    @Query("SELECT * FROM MemoValue")
+    fun getAllValuesFlow(): Flow<List<MemoValue>>
 
 
 }

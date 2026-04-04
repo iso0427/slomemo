@@ -56,6 +56,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -121,18 +122,32 @@ class MainActivity : ComponentActivity() {
 
         var newColumnName by remember { mutableStateOf("") }
         var selectedColumnId by remember { mutableStateOf<Int?>(null) }
-        var newOptionName by remember { mutableStateOf("") }
 
         val scope = rememberCoroutineScope()
         val inputValues = remember { mutableStateMapOf<Int, String>() }
         var editingRecordId by remember { mutableStateOf<Int?>(null) }
+        var valuesMap by remember { mutableStateOf<Map<Int, List<MemoValue>>>(emptyMap()) }
+
+        val allValues by db.memoDao()
+            .getAllValuesFlow()
+            .collectAsState(initial = emptyList())
+
+        var showTimeColumn by remember { mutableStateOf(true) } // 初期値は表示(true)
+        var showTime by remember { mutableStateOf(true) } // ★これを追加
 
         fun refreshData() {
             scope.launch {
-                columns = db.memoDao().getAllColumns()
-                records = db.memoDao().getAllRecords()
+                val newColumns = db.memoDao().getAllColumns()
+                val newRecords = db.memoDao().getAllRecords()
+                val allValues = db.memoDao().getAllValues()
+
+                columns = newColumns.toList()
+                records = newRecords.toList()
+
+                valuesMap = allValues.groupBy { it.recordId }
             }
         }
+
         LaunchedEffect(Unit) { refreshData() }
 
         Box(
@@ -216,6 +231,13 @@ class MainActivity : ComponentActivity() {
                                         menuExpanded = false
                                     }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text(if (showTime) "時間を隠す" else "時間を表示") },
+                                    onClick = {
+                                        showTime = !showTime
+                                        menuExpanded = false
+                                    }
+                                )
                             }
                         }
                     }
@@ -251,11 +273,13 @@ class MainActivity : ComponentActivity() {
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    "時間",
-                                    modifier = Modifier.width(50.dp),
-                                    style = MaterialTheme.typography.labelMedium
-                                )
+                                if (showTime) {
+                                    Text(
+                                        "時間",
+                                        modifier = Modifier.width(50.dp),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
                                 columns.forEach { col ->
                                     Text(
                                         col.name,
@@ -268,12 +292,15 @@ class MainActivity : ComponentActivity() {
                                 }
                                 Spacer(modifier = Modifier.width(32.dp))
                             }
+                            // --- LazyColumn の中身をここから上書き ---
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                items(records) { record ->
+                                items(records, key = { it.id }) { record ->
                                     HistoryRow(
-                                        db = db,
+                                        db = db, // ←これ戻す
                                         record = record,
                                         columns = columns,
+                                        values = valuesMap[record.id] ?: emptyList(),
+                                        showTime = showTime,
                                         onRowClick = {
                                             scope.launch {
                                                 val currentValues =
@@ -282,16 +309,17 @@ class MainActivity : ComponentActivity() {
                                                 currentValues.forEach {
                                                     inputValues[it.columnId] = it.value
                                                 }
-
-                                                editingRecordId = record.id // 【追加】これを編集モードにする
+                                                editingRecordId = record.id
                                                 showInputArea = true
                                             }
                                         },
                                         onDelete = { refreshData() }
                                     )
-                                }
-                            }
-                        }
+
+
+                                } // ← items の閉じカッコ（これが画像で抜けていました）
+                            } // ← LazyColumn の閉じカッコ
+                        } // ← if (currentScreen == "main") の Column の閉じカッコ
                     } else {
                         // --- 【設定画面】 ---
                         Column(
@@ -355,6 +383,8 @@ class MainActivity : ComponentActivity() {
                             selectedColumnId?.let { colId ->
                                 val col = columns.find { it.id == colId } ?: return@let
 
+                                var newOptionName by remember(col.id) { mutableStateOf("") }
+
                                 // 項目名の編集欄
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
@@ -362,21 +392,30 @@ class MainActivity : ComponentActivity() {
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.Gray
                                 )
+                                var editingName by remember(col.id) { mutableStateOf(col.name) }
+
                                 Row(verticalAlignment = Alignment.CenterVertically) {
+
                                     TextField(
-                                        value = col.name,
-                                        onValueChange = { newName ->
-                                            // 空文字でもDBに送るようにする（これで全部消せる）
+                                        value = editingName,
+                                        onValueChange = { editingName = it },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Button(
+                                        onClick = {
                                             scope.launch {
-                                                db.memoDao().updateColumn(col.copy(name = newName))
+                                                db.memoDao()
+                                                    .updateColumn(col.copy(name = editingName))
                                                 refreshData()
                                             }
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true,
-                                        placeholder = { Text("項目名を入力...") } // 空になった時にガイドを出す
-                                    )
-                                    Spacer(modifier = Modifier.width(48.dp))
+                                        }
+                                    ) {
+                                        Text("保存")
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -573,18 +612,15 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun HistoryRow(
-        db: AppDatabase,
+        db: AppDatabase, // ←復活
         record: MemoRecord,
         columns: List<ColumnSetting>,
-        onRowClick: () -> Unit, // ← 「タップされた時の動き」を受け取れるように追加
+        values: List<MemoValue>,
+        showTime: Boolean,
+        onRowClick: () -> Unit,
         onDelete: () -> Unit
     ) {
-        var values by remember { mutableStateOf(listOf<MemoValue>()) }
         val scope = rememberCoroutineScope()
-
-        LaunchedEffect(record.id) {
-            values = db.memoDao().getValuesForRecord(record.id)
-        }
 
         Column(
             // modifier に .clickable { onRowClick() } を追加して、行全体をボタンにします
@@ -597,14 +633,17 @@ class MainActivity : ComponentActivity() {
                     .padding(vertical = 4.dp, horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val timeText = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                    .format(record.timestamp)
-                Text(
-                    text = timeText,
-                    modifier = Modifier.width(50.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
+                if (showTime) {
+                    val timeText =
+                        java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                            .format(record.timestamp)
+                    Text(
+                        text = timeText,
+                        modifier = Modifier.width(50.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
 
                 columns.forEach { col ->
                     val valObj = values.find { it.columnId == col.id }
@@ -633,7 +672,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
-            Divider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.2f))
         }
+        Divider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.2f))
     }
 }
