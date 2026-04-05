@@ -31,9 +31,8 @@ interface MemoDao {
     @Query("SELECT * FROM MemoValue WHERE recordId = :recordId")
     suspend fun getValuesForRecord(recordId: Int): List<MemoValue> // ← これも必要！
 
-    // 履歴（行）を削除する
-    @Delete
-    suspend fun deleteRecord(record: MemoRecord)
+    @Query("DELETE FROM MemoRecord WHERE id = :recordId")
+    suspend fun deleteRecordById(recordId: Int)
 
     // その履歴に紐付く「値」もまとめて消す（ゴミを残さないため）
     @Query("DELETE FROM MemoValue WHERE recordId = :recordId")
@@ -55,6 +54,29 @@ interface MemoDao {
 
     @Query("SELECT * FROM MemoValue")
     fun getAllValuesFlow(): Flow<List<MemoValue>>
+
+    // MemoDao の interface の中に追加してください
+    @androidx.room.Query("SELECT * FROM AppSetting WHERE id = 1")
+    fun getSettingFlow(): kotlinx.coroutines.flow.Flow<AppSetting?>
+
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun updateSetting(setting: AppSetting)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 }

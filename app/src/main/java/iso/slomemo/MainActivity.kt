@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -49,8 +51,8 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -70,7 +72,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.PopupProperties
 import androidx.room.Room
 import kotlinx.coroutines.launch
 
@@ -128,23 +129,15 @@ class MainActivity : ComponentActivity() {
         var editingRecordId by remember { mutableStateOf<Int?>(null) }
         var valuesMap by remember { mutableStateOf<Map<Int, List<MemoValue>>>(emptyMap()) }
 
-        val allValues by db.memoDao()
-            .getAllValuesFlow()
-            .collectAsState(initial = emptyList())
-
-        var showTimeColumn by remember { mutableStateOf(true) } // 初期値は表示(true)
-        var showTime by remember { mutableStateOf(true) } // ★これを追加
+        // --- 設定の読み込み ---
+        val appSetting by db.memoDao().getSettingFlow().collectAsState(initial = AppSetting())
+        val showTime = appSetting?.showTime ?: true
 
         fun refreshData() {
             scope.launch {
-                val newColumns = db.memoDao().getAllColumns()
-                val newRecords = db.memoDao().getAllRecords()
-                val allValues = db.memoDao().getAllValues()
-
-                columns = newColumns.toList()
-                records = newRecords.toList()
-
-                valuesMap = allValues.groupBy { it.recordId }
+                columns = db.memoDao().getAllColumns()
+                records = db.memoDao().getAllRecords()
+                valuesMap = db.memoDao().getAllValues().groupBy { it.recordId }
             }
         }
 
@@ -155,20 +148,10 @@ class MainActivity : ComponentActivity() {
                 .fillMaxSize()
                 .background(Color.Black)
         ) {
+            BackHandler(enabled = menuExpanded) { menuExpanded = false }
+            BackHandler(enabled = showInputArea) { showInputArea = false }
+            BackHandler(enabled = currentScreen == "settings") { currentScreen = "main" }
 
-            BackHandler(enabled = menuExpanded) {
-                menuExpanded = false
-            }
-
-            BackHandler(enabled = showInputArea) {
-                showInputArea = false
-            }
-
-            BackHandler(enabled = currentScreen == "settings") {
-                currentScreen = "main"
-            }
-
-            // --- 2. メインの画面構造 ---
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
@@ -191,53 +174,30 @@ class MainActivity : ComponentActivity() {
                         Box {
                             IconButton(
                                 onClick = { menuExpanded = true },
-                                modifier = Modifier.offset(x = 12.dp, y = 0.dp)
+                                modifier = Modifier.offset(x = 12.dp)
                             ) {
                                 Icon(Icons.Default.Menu, null, tint = Color.Black)
                             }
-
                             DropdownMenu(
                                 expanded = menuExpanded,
                                 onDismissRequest = { menuExpanded = false },
                                 offset = DpOffset(x = (-12).dp, y = 0.dp),
-                                modifier = Modifier.background(Color.White),
-                                properties = PopupProperties(
-                                    dismissOnBackPress = true
-                                )
+                                modifier = Modifier.background(Color.White)
                             ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            "+  実戦データ入力",
-                                            fontSize = 18.sp,
-                                            color = Color.Black
-                                        )
-                                    },
-                                    onClick = {
-                                        showInputArea = true
-                                        menuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            "⚙  項目・選択肢の設定",
-                                            fontSize = 18.sp,
-                                            color = Color.Black
-                                        )
-                                    },
-                                    onClick = {
-                                        currentScreen = "settings"
-                                        menuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(if (showTime) "時間を隠す" else "時間を表示") },
-                                    onClick = {
-                                        showTime = !showTime
-                                        menuExpanded = false
-                                    }
-                                )
+                                DropdownMenuItem(text = {
+                                    Text(
+                                        "+  実戦データ入力",
+                                        fontSize = 18.sp,
+                                        color = Color.Black
+                                    )
+                                }, onClick = { showInputArea = true; menuExpanded = false })
+                                DropdownMenuItem(text = {
+                                    Text(
+                                        "⚙  項目・選択肢の設定",
+                                        fontSize = 18.sp,
+                                        color = Color.Black
+                                    )
+                                }, onClick = { currentScreen = "settings"; menuExpanded = false })
                             }
                         }
                     }
@@ -246,15 +206,11 @@ class MainActivity : ComponentActivity() {
                     if (currentScreen == "main" && !showInputArea) {
                         FloatingActionButton(
                             onClick = {
-                                inputValues.clear()
-                                editingRecordId = null
-                                showInputArea = true
+                                inputValues.clear(); editingRecordId = null; showInputArea = true
                             },
                             containerColor = Color(0xFF7E57C2),
                             contentColor = Color.White
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "入力")
-                        }
+                        ) { Icon(Icons.Default.Add, "入力") }
                     }
                 }
             ) { padding ->
@@ -264,8 +220,8 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                 ) {
                     if (currentScreen == "main") {
-                        // --- 履歴表示 ---
                         Column(modifier = Modifier.fillMaxSize()) {
+                            // --- 修正：一覧のヘッダー（項目名） ---
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -275,28 +231,30 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 if (showTime) {
                                     Text(
-                                        "時間",
-                                        modifier = Modifier.width(50.dp),
-                                        style = MaterialTheme.typography.labelMedium
+                                        text = "時間",
+                                        modifier = Modifier.width(60.dp), // ★幅を少し広げて固定
+                                        style = MaterialTheme.typography.labelMedium,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
                                     )
                                 }
                                 columns.forEach { col ->
                                     Text(
-                                        col.name,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(horizontal = 2.dp),
+                                        text = col.name,
+                                        modifier = Modifier.weight(1f), // ★均等に広げる
                                         style = MaterialTheme.typography.labelMedium,
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(32.dp))
+                                // 右端の調整用（削除ボタン等のスペースがあれば）
+                                Spacer(modifier = Modifier.width(8.dp))
                             }
-                            // --- LazyColumn の中身をここから上書き ---
+
+                            // --- 履歴データ一覧 ---
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
                                 items(records, key = { it.id }) { record ->
                                     HistoryRow(
-                                        db = db, // ←これ戻す
+                                        db = db,
                                         record = record,
                                         columns = columns,
                                         values = valuesMap[record.id] ?: emptyList(),
@@ -315,19 +273,41 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onDelete = { refreshData() }
                                     )
-
-
-                                } // ← items の閉じカッコ（これが画像で抜けていました）
-                            } // ← LazyColumn の閉じカッコ
-                        } // ← if (currentScreen == "main") の Column の閉じカッコ
+                                }
+                            }
+                        }
                     } else {
-                        // --- 【設定画面】 ---
+                        // --- 設定画面 ---
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(16.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
+                            Text("全体設定", style = MaterialTheme.typography.titleMedium)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch {
+                                            db.memoDao()
+                                                .updateSetting(AppSetting(showTime = !showTime))
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Switch(checked = showTime, onCheckedChange = { isChecked ->
+                                    scope.launch {
+                                        db.memoDao().updateSetting(AppSetting(showTime = isChecked))
+                                    }
+                                })
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("一覧に時間を表示する", color = Color.Black)
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Divider()
+                            Spacer(modifier = Modifier.height(16.dp))
                             Text("項目の追加", style = MaterialTheme.typography.titleMedium)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextField(
@@ -352,18 +332,13 @@ class MainActivity : ComponentActivity() {
                                     )
                                 ) { Text("追加") }
                             }
-
-                            Spacer(modifier = Modifier.height(24.dp)); Divider(); Spacer(
-                            modifier = Modifier.height(
-                                16.dp
-                            )
-                        )
-
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Divider()
+                            Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 "項目の編集・選択肢の編集",
                                 style = MaterialTheme.typography.titleMedium
                             )
-                            // 項目選択チップ
                             Row(
                                 modifier = Modifier
                                     .horizontalScroll(rememberScrollState())
@@ -378,14 +353,9 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             }
-
-                            // 項目が選択されている場合に編集欄を表示
                             selectedColumnId?.let { colId ->
                                 val col = columns.find { it.id == colId } ?: return@let
-
                                 var newOptionName by remember(col.id) { mutableStateOf("") }
-
-                                // 項目名の編集欄
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     "項目名の編集",
@@ -393,34 +363,22 @@ class MainActivity : ComponentActivity() {
                                     color = Color.Gray
                                 )
                                 var editingName by remember(col.id) { mutableStateOf(col.name) }
-
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-
                                     TextField(
                                         value = editingName,
                                         onValueChange = { editingName = it },
                                         modifier = Modifier.weight(1f),
                                         singleLine = true
                                     )
-
                                     Spacer(modifier = Modifier.width(8.dp))
-
-                                    Button(
-                                        onClick = {
-                                            scope.launch {
-                                                db.memoDao()
-                                                    .updateColumn(col.copy(name = editingName))
-                                                refreshData()
-                                            }
+                                    Button(onClick = {
+                                        scope.launch {
+                                            db.memoDao()
+                                                .updateColumn(col.copy(name = editingName)); refreshData()
                                         }
-                                    ) {
-                                        Text("保存")
-                                    }
+                                    }) { Text("保存") }
                                 }
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
-                                // 選択肢の追加・一覧
                                 Text(
                                     "「${col.name}」の選択肢一覧",
                                     style = MaterialTheme.typography.bodyMedium
@@ -437,8 +395,9 @@ class MainActivity : ComponentActivity() {
                                             scope.launch {
                                                 val opts = col.options.toMutableList(); opts.add(
                                                 newOptionName
-                                            ); db.memoDao()
-                                                .updateColumn(col.copy(options = opts)); newOptionName =
+                                            )
+                                                db.memoDao()
+                                                    .updateColumn(col.copy(options = opts)); newOptionName =
                                                 ""; refreshData()
                                             }
                                         }
@@ -451,8 +410,11 @@ class MainActivity : ComponentActivity() {
                                             onClick = {
                                                 scope.launch {
                                                     val opts =
-                                                        col.options.toMutableList(); opts.remove(opt); db.memoDao()
-                                                    .updateColumn(col.copy(options = opts)); refreshData()
+                                                        col.options.toMutableList(); opts.remove(
+                                                    opt
+                                                )
+                                                    db.memoDao()
+                                                        .updateColumn(col.copy(options = opts)); refreshData()
                                                 }
                                             },
                                             label = { Text(opt) },
@@ -467,7 +429,6 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
-
                                 Spacer(modifier = Modifier.height(24.dp))
                                 Button(
                                     onClick = {
@@ -486,41 +447,31 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+
             // --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
-                // 背後を暗くするレイヤー（ここは変更なし）
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.4f))
-                        .clickable { showInputArea = false }
-                )
-
-                // 入力フォーム本体
+                        .clickable { showInputArea = false })
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.5f) // ★ここで画面の半分（50%）に固定
+                        .fillMaxHeight(0.5f)
                         .align(Alignment.BottomCenter)
                         .background(Color.White)
                         .navigationBarsPadding()
                         .clickable(enabled = false) { }
                 ) {
                     Column {
-                        // 紫色のライン
                         Divider(thickness = 2.dp, color = Color(0xFF7E57C2))
-
-                        // TestColumnApp の中にある InputFormContent を呼び出している部分
                         InputFormContent(
                             db = db,
                             columns = columns,
                             inputValues = inputValues,
-                            editingRecordId = editingRecordId, // 【追加】
-                            onSave = {
-                                showInputArea = false
-                                refreshData()
-                            }
-                        )
+                            editingRecordId = editingRecordId,
+                            onSave = { showInputArea = false; refreshData() })
                     }
                 }
             }
@@ -532,7 +483,7 @@ class MainActivity : ComponentActivity() {
         db: AppDatabase,
         columns: List<ColumnSetting>,
         inputValues: SnapshotStateMap<Int, String>,
-        editingRecordId: Int?, // ← これを 4つ目の引数として追加！
+        editingRecordId: Int?,
         onSave: () -> Unit
     ) {
         val scope = rememberCoroutineScope()
@@ -542,77 +493,134 @@ class MainActivity : ComponentActivity() {
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
         ) {
-            Text("新規メモ入力", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                text = if (editingRecordId != null) "履歴を編集" else "新規メモ入力",
+                style = MaterialTheme.typography.headlineSmall
+            )
             Spacer(modifier = Modifier.height(16.dp))
+
             columns.forEach { column ->
+                val options = column.options
+                val currentValue = inputValues[column.id] ?: ""
+
+                // ★項目名の中央揃え
                 Text(
                     text = column.name,
                     style = MaterialTheme.typography.labelLarge,
-                    color = Color(0xFF7E57C2)
+                    color = Color(0xFF7E57C2),
+                    modifier = Modifier
+                        .fillMaxWidth() // 横幅いっぱいに広げて中央に寄せる
+                        .padding(top = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                OutlinedTextField(
-                    value = inputValues[column.id] ?: "",
-                    onValueChange = { inputValues[column.id] = it },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (column.options.isNotEmpty()) {
+
+                if (options.isNotEmpty()) {
                     Row(
                         modifier = Modifier
-                            .padding(vertical = 8.dp)
-                            .horizontalScroll(rememberScrollState())
+                            .fillMaxWidth() // ★横幅いっぱいに広げる
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center, // ★ボタン群を「中央寄せ」にする
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        column.options.forEach { option ->
-                            SuggestionChip(
-                                onClick = { inputValues[column.id] = option },
-                                label = { Text(option) },
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                        }
-                    }
-                }
-            }
-            Button(
-                onClick = {
-                    scope.launch {
-                        // 1. レコードIDの確定
-                        val rid = if (editingRecordId != null) {
-                            // 【重要】既存の値を物理削除して、クリーンな状態にする
-                            db.memoDao().deleteValuesByRecordId(editingRecordId)
-                            editingRecordId.toLong()
-                        } else {
-                            db.memoDao().insertRecord(MemoRecord())
-                        }
+                        options.forEach { option ->
+                            val isSelected = (currentValue == option)
+                            val bgColor = if (isSelected) Color(0xFF7E57C2) else Color(0xFFF0F0F0)
+                            val textColor = if (isSelected) Color.White else Color.Black
 
-                        // 2. 新しい値を一つずつ保存
-                        inputValues.forEach { (cid, txt) ->
-                            if (txt.isNotBlank()) {
-                                db.memoDao().insertValue(
-                                    MemoValue(
-                                        recordId = rid.toInt(),
-                                        columnId = cid,
-                                        value = txt
-                                    )
-                                )
+                            Surface(
+                                onClick = {
+                                    inputValues[column.id] = if (isSelected) "" else option
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                color = bgColor,
+                                modifier = Modifier
+                                    .height(40.dp)
+                                    .padding(horizontal = 4.dp) // ★ボタン同士の隙間
+                                // .weight(1f, fill = false) // ←これがあると端まで広がろうとするので、一旦消すか調整
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                ) {
+                                    Text(text = option, color = textColor, fontSize = 14.sp)
+                                }
                             }
                         }
-
-                        // 3. 【ここが重要】保存が終わったことを親に伝えて画面を閉じる
-                        onSave()
                     }
-                },
+                } else {
+                    OutlinedTextField(
+                        value = currentValue,
+                        onValueChange = { inputValues[column.id] = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // 保存・削除ボタンエリア
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp, bottom = 32.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (editingRecordId != null) "変更を保存" else "保存して履歴に追加")
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val rid = if (editingRecordId != null) {
+                                db.memoDao().deleteValuesByRecordId(editingRecordId)
+                                editingRecordId.toLong()
+                            } else {
+                                db.memoDao().insertRecord(MemoRecord())
+                            }
+                            inputValues.forEach { (cid, txt) ->
+                                if (txt.isNotBlank()) {
+                                    db.memoDao().insertValue(
+                                        MemoValue(
+                                            recordId = rid.toInt(),
+                                            columnId = cid,
+                                            value = txt
+                                        )
+                                    )
+                                }
+                            }
+                            onSave()
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
+                ) {
+                    Text(if (editingRecordId != null) "変更を保存" else "保存して履歴に追加")
+                }
+
+                if (editingRecordId != null) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                db.memoDao().deleteValuesByRecordId(editingRecordId)
+                                db.memoDao().deleteRecordById(editingRecordId)
+                                onSave()
+                            }
+                        },
+                        modifier = Modifier.size(56.dp),
+                        shape = RoundedCornerShape(28.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "削除", tint = Color.White)
+                    }
+                }
             }
         }
     }
 
     @Composable
     fun HistoryRow(
-        db: AppDatabase, // ←復活
+        db: AppDatabase,
         record: MemoRecord,
         columns: List<ColumnSetting>,
         values: List<MemoValue>,
@@ -620,20 +628,19 @@ class MainActivity : ComponentActivity() {
         onRowClick: () -> Unit,
         onDelete: () -> Unit
     ) {
-        val scope = rememberCoroutineScope()
-
         Column(
-            // modifier に .clickable { onRowClick() } を追加して、行全体をボタンにします
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onRowClick() }
         ) {
             Row(
                 modifier = Modifier
-                    .padding(vertical = 4.dp, horizontal = 16.dp),
+                    .fillMaxWidth()
+                    .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showTime) {
+                    // ★timeText が赤くならないように、ここでしっかり定義
                     val timeText =
                         java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
                             .format(record.timestamp)
@@ -641,38 +648,25 @@ class MainActivity : ComponentActivity() {
                         text = timeText,
                         modifier = Modifier.width(50.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = Color.Gray,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
                     )
                 }
 
                 columns.forEach { col ->
-                    val valObj = values.find { it.columnId == col.id }
+                    val value = values.find { it.columnId == col.id }?.value ?: ""
                     Text(
-                        text = valObj?.value ?: "-",
+                        text = value,
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 2.dp),
                         style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1
-                    )
-                }
-
-                IconButton(onClick = {
-                    scope.launch {
-                        db.memoDao().deleteValuesByRecordId(record.id)
-                        db.memoDao().deleteRecord(record)
-                        onDelete()
-                    }
-                }, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "削除",
-                        tint = Color.LightGray.copy(alpha = 0.5f),
-                        modifier = Modifier.size(16.dp)
+                        maxLines = 1,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
                     )
                 }
             }
+            Divider(color = Color.LightGray.copy(alpha = 0.3f))
         }
-        Divider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.2f))
     }
-}
+} // ★これが MainActivity を閉じる正真正銘最後のカッコ！
