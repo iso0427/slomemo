@@ -134,6 +134,11 @@ class MainActivity : ComponentActivity() {
         val appSetting by db.memoDao().getSettingFlow().collectAsState(initial = AppSetting())
         val showTime = appSetting?.showTime ?: true
 
+        // --- 自動入力ルールの設定用ステート ---
+        var showConditionEditDialog by remember { mutableStateOf(false) }
+        var selectedOptionForRule by remember { mutableStateOf<String?>(null) }
+        var selectedColumnIdForRule by remember { mutableStateOf<Int?>(null) }
+
         fun refreshData() {
             scope.launch {
                 columns = db.memoDao().getAllColumns()
@@ -538,6 +543,18 @@ class MainActivity : ComponentActivity() {
                                                         showOptMenu = false
                                                     }
                                                 )
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text("🛠 条件編集", fontSize = 18.sp, color = Color(0xFF7E57C2))
+                                                    },
+                                                    onClick = {
+                                                        // ここで「どの項目のどの選択肢か」を記録してダイアログを開く
+                                                        selectedOptionForRule = opt
+                                                        selectedColumnIdForRule = col.id
+                                                        showConditionEditDialog = true
+                                                        showOptMenu = false
+                                                    }
+                                                )
                                             }
                                         }
                                     }
@@ -561,7 +578,80 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+// --- 自動入力ルールの設定ダイアログ ---
+            if (showConditionEditDialog && selectedColumnIdForRule != null && selectedOptionForRule != null) {
+                var isNextRow by remember { mutableStateOf(false) }
+                var targetColId by remember { mutableStateOf<Int?>(null) }
+                var targetValue by remember { mutableStateOf("") }
 
+                androidx.compose.ui.window.Dialog(onDismissRequest = { showConditionEditDialog = false }) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("「${selectedOptionForRule}」選択時の自動入力", style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text("発動タイミング", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.RadioButton(selected = !isNextRow, onClick = { isNextRow = false })
+                                Text("同じ行", modifier = Modifier.clickable { isNextRow = false })
+                                Spacer(modifier = Modifier.width(16.dp))
+                                androidx.compose.material3.RadioButton(selected = isNextRow, onClick = { isNextRow = true })
+                                Text("次の行", modifier = Modifier.clickable { isNextRow = true })
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("対象の項目", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            FlowRow(modifier = Modifier.fillMaxWidth()) {
+                                columns.filter { it.id != selectedColumnIdForRule }.forEach { c ->
+                                    FilterChip(
+                                        selected = targetColId == c.id,
+                                        onClick = { targetColId = c.id },
+                                        label = { Text(c.name) },
+                                        modifier = Modifier.padding(2.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("入力する値", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            OutlinedTextField(
+                                value = targetValue,
+                                onValueChange = { targetValue = it },
+                                placeholder = { Text("例: ━") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                androidx.compose.material3.TextButton(onClick = { showConditionEditDialog = false }) { Text("キャンセル") }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (targetColId != null) {
+                                            scope.launch {
+                                                db.memoDao().insertRule(AutoInputRule(
+                                                    triggerColumnId = selectedColumnIdForRule!!,
+                                                    triggerValue = selectedOptionForRule!!,
+                                                    targetColumnId = targetColId!!,
+                                                    targetValue = targetValue,
+                                                    isNextRow = isNextRow
+                                                ))
+                                                showConditionEditDialog = false
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
+                                ) { Text("保存") }
+                            }
+                        }
+                    }
+                }
+            }
             // --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
                 Box(
@@ -696,6 +786,33 @@ class MainActivity : ComponentActivity() {
                                             value = txt
                                         )
                                     )
+                                }
+                            }
+
+                            // 2. ★【新規】自動入力（次の行）の発動チェック ★
+                            // 新規保存（editingRecordId == null）の時だけ発動
+                            if (editingRecordId == null) {
+                                val nextRowValues = mutableMapOf<Int, String>()
+
+                                // 入力された各項目について、合致するルールがあるかDBに聞きに行く
+                                inputValues.forEach { (cid, txt) ->
+                                    val rules = db.memoDao().getRulesByTrigger(cid, txt)
+                                    rules.forEach { rule ->
+                                        // 「次の行」フラグがONのルールがあればデータを溜める
+                                        if (rule.isNextRow) {
+                                            nextRowValues[rule.targetColumnId] = rule.targetValue
+                                        }
+                                    }
+                                }
+
+                                // ルールに合致したデータが1つでもあれば、新しい行（2行目）として保存
+                                if (nextRowValues.isNotEmpty()) {
+                                    val nextRid = db.memoDao().insertRecord(MemoRecord())
+                                    nextRowValues.forEach { (targetCid, targetVal) ->
+                                        db.memoDao().insertValue(
+                                            MemoValue(recordId = nextRid.toInt(), columnId = targetCid, value = targetVal)
+                                        )
+                                    }
                                 }
                             }
                             onSave()

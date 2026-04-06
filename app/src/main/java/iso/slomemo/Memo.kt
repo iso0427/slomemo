@@ -29,10 +29,10 @@ data class MemoRecord(
 )
 data class MemoValue(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val recordId: Int, // どの行か
-    val columnId: Int, // どの項目か
-    val value: String  // 入力された文字
-) // ← ここでしっかり閉じる必要がありました！
+    val recordId: Int,
+    val columnId: Int,
+    val value: String
+)
 
 // ④ 項目に紐付く「選択肢」を保存する箱
 @Entity(
@@ -49,4 +49,15 @@ data class SelectionOption(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val columnId: Int,
     val optionName: String
+)
+
+// ⑤ 自動入力のルールを保存する箱
+@androidx.room.Entity
+data class AutoInputRule(
+    @androidx.room.PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val triggerColumnId: Int, // 引き金になる項目のID
+    val triggerValue: String,  // 引き金になる選択肢（例："BIG"）
+    val targetColumnId: Int,   // 自動入力させたい項目のID
+    val targetValue: String,   // 自動入力する値（例："━"）
+    val isNextRow: Boolean     // false: 同じ行 / true: 次の行
 )

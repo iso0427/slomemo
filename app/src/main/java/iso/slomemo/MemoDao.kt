@@ -18,7 +18,7 @@ interface MemoDao {
     @Insert
     suspend fun insertRecord(record: MemoRecord): Long
 
-    @Query("SELECT * FROM MemoRecord ORDER BY timestamp DESC")
+    @Query("SELECT * FROM MemoRecord ORDER BY timestamp ASC")
     suspend fun getAllRecords(): List<MemoRecord> // ← これが MainActivity で必要！
 
     // --- 入力された値（Value） ---
@@ -63,6 +63,17 @@ interface MemoDao {
     @Query("SELECT * FROM ColumnSetting ORDER BY displayOrder ASC")
     suspend fun getAllColumns(): List<ColumnSetting>
 
+    @androidx.room.Insert
+    suspend fun insertRule(rule: AutoInputRule)
+
+    @androidx.room.Query("SELECT * FROM AutoInputRule")
+    suspend fun getAllRules(): List<AutoInputRule>
+
+    @androidx.room.Query("DELETE FROM AutoInputRule WHERE triggerColumnId = :colId AND triggerValue = :value")
+    suspend fun deleteRulesByTrigger(colId: Int, value: String)
+
+    @androidx.room.Query("SELECT * FROM AutoInputRule WHERE triggerColumnId = :colId AND triggerValue = :value")
+    suspend fun getRulesByTrigger(colId: Int, value: String): List<AutoInputRule>
 
 
 

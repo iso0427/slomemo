@@ -17,9 +17,11 @@ data class AppSetting(
         ColumnSetting::class,
         MemoRecord::class,
         MemoValue::class,
-        AppSetting::class // ★ ステップ3：ここに追加！
+        AppSetting::class,
+        AutoInputRule::class // ★ これを追加！
+        // SelectionOption::class // もし使っているならこれも必要です
     ],
-    version = 6 // ★ バージョンを「5」から「6」に上げてください
+    version = 7 // ★ 6 から 7 に上げます
 )
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
