@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -238,16 +239,18 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 columns.forEach { col ->
+                                    // ★データ行と同じ計算式で比率を合わせる
+                                    val weight = if (col.name.length > 3) 1.5f else 0.7f
+
                                     Text(
                                         text = col.name,
-                                        modifier = Modifier.weight(1f), // ★均等に広げる
+                                        modifier = Modifier.weight(weight),
                                         style = MaterialTheme.typography.labelMedium,
                                         maxLines = 1,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
                                 }
-                                // 右端の調整用（削除ボタン等のスペースがあれば）
-                                Spacer(modifier = Modifier.width(8.dp))
+//                                Spacer(modifier = Modifier.width(0.dp))
                             }
 
                             // --- 履歴データ一覧 ---
@@ -320,9 +323,14 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         if (newColumnName.isNotBlank()) {
                                             scope.launch {
-                                                db.memoDao()
-                                                    .insertColumn(ColumnSetting(name = newColumnName)); newColumnName =
-                                                ""; refreshData()
+                                                db.memoDao().insertColumn(
+                                                    ColumnSetting(
+                                                        name = newColumnName,
+                                                        displayOrder = columns.size
+                                                    )
+                                                );
+                                                newColumnName = "";
+                                                refreshData()
                                             }
                                         }
                                     },
@@ -344,13 +352,70 @@ class MainActivity : ComponentActivity() {
                                     .horizontalScroll(rememberScrollState())
                                     .padding(vertical = 8.dp)
                             ) {
-                                columns.forEach { col ->
-                                    FilterChip(
-                                        selected = selectedColumnId == col.id,
-                                        onClick = { selectedColumnId = col.id },
-                                        label = { Text(col.name) },
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    )
+                                // indexを使って位置を特定するために forEachIndexed に変更
+                                columns.forEachIndexed { index, col ->
+                                    var showColumnMenu by remember { mutableStateOf(false) }
+
+                                    Box {
+                                        FilterChip(
+                                            selected = selectedColumnId == col.id,
+                                            onClick = { selectedColumnId = col.id },
+                                            label = {
+                                                // 文字の部分を長押し（onLongClick）できるように設定
+                                                Text(
+                                                    text = col.name,
+                                                    modifier = Modifier.combinedClickable(
+                                                        onClick = { selectedColumnId = col.id },
+                                                        onLongClick = { showColumnMenu = true }
+                                                    )
+                                                )
+                                            },
+                                            modifier = Modifier.padding(end = 4.dp)
+                                        )
+
+                                        // 長押しした時にふわっと出るメニュー
+                                        DropdownMenu(
+                                            expanded = showColumnMenu,
+                                            onDismissRequest = { showColumnMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("左へ移動",fontSize = 18.sp) },
+                                                enabled = index > 0, // 一番左じゃなければ押せる
+                                                onClick = {
+                                                    val list = columns.toMutableList()
+                                                    val item = list.removeAt(index)
+                                                    list.add(index - 1, item)
+
+                                                    // DB保存：リストの全項目に 0, 1, 2... と順番を割り振る
+                                                    scope.launch {
+                                                        list.forEachIndexed { i, col ->
+                                                            db.memoDao().updateColumn(col.copy(displayOrder = i))
+                                                        }
+                                                        refreshData() // DBから最新（並び順通り）のデータを読み直す
+                                                    }
+                                                    showColumnMenu = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("右へ移動",fontSize = 18.sp) },
+                                                enabled = index < columns.size - 1, // 一番右じゃなければ押せる
+                                                onClick = {
+                                                    val list = columns.toMutableList()
+                                                    val item = list.removeAt(index)
+                                                    list.add(index + 1, item)
+
+                                                    // DB保存：リストの全項目に新しい順番を割り振る
+                                                    scope.launch {
+                                                        list.forEachIndexed { i, col ->
+                                                            db.memoDao().updateColumn(col.copy(displayOrder = i))
+                                                        }
+                                                        refreshData()
+                                                    }
+                                                    showColumnMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             selectedColumnId?.let { colId ->
@@ -403,32 +468,81 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }) { Icon(Icons.Default.Add, null) }
                                 }
+                                // --- ここから上書き開始 ---
                                 FlowRow(modifier = Modifier.fillMaxWidth()) {
-                                    col.options.forEach { opt ->
-                                        InputChip(
-                                            selected = false,
-                                            onClick = {
-                                                scope.launch {
-                                                    val opts =
-                                                        col.options.toMutableList(); opts.remove(
-                                                    opt
+                                    // optIndexを使って位置を特定するために forEachIndexed に変更
+                                    col.options.forEachIndexed { optIndex, opt ->
+                                        var showOptMenu by remember { mutableStateOf(false) }
+
+                                        Box {
+                                            InputChip(
+                                                selected = false,
+                                                onClick = { /* 必要なら編集処理 */ },
+                                                label = {
+                                                    // 文字の部分を長押し（onLongClick）できるように設定
+                                                    Text(
+                                                        text = opt,
+                                                        modifier = Modifier.combinedClickable(
+                                                            onClick = { /* 通常クリック時の動作 */ },
+                                                            onLongClick = { showOptMenu = true }
+                                                        )
+                                                    )
+                                                },
+                                                trailingIcon = {
+                                                    Icon(
+                                                        Icons.Default.Close,
+                                                        null,
+                                                        modifier = Modifier.size(16.dp).clickable {
+                                                            scope.launch {
+                                                                val opts = col.options.toMutableList()
+                                                                opts.remove(opt)
+                                                                db.memoDao().updateColumn(col.copy(options = opts))
+                                                                refreshData()
+                                                            }
+                                                        }
+                                                    )
+                                                },
+                                                modifier = Modifier.padding(4.dp)
+                                            )
+
+                                            // 長押しで出るメニュー（前に移動 / 後に移動）
+                                            DropdownMenu(
+                                                expanded = showOptMenu,
+                                                onDismissRequest = { showOptMenu = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("左へ移動",fontSize = 18.sp) },
+                                                    enabled = optIndex > 0, // 一番前じゃなければ押せる
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val opts = col.options.toMutableList()
+                                                            val item = opts.removeAt(optIndex)
+                                                            opts.add(optIndex - 1, item)
+                                                            db.memoDao().updateColumn(col.copy(options = opts))
+                                                            refreshData()
+                                                        }
+                                                        showOptMenu = false
+                                                    }
                                                 )
-                                                    db.memoDao()
-                                                        .updateColumn(col.copy(options = opts)); refreshData()
-                                                }
-                                            },
-                                            label = { Text(opt) },
-                                            trailingIcon = {
-                                                Icon(
-                                                    Icons.Default.Close,
-                                                    null,
-                                                    modifier = Modifier.size(16.dp)
+                                                DropdownMenuItem(
+                                                    text = { Text("右へ移動",fontSize = 18.sp) },
+                                                    enabled = optIndex < col.options.size - 1, // 一番後ろじゃなければ押せる
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val opts = col.options.toMutableList()
+                                                            val item = opts.removeAt(optIndex)
+                                                            opts.add(optIndex + 1, item)
+                                                            db.memoDao().updateColumn(col.copy(options = opts))
+                                                            refreshData()
+                                                        }
+                                                        showOptMenu = false
+                                                    }
                                                 )
-                                            },
-                                            modifier = Modifier.padding(4.dp)
-                                        )
+                                            }
+                                        }
                                     }
                                 }
+                                // --- ここまで上書き終了 ---
                                 Spacer(modifier = Modifier.height(24.dp))
                                 Button(
                                     onClick = {
@@ -465,7 +579,6 @@ class MainActivity : ComponentActivity() {
                         .clickable(enabled = false) { }
                 ) {
                     Column {
-                        Divider(thickness = 2.dp, color = Color(0xFF7E57C2))
                         InputFormContent(
                             db = db,
                             columns = columns,
@@ -503,15 +616,14 @@ class MainActivity : ComponentActivity() {
                 val options = column.options
                 val currentValue = inputValues[column.id] ?: ""
 
-                // ★項目名の中央揃え
+                // ★ ここを「左寄せ」に戻す
                 Text(
                     text = column.name,
                     style = MaterialTheme.typography.labelLarge,
                     color = Color(0xFF7E57C2),
                     modifier = Modifier
-                        .fillMaxWidth() // 横幅いっぱいに広げて中央に寄せる
-                        .padding(top = 8.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        .padding(top = 8.dp), // fillMaxWidth() を削除して幅を文字分だけにする
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Start // Start（左）に変更
                 )
 
                 if (options.isNotEmpty()) {
@@ -519,7 +631,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxWidth() // ★横幅いっぱいに広げる
                             .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center, // ★ボタン群を「中央寄せ」にする
+                        horizontalArrangement = Arrangement.Start, // ★ Center から Start に戻す
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         options.forEach { option ->
@@ -535,7 +647,7 @@ class MainActivity : ComponentActivity() {
                                 color = bgColor,
                                 modifier = Modifier
                                     .height(40.dp)
-                                    .padding(horizontal = 4.dp) // ★ボタン同士の隙間
+                                    .padding(end = 8.dp) // ★ボタン同士の隙間
                                 // .weight(1f, fill = false) // ←これがあると端まで広がろうとするので、一旦消すか調整
                             ) {
                                 Box(
@@ -640,31 +752,34 @@ class MainActivity : ComponentActivity() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showTime) {
-                    // ★timeText が赤くならないように、ここでしっかり定義
-                    val timeText =
-                        java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                            .format(record.timestamp)
+                    val timeText = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                        .format(record.timestamp)
                     Text(
                         text = timeText,
-                        modifier = Modifier.width(50.dp),
+                        modifier = Modifier.width(55.dp), // 時間は固定が一番ズレない
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
 
                 columns.forEach { col ->
                     val value = values.find { it.columnId == col.id }?.value ?: ""
+
+                    // ★ここがポイント：項目名や中身が長い場合は比率を大きくする
+                    val weight = if (col.name.length > 3 || value.length > 3) 1.5f else 0.7f
+
                     Text(
                         text = value,
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(weight) // 比率で幅を決める
                             .padding(horizontal = 2.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
+//                Spacer(modifier = Modifier.width(0.dp))
             }
             Divider(color = Color.LightGray.copy(alpha = 0.3f))
         }

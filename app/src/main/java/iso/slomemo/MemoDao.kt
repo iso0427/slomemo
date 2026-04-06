@@ -14,9 +14,6 @@ interface MemoDao {
     @Insert
     suspend fun insertColumn(column: ColumnSetting)
 
-    @Query("SELECT * FROM ColumnSetting")
-    suspend fun getAllColumns(): List<ColumnSetting>
-
     // --- 履歴本体（Record） ---
     @Insert
     suspend fun insertRecord(record: MemoRecord): Long
@@ -62,7 +59,9 @@ interface MemoDao {
     @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
     suspend fun updateSetting(setting: AppSetting)
 
-
+    // --- 重複していた部分をこれ1つにまとめます ---
+    @Query("SELECT * FROM ColumnSetting ORDER BY displayOrder ASC")
+    suspend fun getAllColumns(): List<ColumnSetting>
 
 
 

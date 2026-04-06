@@ -9,9 +9,9 @@ import androidx.room.PrimaryKey
 data class ColumnSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
-    val options: List<String> = emptyList() // ★ここに追加！
+    val options: List<String> = emptyList(),
+    val displayOrder: Int = 0 // ★これを追加して、順番を数字で保存できるようにする
 )
-
 // ② 1行分の「データのまとまり」を管理する
 @Entity
 data class MemoRecord(
