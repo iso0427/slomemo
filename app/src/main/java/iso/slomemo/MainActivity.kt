@@ -35,7 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
@@ -479,45 +478,26 @@ class MainActivity : ComponentActivity() {
                                     col.options.forEachIndexed { optIndex, opt ->
                                         var showOptMenu by remember { mutableStateOf(false) }
 
+                                        // --- InputChip のループ内を以下に書き換え ---
                                         Box {
                                             InputChip(
                                                 selected = false,
-                                                onClick = { /* 必要なら編集処理 */ },
+                                                onClick = { showOptMenu = true }, // ★ タップでメニューを出す
                                                 label = {
-                                                    // 文字の部分を長押し（onLongClick）できるように設定
-                                                    Text(
-                                                        text = opt,
-                                                        modifier = Modifier.combinedClickable(
-                                                            onClick = { /* 通常クリック時の動作 */ },
-                                                            onLongClick = { showOptMenu = true }
-                                                        )
-                                                    )
+                                                    Text(text = opt) // ★ modifier.combinedClickable は削除（onClickに統一）
                                                 },
-                                                trailingIcon = {
-                                                    Icon(
-                                                        Icons.Default.Close,
-                                                        null,
-                                                        modifier = Modifier.size(16.dp).clickable {
-                                                            scope.launch {
-                                                                val opts = col.options.toMutableList()
-                                                                opts.remove(opt)
-                                                                db.memoDao().updateColumn(col.copy(options = opts))
-                                                                refreshData()
-                                                            }
-                                                        }
-                                                    )
-                                                },
+                                                // trailingIcon = { ... }  // ★ ここ（Iconの部分）をまるごと削除！
                                                 modifier = Modifier.padding(4.dp)
                                             )
 
-                                            // 長押しで出るメニュー（前に移動 / 後に移動）
+                                            // 長押し（今はタップ）で出るメニュー
                                             DropdownMenu(
                                                 expanded = showOptMenu,
                                                 onDismissRequest = { showOptMenu = false }
                                             ) {
                                                 DropdownMenuItem(
-                                                    text = { Text("左へ移動",fontSize = 18.sp) },
-                                                    enabled = optIndex > 0, // 一番前じゃなければ押せる
+                                                    text = { Text("左へ移動", fontSize = 18.sp) },
+                                                    enabled = optIndex > 0,
                                                     onClick = {
                                                         scope.launch {
                                                             val opts = col.options.toMutableList()
@@ -530,8 +510,8 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 )
                                                 DropdownMenuItem(
-                                                    text = { Text("右へ移動",fontSize = 18.sp) },
-                                                    enabled = optIndex < col.options.size - 1, // 一番後ろじゃなければ押せる
+                                                    text = { Text("右へ移動", fontSize = 18.sp) },
+                                                    enabled = optIndex < col.options.size - 1,
                                                     onClick = {
                                                         scope.launch {
                                                             val opts = col.options.toMutableList()
@@ -543,15 +523,34 @@ class MainActivity : ComponentActivity() {
                                                         showOptMenu = false
                                                     }
                                                 )
+
+                                                androidx.compose.material3.Divider()
+
+
                                                 DropdownMenuItem(
-                                                    text = {
-                                                        Text("🛠 条件編集", fontSize = 18.sp, color = Color(0xFF7E57C2))
-                                                    },
+                                                    text = { Text("🛠 条件編集", fontSize = 18.sp, color = Color(0xFF7E57C2)) },
                                                     onClick = {
-                                                        // ここで「どの項目のどの選択肢か」を記録してダイアログを開く
                                                         selectedOptionForRule = opt
                                                         selectedColumnIdForRule = col.id
                                                         showConditionEditDialog = true
+                                                        showOptMenu = false
+                                                    }
+                                                )
+
+                                                // ★ 新しく「削除」を追加
+                                                DropdownMenuItem(
+                                                    text = { Text("🗑 削除", fontSize = 18.sp, color = Color.Red) },
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val opts = col.options.toMutableList()
+                                                            opts.remove(opt) // この選択肢を消す
+                                                            db.memoDao().updateColumn(col.copy(options = opts))
+
+                                                            // 【重要】選択肢を消すなら、その選択肢に紐づく「自動入力ルール」も一緒に消す
+                                                            db.memoDao().deleteRulesByTrigger(col.id, opt)
+
+                                                            refreshData()
+                                                        }
                                                         showOptMenu = false
                                                     }
                                                 )
