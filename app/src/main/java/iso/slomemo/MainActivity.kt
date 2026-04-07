@@ -186,10 +186,13 @@ class MainActivity : ComponentActivity() {
                 .fillMaxSize()
                 .background(Color.Black)
         ) {
-            BackHandler(enabled = menuExpanded) { menuExpanded = false }
-            BackHandler(enabled = showInputArea) { showInputArea = false }
-            BackHandler(enabled = currentScreen == "settings") { currentScreen = "main" }
-
+            BackHandler {
+                when {
+                    menuExpanded -> menuExpanded = false
+                    showInputArea -> showInputArea = false
+                    currentScreen == "settings" -> currentScreen = "main"
+                }
+            }
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
@@ -217,10 +220,13 @@ class MainActivity : ComponentActivity() {
                                 Icon(Icons.Default.Menu, null, tint = Color.Black)
                             }
 
-                            // メニューが開いている時だけ「戻る」を奪う
-                            // enabled を使うことで、if 文で囲う必要がなくなります
-                            BackHandler(enabled = menuExpanded) {
-                                menuExpanded = false
+                            // ★これを追加！！（ここ重要）
+                            if (menuExpanded) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clickable { menuExpanded = false }
+                                )
                             }
 
                             DropdownMenu(
