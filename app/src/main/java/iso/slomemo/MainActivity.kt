@@ -72,10 +72,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
 import androidx.room.Room
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    fun calculateVisualWidth(text: String): Float {
+        if (text.isEmpty()) return 1.0f // 空でも1文字分の幅を確保
+        var width = 0f
+        for (char in text) {
+            if (char.code in 0x00..0x7F || char.code in 0xFF61..0xFF9F) {
+                width += 0.52f // 半角を少しだけ広めに（フォントの遊び分）
+            } else {
+                width += 1.0f
+            }
+        }
+        return width
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -85,6 +101,23 @@ class MainActivity : ComponentActivity() {
             AppDatabase::class.java,
             "memo-db"
         ).fallbackToDestructiveMigration().build()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dao = db.memoDao()
+            // 1. 今、項目が空っぽかどうか確認する（Direct版をDaoに追加しておくこと！）
+            val currentColumns = dao.getAllColumnsDirect()
+
+            // 2. 空っぽなら、いつもの「pt」「G数」「契機」を勝手に入れる
+            if (currentColumns.isEmpty()) {
+                dao.insertColumn(ColumnSetting(name = "pt", options = listOf("000", "100", "200", "300", "400", "500", "600"), displayOrder = 0))
+                dao.insertColumn(ColumnSetting(name = "契機", options = listOf("pt", "強チェ", "ﾁｬﾝｽ目", "ﾏｷﾞﾁｬﾚ", "黒江ﾁｬﾚ"), displayOrder = 1))
+                dao.insertColumn(ColumnSetting(name = "種別", options = listOf("BIG", "みたま", "AT", "エピボ", "アリナ"), displayOrder = 2))
+                dao.insertColumn(ColumnSetting(name = "AT", options = listOf("〇","✕", "━"), displayOrder = 3))
+                dao.insertColumn(ColumnSetting(name = "BIG終了画面", options = listOf("デフォルト","さな", "フェリシア"), displayOrder = 4))
+                dao.insertColumn(ColumnSetting(name = "AT終了画面", options = listOf("デフォルト","マギウス", "みかづき荘"), displayOrder = 5))
+                dao.insertColumn(ColumnSetting(name = "STORY", options = emptyList(), displayOrder = 6))
+            }
+        }
 
         setContent {
             val view = androidx.compose.ui.platform.LocalView.current
@@ -183,28 +216,29 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 Icon(Icons.Default.Menu, null, tint = Color.Black)
                             }
+
+                            // メニューが開いている時だけ「戻る」を奪う
+                            // enabled を使うことで、if 文で囲う必要がなくなります
+                            BackHandler(enabled = menuExpanded) {
+                                menuExpanded = false
+                            }
+
                             DropdownMenu(
                                 expanded = menuExpanded,
                                 onDismissRequest = { menuExpanded = false },
                                 offset = DpOffset(x = (-12).dp, y = 0.dp),
                                 modifier = Modifier.background(Color.White)
                             ) {
-                                DropdownMenuItem(text = {
-                                    Text(
-                                        "+  実戦データ入力",
-                                        fontSize = 18.sp,
-                                        color = Color.Black
-                                    )
-                                }, onClick = { showInputArea = true; menuExpanded = false })
-                                DropdownMenuItem(text = {
-                                    Text(
-                                        "⚙  項目・選択肢の設定",
-                                        fontSize = 18.sp,
-                                        color = Color.Black
-                                    )
-                                }, onClick = { currentScreen = "settings"; menuExpanded = false })
+                                DropdownMenuItem(
+                                    text = { Text("+  実戦データ入力", fontSize = 18.sp, color = Color.Black) },
+                                    onClick = { showInputArea = true; menuExpanded = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("⚙  項目・選択肢の設定", fontSize = 18.sp, color = Color.Black) },
+                                    onClick = { currentScreen = "settings"; menuExpanded = false }
+                                )
                             }
-                        }
+                        } // ← Box の閉じ
                     }
                 },
                 floatingActionButton = {
@@ -235,24 +269,28 @@ class MainActivity : ComponentActivity() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (showTime) {
-                                    Text(
-                                        text = "時間",
-                                        modifier = Modifier.width(60.dp), // ★幅を少し広げて固定
-                                        style = MaterialTheme.typography.labelMedium,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center // ★中央揃え
-                                    )
+                                    Box(
+                                        modifier = Modifier.width(50.dp), // ★正確に60.dp確保
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("時間", style = MaterialTheme.typography.labelMedium)
+                                    }
                                 }
+                                // --- 一覧のヘッダー（項目名） ---
                                 columns.forEach { col ->
-                                    // ★データ行と同じ計算式で比率を合わせる
-                                    val weight = if (col.name.length > 3) 1.5f else 0.7f
+                                    val weight = calculateVisualWidth(col.name).coerceIn(1.0f, 2.5f)
 
-                                    Text(
-                                        text = col.name,
+                                    Box(
                                         modifier = Modifier.weight(weight),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        maxLines = 1,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
+                                        contentAlignment = Alignment.Center // ★ここが中央の基準点
+                                    ) {
+                                        Text(
+                                            text = col.name,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            maxLines = 1,
+                                            // textAlign = ... はあえて書かない（Boxに任せる）
+                                        )
+                                    }
                                 }
 //                                Spacer(modifier = Modifier.width(0.dp))
                             }
@@ -872,32 +910,34 @@ class MainActivity : ComponentActivity() {
                         .format(record.timestamp)
                     Text(
                         text = timeText,
-                        modifier = Modifier.width(55.dp), // 時間は固定が一番ズレない
+                        modifier = Modifier.width(50.dp), // 時間は固定が一番ズレない
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
 
+                // --- HistoryRow 内の各列 ---
                 columns.forEach { col ->
                     val value = values.find { it.columnId == col.id }?.value ?: ""
 
-                    // ★ここがポイント：項目名や中身が長い場合は比率を大きくする
-                    val weight = if (col.name.length > 3 || value.length > 3) 1.5f else 0.7f
+                    // ★重要：計算式をヘッダーと「完全に」一致させる
+                    // 中身(value)ではなく、項目名(col.name)の幅だけで一旦固定してみてください
+                    val weight = calculateVisualWidth(col.name).coerceIn(1.0f, 2.5f)
 
-                    Text(
-                        text = value,
-                        modifier = Modifier
-                            .weight(weight) // 比率で幅を決める
-                            .padding(horizontal = 2.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
+                    Box(
+                        modifier = Modifier.weight(weight),
+                        contentAlignment = Alignment.Center // ★ヘッダーと全く同じ基準点
+                    ) {
+                        Text(
+                            text = value,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1
+                        )
+                    }
                 }
-//                Spacer(modifier = Modifier.width(0.dp))
-            }
+            } // ← Row (HistoryRow内のデータ行) の閉じカッコ
             Divider(color = Color.LightGray.copy(alpha = 0.3f))
         }
     }
-} // ★これが MainActivity を閉じる正真正銘最後のカッコ！
+}

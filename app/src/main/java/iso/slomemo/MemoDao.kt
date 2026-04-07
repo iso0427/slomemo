@@ -75,7 +75,8 @@ interface MemoDao {
     @androidx.room.Query("SELECT * FROM AutoInputRule WHERE triggerColumnId = :colId AND triggerValue = :value")
     suspend fun getRulesByTrigger(colId: Int, value: String): List<AutoInputRule>
 
-
+    @Query("SELECT * FROM ColumnSetting ORDER BY displayOrder ASC")
+    fun getAllColumnsDirect(): List<ColumnSetting> // Flow ではなく List で即座に取得する用
 
 
 
