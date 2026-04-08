@@ -695,134 +695,124 @@ class MainActivity : ComponentActivity() {
             }
 // --- 自動入力ルールの設定ダイアログ ---
             if (showConditionEditDialog && selectedColumnIdForRule != null && selectedOptionForRule != null) {
-                // 複数編集用：一時的なストックリスト
                 val localRules = remember { mutableStateListOf<AutoInputRule>() }
 
-                var isNextRow by remember { mutableStateOf(false) }
+                var isNextRow by remember { mutableStateOf(false) } // ラジオボタン用
                 var targetColId by remember { mutableStateOf<Int?>(null) }
                 var targetValue by remember { mutableStateOf("") }
 
-                androidx.compose.ui.window.Dialog(onDismissRequest = {
-                    showConditionEditDialog = false
-                }) {
+                // 1. 既存ルールの読み込み
+                LaunchedEffect(selectedColumnIdForRule, selectedOptionForRule) {
+                    scope.launch(Dispatchers.IO) {
+                        val existingRules = db.memoDao().getRulesByTrigger(
+                            selectedColumnIdForRule!!,
+                            selectedOptionForRule!!
+                        )
+                        launch(Dispatchers.Main) {
+                            localRules.clear()
+                            localRules.addAll(existingRules)
+                            // ★ ここにあった isNextRow = ... の行を削除！
+                            // これで、ダイアログを開いた時は常に「同じ行」からスタートします。
+                        }
+                    }
+                }
+
+                androidx.compose.ui.window.Dialog(onDismissRequest = { showConditionEditDialog = false }) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = Color.White,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "「${selectedOptionForRule}」選択時の自動入力",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            )
+                            Text("「${selectedOptionForRule}」選択時の自動入力", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // --- 1. ストックされたルールの一覧 ---
+                            // --- 【修正ポイント1】一覧表示 ---
                             if (localRules.isNotEmpty()) {
                                 Text("追加予定の連動", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                                 localRules.forEach { rule ->
                                     val targetName = columns.find { it.id == rule.targetColumnId }?.name ?: "不明"
+
+                                    // ★ rule.isNextRow を参照することで、個別の設定を正しく表示する
                                     val timingStr = if (rule.isNextRow) "次の行" else "同じ行"
+
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text("・[$timingStr] $targetName → ${rule.targetValue}", fontSize = 14.sp)
-                                        IconButton(
-                                            onClick = { localRules.remove(rule) },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.Close, contentDescription = "削除", tint = Color.Red)
+                                        IconButton(onClick = { localRules.remove(rule) }, modifier = Modifier.size(24.dp)) {
+                                            Icon(Icons.Default.Close, null, tint = Color.Red)
                                         }
                                     }
                                 }
                                 Divider(modifier = Modifier.padding(vertical = 8.dp))
                             }
 
-                            // --- 2. 発動タイミング ---
+                            // --- タイミング設定 ---
                             Text("発動タイミング", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                androidx.compose.material3.RadioButton(
-                                    selected = !isNextRow,
-                                    onClick = { isNextRow = false })
+                                androidx.compose.material3.RadioButton(selected = !isNextRow, onClick = { isNextRow = false })
                                 Text("同じ行", modifier = Modifier.clickable { isNextRow = false })
                                 Spacer(modifier = Modifier.width(16.dp))
-                                androidx.compose.material3.RadioButton(
-                                    selected = isNextRow,
-                                    onClick = { isNextRow = true })
+                                androidx.compose.material3.RadioButton(selected = isNextRow, onClick = { isNextRow = true })
                                 Text("次の行", modifier = Modifier.clickable { isNextRow = true })
                             }
 
-                            // --- ダイアログ内の「対象の項目」選択部分 ---
-
+                            // --- 対象項目設定 ---
                             Spacer(modifier = Modifier.height(12.dp))
                             Text("対象の項目", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                             FlowRow(modifier = Modifier.fillMaxWidth()) {
-                                // ★ .filter { it.id != selectedColumnIdForRule } を削除しました
                                 columns.forEach { c ->
-                                    // 自分自身（ATなど）もリストに含まれるようになります
-                                    val isAlreadyConfigured = localRules.any { it.targetColumnId == c.id }
+                                    val isConfigured = localRules.any { it.targetColumnId == c.id }
                                     FilterChip(
                                         selected = targetColId == c.id,
-                                        onClick = {
-                                            targetColId = c.id
-                                            targetValue = "" // 項目を切り替えたら入力値をリセット
-                                        },
-                                        label = {
-                                            // 自分自身の場合は「(自分)」などと付けると分かりやすいかもしれません（任意）
-                                            val labelText = if (c.id == selectedColumnIdForRule) "${c.name}(自分)" else c.name
-                                            Text(labelText)
-                                        },
-                                        // 2. ここで色を指定！
+                                        onClick = { targetColId = c.id; targetValue = "" },
+                                        label = { Text(if (c.id == selectedColumnIdForRule) "${c.name}(自分)" else c.name) },
                                         colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                                            // 設定済みの場合は薄い青、未設定なら透明
-                                            containerColor = if (isAlreadyConfigured) Color(0xFFE3F2FD) else Color.Transparent,
-                                            // 設定済みの場合は濃い青、未設定なら黒
-                                            labelColor = if (isAlreadyConfigured) Color(0xFF1976D2) else Color.Black,
-                                            // 選択（タップ）された時の色も指定しておくとより親切です
-                                            selectedContainerColor = Color(0xFF7E57C2),
-                                            selectedLabelColor = Color.White
+                                            containerColor = if (isConfigured) Color(0xFFE3F2FD) else Color.Transparent,
+                                            labelColor = if (isConfigured) Color(0xFF1976D2) else Color.Black
                                         ),
                                         modifier = Modifier.padding(2.dp)
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // --- 4. 入力する値（選択した項目の options をチップで表示） ---
+                            // --- 入力値設定 ---
                             if (targetColId != null) {
-                                Text("入力する値", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-
-                                // ★ 選択中の項目に登録されている options を取得
-                                val targetColumn = columns.find { it.id == targetColId }
-                                val options = targetColumn?.options ?: emptyList()
-
-                                if (options.isEmpty()) {
-                                    Text("※この項目には選択肢がありません", color = Color.Red, fontSize = 12.sp)
-                                } else {
-                                    FlowRow(modifier = Modifier.fillMaxWidth()) {
-                                        options.forEach { opt ->
-                                            FilterChip(
-                                                selected = targetValue == opt,
-                                                onClick = { targetValue = opt },
-                                                label = { Text(opt) },
-                                                modifier = Modifier.padding(2.dp)
-                                            )
-                                        }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                val opts =
+                                    columns.find { it.id == targetColId }?.options ?: emptyList()
+                                FlowRow(modifier = Modifier.fillMaxWidth()) {
+                                    opts.forEach { opt ->
+                                        FilterChip(
+                                            selected = targetValue == opt,
+                                            onClick = { targetValue = opt },
+                                            label = { Text(opt) },
+                                            modifier = Modifier.padding(2.dp)
+                                        )
                                     }
                                 }
-
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                // このルールをストックに追加
+                                // --- 【修正ポイント2】追加ボタン ---
                                 Button(
                                     onClick = {
                                         if (targetColId != null && targetValue.isNotEmpty()) {
+                                            // ★ すでに同じ「項目」かつ「タイミング」のルールがあるかチェック
+                                            val isDuplicate = localRules.any {
+                                                it.targetColumnId == targetColId && it.isNextRow == isNextRow
+                                            }
+
+                                            if (isDuplicate) {
+                                                // 重複していたら、古い方を消して新しい値で上書き（または無視）する
+                                                localRules.removeAll {
+                                                    it.targetColumnId == targetColId && it.isNextRow == isNextRow
+                                                }
+                                            }
+
+                                            // 新しいルールを追加
                                             localRules.add(
                                                 AutoInputRule(
                                                     triggerColumnId = selectedColumnIdForRule!!,
@@ -832,6 +822,7 @@ class MainActivity : ComponentActivity() {
                                                     isNextRow = isNextRow
                                                 )
                                             )
+
                                             targetColId = null
                                             targetValue = ""
                                         }
@@ -845,30 +836,20 @@ class MainActivity : ComponentActivity() {
                             }
 
                             Spacer(modifier = Modifier.height(24.dp))
-
-                            // --- 5. アクションボタン ---
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                androidx.compose.material3.TextButton(onClick = {
-                                    showConditionEditDialog = false
-                                }) { Text("キャンセル") }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                androidx.compose.material3.TextButton(onClick = { showConditionEditDialog = false }) { Text("キャンセル") }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = {
                                         scope.launch {
-                                            // ストックしたルールをすべて保存
-                                            localRules.forEach { rule ->
-                                                db.memoDao().insertRule(rule)
-                                            }
+                                            db.memoDao().deleteRulesByTrigger(selectedColumnIdForRule!!, selectedOptionForRule!!)
+                                            localRules.forEach { db.memoDao().insertRule(it) }
                                             showConditionEditDialog = false
                                             refreshData()
                                         }
                                     },
-                                    enabled = localRules.isNotEmpty(),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
-                                ) { Text("保存") }
+                                ) { Text("まとめて保存") }
                             }
                         }
                     }
