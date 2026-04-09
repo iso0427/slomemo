@@ -35,13 +35,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -113,7 +112,19 @@ class MainActivity : ComponentActivity() {
                 dao.insertColumn(
                     ColumnSetting(
                         name = "pt",
-                        options = listOf("000", "100", "200", "300", "400", "500", "600", "700", "800", "900", "━"),
+                        options = listOf(
+                            "000",
+                            "100",
+                            "200",
+                            "300",
+                            "400",
+                            "500",
+                            "600",
+                            "700",
+                            "800",
+                            "900",
+                            "━"
+                        ),
                         displayOrder = 0
                     )
                 )
@@ -155,7 +166,7 @@ class MainActivity : ComponentActivity() {
                 dao.insertColumn(
                     ColumnSetting(
                         name = "STORY",
-                        options = emptyList(),
+                        options = listOf( "━"),
                         displayOrder = 6
                     )
                 )
@@ -220,14 +231,16 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(Unit) { refreshData() }
 
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
             // 戻るボタンの制御（既存）
             BackHandler(enabled = showColumnMenuId != null || showConditionEditDialog || menuExpanded || showInputArea || currentScreen == "settings") {
                 if (showOptionMenuName != null) {
                     showOptionMenuName = null // ★ 選択肢メニューを閉じる
-                } else if(showColumnMenuId != null) {
+                } else if (showColumnMenuId != null) {
                     showColumnMenuId = null
                 } else if (showConditionEditDialog) {
                     showConditionEditDialog = false
@@ -270,29 +283,6 @@ class MainActivity : ComponentActivity() {
                                     Icon(Icons.Default.Menu, null, tint = Color.Black)
                                 }
 
-//                                DropdownMenu(
-//                                    expanded = menuExpanded,
-//                                    onDismissRequest = { menuExpanded = false },
-//                                    properties = androidx.compose.ui.window.PopupProperties(
-//                                        dismissOnBackPress = true,
-//                                        dismissOnClickOutside = true
-//                                    )
-//                                ) {
-//                                    DropdownMenuItem(
-//                                        text = { Text("+ 実戦データ入力", fontSize = 18.sp) },
-//                                        onClick = {
-//                                            showInputArea = true
-//                                            menuExpanded = false
-//                                        }
-//                                    )
-//                                    DropdownMenuItem(
-//                                        text = { Text("⚙ 項目・選択肢の設定", fontSize = 18.sp) },
-//                                        onClick = {
-//                                            currentScreen = "settings"
-//                                            menuExpanded = false
-//                                        }
-//                                    )
-//                                }
                             }
                         } // if の閉じ
                     } // Row の閉じ
@@ -348,7 +338,6 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
-//                                Spacer(modifier = Modifier.width(0.dp))
                             }
 
                             // --- 履歴データ一覧 ---
@@ -473,51 +462,6 @@ class MainActivity : ComponentActivity() {
                                             },
                                             modifier = Modifier.padding(end = 4.dp)
                                         )
-
-//                                        // 長押しした時にふわっと出るメニュー
-//                                        DropdownMenu(
-//                                            expanded = showColumnMenu,
-//                                            onDismissRequest = { showColumnMenu = false }
-//                                        ) {
-//                                            DropdownMenuItem(
-//                                                text = { Text("左へ移動", fontSize = 18.sp) },
-//                                                enabled = index > 0, // 一番左じゃなければ押せる
-//                                                onClick = {
-//                                                    val list = columns.toMutableList()
-//                                                    val item = list.removeAt(index)
-//                                                    list.add(index - 1, item)
-//
-//                                                    // DB保存：リストの全項目に 0, 1, 2... と順番を割り振る
-//                                                    scope.launch {
-//                                                        list.forEachIndexed { i, col ->
-//                                                            db.memoDao()
-//                                                                .updateColumn(col.copy(displayOrder = i))
-//                                                        }
-//                                                        refreshData() // DBから最新（並び順通り）のデータを読み直す
-//                                                    }
-//                                                    showColumnMenu = false
-//                                                }
-//                                            )
-//                                            DropdownMenuItem(
-//                                                text = { Text("右へ移動", fontSize = 18.sp) },
-//                                                enabled = index < columns.size - 1, // 一番右じゃなければ押せる
-//                                                onClick = {
-//                                                    val list = columns.toMutableList()
-//                                                    val item = list.removeAt(index)
-//                                                    list.add(index + 1, item)
-//
-//                                                    // DB保存：リストの全項目に新しい順番を割り振る
-//                                                    scope.launch {
-//                                                        list.forEachIndexed { i, col ->
-//                                                            db.memoDao()
-//                                                                .updateColumn(col.copy(displayOrder = i))
-//                                                        }
-//                                                        refreshData()
-//                                                    }
-//                                                    showColumnMenu = false
-//                                                }
-//                                            )
-//                                        }
                                     }
                                 }
                             }
@@ -547,6 +491,45 @@ class MainActivity : ComponentActivity() {
                                     }) { Text("保存") }
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    "入力設定",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            scope.launch {
+                                                db.memoDao()
+                                                    .updateColumn(col.copy(showTextField = !col.showTextField))
+                                                refreshData()
+                                            }
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Switch(
+                                        checked = col.showTextField,
+                                        onCheckedChange = { isChecked ->
+                                            scope.launch {
+                                                db.memoDao()
+                                                    .updateColumn(col.copy(showTextField = isChecked))
+                                                refreshData()
+                                            }
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        "入力欄を表示する",
+                                        fontSize = 14.sp,
+                                        color = Color.Black
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
                                 Text(
                                     "「${col.name}」の選択肢一覧",
                                     style = MaterialTheme.typography.bodyMedium
@@ -586,92 +569,7 @@ class MainActivity : ComponentActivity() {
                                                 },
                                                 label = { Text(text = opt) },
                                                 modifier = Modifier.padding(4.dp)
-                                                // ※ もし combinedClickable を使っている場合は onLongClick で設定
                                             )
-
-//                                            DropdownMenu(
-//                                                expanded = showOptMenu,
-//                                                onDismissRequest = { showOptMenu = false },
-//                                                properties = androidx.compose.ui.window.PopupProperties(
-//                                                    dismissOnBackPress = true
-//                                                )
-//                                            ) {
-//                                                DropdownMenuItem(
-//                                                    text = { Text("左へ移動", fontSize = 18.sp) },
-//                                                    enabled = optIndex > 0,
-//                                                    onClick = {
-//                                                        scope.launch {
-//                                                            val opts = col.options.toMutableList()
-//                                                            val item = opts.removeAt(optIndex)
-//                                                            opts.add(optIndex - 1, item)
-//                                                            db.memoDao()
-//                                                                .updateColumn(col.copy(options = opts))
-//                                                            refreshData()
-//                                                        }
-//                                                        showOptMenu = false
-//                                                    }
-//                                                )
-//                                                DropdownMenuItem(
-//                                                    text = { Text("右へ移動", fontSize = 18.sp) },
-//                                                    enabled = optIndex < col.options.size - 1,
-//                                                    onClick = {
-//                                                        scope.launch {
-//                                                            val opts = col.options.toMutableList()
-//                                                            val item = opts.removeAt(optIndex)
-//                                                            opts.add(optIndex + 1, item)
-//                                                            db.memoDao()
-//                                                                .updateColumn(col.copy(options = opts))
-//                                                            refreshData()
-//                                                        }
-//                                                        showOptMenu = false
-//                                                    }
-//                                                )
-//
-//                                                androidx.compose.material3.Divider()
-//
-//
-//                                                DropdownMenuItem(
-//                                                    text = {
-//                                                        Text(
-//                                                            "🛠 条件編集",
-//                                                            fontSize = 18.sp,
-//                                                            color = Color(0xFF7E57C2)
-//                                                        )
-//                                                    },
-//                                                    onClick = {
-//                                                        selectedOptionForRule = opt
-//                                                        selectedColumnIdForRule = col.id
-//                                                        showConditionEditDialog = true
-//                                                        showOptMenu = false
-//                                                    }
-//                                                )
-//
-//                                                // ★ 新しく「削除」を追加
-//                                                DropdownMenuItem(
-//                                                    text = {
-//                                                        Text(
-//                                                            "🗑 削除",
-//                                                            fontSize = 18.sp,
-//                                                            color = Color.Red
-//                                                        )
-//                                                    },
-//                                                    onClick = {
-//                                                        scope.launch {
-//                                                            val opts = col.options.toMutableList()
-//                                                            opts.remove(opt) // この選択肢を消す
-//                                                            db.memoDao()
-//                                                                .updateColumn(col.copy(options = opts))
-//
-//                                                            // 【重要】選択肢を消すなら、その選択肢に紐づく「自動入力ルール」も一緒に消す
-//                                                            db.memoDao()
-//                                                                .deleteRulesByTrigger(col.id, opt)
-//
-//                                                            refreshData()
-//                                                        }
-//                                                        showOptMenu = false
-//                                                    }
-//                                                )
-//                                            }
                                         }
                                     }
                                 }
@@ -744,7 +642,9 @@ class MainActivity : ComponentActivity() {
                         shape = RoundedCornerShape(8.dp),
                         shadowElevation = 8.dp,
                         color = Color.White,
-                        modifier = Modifier.width(200.dp).clickable(enabled = false) { }
+                        modifier = Modifier
+                            .width(200.dp)
+                            .clickable(enabled = false) { }
                     ) {
                         Column {
                             DropdownMenuItem(
@@ -784,9 +684,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-// --- 自動入力ルールの設定ダイアログ ---
+// --- 自動入力ルールの設定ダイアログ (以前の構成に戻した修正版) ---
             if (showConditionEditDialog && selectedColumnIdForRule != null && selectedOptionForRule != null) {
-                // --- 1. 記憶（変数）とデータ読み込み ---
                 val localRules = remember { mutableStateListOf<AutoInputRule>() }
                 var isNextRow by remember { mutableStateOf(false) }
                 var targetColId by remember { mutableStateOf<Int?>(null) }
@@ -795,7 +694,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(selectedColumnIdForRule, selectedOptionForRule) {
                     scope.launch(Dispatchers.IO) {
                         val existingRules = db.memoDao().getRulesByTrigger(
-                            selectedColumnIdForRule!!, selectedOptionForRule!!
+                            selectedColumnIdForRule!!,
+                            selectedOptionForRule!!
                         )
                         launch(Dispatchers.Main) {
                             localRules.clear()
@@ -804,102 +704,147 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // --- 2. 外側の透明レイヤー（器その1） ---
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.3f))
-                        .clickable { showConditionEditDialog = false },
-                    contentAlignment = Alignment.Center
-                ) {
-                    // --- 3. 白いダイアログ本体（器その2） ---
+                androidx.compose.ui.window.Dialog(onDismissRequest = {
+                    showConditionEditDialog = false
+                }) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = Color.White,
-                        shadowElevation = 8.dp,
                         modifier = Modifier
-                            .fillMaxWidth(0.9f)
+                            .fillMaxWidth()
                             .padding(16.dp)
-                            .clickable(enabled = false) { } // 中身のクリックで閉じないようにガード
                     ) {
-                        // --- 4. 中身（既存の Column 処理） ---
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
                                 "「${selectedOptionForRule}」選択時の自動入力",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                             )
-
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // 現在設定されているルールの一覧
-                            localRules.forEach { rule ->
-                                val targetColName = columns.find { it.id == rule.targetColumnId }?.name ?: "不明"
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("${if (rule.isNextRow) "[次行] " else "[同行] "}$targetColName → ${rule.targetValue}")
-                                    IconButton(onClick = { localRules.remove(rule) }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "削除", tint = Color.Gray)
-                                    }
-                                }
-                            }
+                            // --- 一覧表示 (以前の構成) ---
+                            if (localRules.isNotEmpty()) {
+                                Text(
+                                    "追加予定の連動",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray
+                                )
+                                localRules.forEach { rule ->
+                                    val targetName =
+                                        columns.find { it.id == rule.targetColumnId }?.name
+                                            ?: "不明"
+                                    val timingStr = if (rule.isNextRow) "次の行" else "同じ行"
 
-                            Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                            // 新規ルール追加用の入力UI
-                            Text("新しいルールを追加", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = isNextRow, onCheckedChange = { isNextRow = it })
-                                Text("次の行に入力", fontSize = 12.sp)
-                            }
-
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                // どの項目に入力するか
-                                Box(modifier = Modifier.weight(1f)) {
-                                    var showColMenu by remember { mutableStateOf(false) }
-                                    val selectedColName = columns.find { it.id == targetColId }?.name ?: "項目選択"
-
-                                    androidx.compose.material3.OutlinedButton(onClick = { showColMenu = true }) {
-                                        Text(selectedColName)
-                                    }
-                                    DropdownMenu(expanded = showColMenu, onDismissRequest = { showColMenu = false }) {
-                                        columns.forEach { col ->
-                                            DropdownMenuItem(
-                                                text = { Text(col.name) },
-                                                onClick = { targetColId = col.id; showColMenu = false }
-                                            )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "・[$timingStr] $targetName → ${rule.targetValue}",
+                                            fontSize = 14.sp
+                                        )
+                                        IconButton(
+                                            onClick = { localRules.remove(rule) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, null, tint = Color.Red)
                                         }
                                     }
                                 }
+                                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
 
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                // 何を入力するか
-                                TextField(
-                                    value = targetValue,
-                                    onValueChange = { targetValue = it },
-                                    placeholder = { Text("値") },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
+                            // --- タイミング設定 (ラジオボタン) ---
+                            Text(
+                                "発動タイミング",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = !isNextRow,
+                                    onClick = { isNextRow = false })
+                                Text(
+                                    "同じ行",
+                                    modifier = Modifier.clickable { isNextRow = false },
+                                    fontSize = 14.sp
                                 )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                androidx.compose.material3.RadioButton(
+                                    selected = isNextRow,
+                                    onClick = { isNextRow = true })
+                                Text(
+                                    "次の行",
+                                    modifier = Modifier.clickable { isNextRow = true },
+                                    fontSize = 14.sp
+                                )
+                            }
 
-                                IconButton(onClick = {
-                                    if (targetColId != null && targetValue.isNotBlank()) {
-                                        localRules.add(AutoInputRule(
-                                            triggerColumnId = selectedColumnIdForRule!!,
-                                            triggerValue = selectedOptionForRule!!,
-                                            targetColumnId = targetColId!!,
-                                            targetValue = targetValue,
-                                            isNextRow = isNextRow
-                                        ))
-                                        targetValue = "" // 入力欄をクリア
+                            // --- 対象項目設定 (チップ一覧) ---
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "対象の項目",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray
+                            )
+                            FlowRow(modifier = Modifier.fillMaxWidth()) {
+                                columns.forEach { c ->
+                                    val isConfigured = localRules.any { it.targetColumnId == c.id }
+                                    FilterChip(
+                                        selected = targetColId == c.id,
+                                        onClick = { targetColId = c.id; targetValue = "" },
+                                        label = { Text(if (c.id == selectedColumnIdForRule) "${c.name}(自分)" else c.name) },
+                                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                            containerColor = if (isConfigured) Color(0xFFE3F2FD) else Color.Transparent,
+                                            labelColor = if (isConfigured) Color(0xFF1976D2) else Color.Black
+                                        ),
+                                        modifier = Modifier.padding(2.dp)
+                                    )
+                                }
+                            }
+
+                            // --- 入力値設定 (チップ一覧) ---
+                            if (targetColId != null) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                val opts =
+                                    columns.find { it.id == targetColId }?.options ?: emptyList()
+                                FlowRow(modifier = Modifier.fillMaxWidth()) {
+                                    opts.forEach { opt ->
+                                        FilterChip(
+                                            selected = targetValue == opt,
+                                            onClick = { targetValue = opt },
+                                            label = { Text(opt) },
+                                            modifier = Modifier.padding(2.dp)
+                                        )
                                     }
-                                }) {
-                                    Icon(Icons.Default.Add, contentDescription = "追加", tint = Color(0xFF7E57C2))
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (targetColId != null && targetValue.isNotEmpty()) {
+                                            localRules.removeAll { it.targetColumnId == targetColId && it.isNextRow == isNextRow }
+                                            localRules.add(
+                                                AutoInputRule(
+                                                    triggerColumnId = selectedColumnIdForRule!!,
+                                                    triggerValue = selectedOptionForRule!!,
+                                                    targetColumnId = targetColId!!,
+                                                    targetValue = targetValue,
+                                                    isNextRow = isNextRow
+                                                )
+                                            )
+                                            targetColId = null
+                                            targetValue = ""
+                                        }
+                                    },
+                                    enabled = targetColId != null && targetValue.isNotEmpty(),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                                ) {
+                                    Text("この連動を追加する")
                                 }
                             }
 
@@ -929,7 +874,7 @@ class MainActivity : ComponentActivity() {
                                             0xFF7E57C2
                                         )
                                     )
-                                ) { Text("まとめて保存") }
+                                ) { Text("保存") }
                             }
                         }
                     }
@@ -955,7 +900,9 @@ class MainActivity : ComponentActivity() {
                             shape = RoundedCornerShape(8.dp),
                             shadowElevation = 8.dp,
                             color = Color.White,
-                            modifier = Modifier.width(220.dp).clickable(enabled = false) { }
+                            modifier = Modifier
+                                .width(220.dp)
+                                .clickable(enabled = false) { }
                         ) {
                             Column {
                                 Text(
@@ -1075,25 +1022,23 @@ class MainActivity : ComponentActivity() {
                 val options = column.options
                 val currentValue = inputValues[column.id] ?: ""
 
-                // ★ ここを「左寄せ」に戻す
+                // 項目名の表示
                 Text(
                     text = column.name,
                     style = MaterialTheme.typography.labelLarge,
                     color = Color(0xFF7E57C2),
-                    modifier = Modifier
-                        .padding(top = 8.dp), // fillMaxWidth() を削除して幅を文字分だけにする
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Start // Start（左）に変更
+                    modifier = Modifier.padding(top = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Start
                 )
 
+                // 【修正：ここから】
+                // 1. 選択肢ボタン（あれば表示）
                 if (options.isNotEmpty()) {
-                    val scrollState = rememberScrollState()
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
-                            // ★ 修正点2: この Row に横スクロールを持たせる
-                            .horizontalScroll(scrollState),
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1110,8 +1055,7 @@ class MainActivity : ComponentActivity() {
                                 color = bgColor,
                                 modifier = Modifier
                                     .height(40.dp)
-                                    .padding(end = 8.dp) // ★ボタン同士の隙間
-                                // .weight(1f, fill = false) // ←これがあると端まで広がろうとするので、一旦消すか調整
+                                    .padding(end = 8.dp)
                             ) {
                                 Box(
                                     contentAlignment = Alignment.Center,
@@ -1122,14 +1066,21 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                } else {
+                }
+
+                // 2. 手入力欄（「選択肢が空」または「設定がON」なら表示）
+                if (options.isEmpty() || column.showTextField) {
                     OutlinedTextField(
                         value = currentValue,
                         onValueChange = { inputValues[column.id] = it },
+                        placeholder = {
+                            if (options.isNotEmpty()) Text("入力欄", fontSize = 12.sp)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
@@ -1223,7 +1174,7 @@ class MainActivity : ComponentActivity() {
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
                 ) {
-                    Text(if (editingRecordId != null) "変更を保存" else "保存して履歴に追加")
+                    Text(if (editingRecordId != null) "変更を保存" else "メモに追加")
                 }
 
                 if (editingRecordId != null) {

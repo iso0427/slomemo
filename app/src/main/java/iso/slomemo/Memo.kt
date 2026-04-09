@@ -10,7 +10,8 @@ data class ColumnSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val options: List<String> = emptyList(),
-    val displayOrder: Int = 0 // ★これを追加して、順番を数字で保存できるようにする
+    val displayOrder: Int = 0,
+    val showTextField: Boolean = false
 )
 // ② 1行分の「データのまとまり」を管理する
 @Entity
