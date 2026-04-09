@@ -113,21 +113,21 @@ class MainActivity : ComponentActivity() {
                 dao.insertColumn(
                     ColumnSetting(
                         name = "pt",
-                        options = listOf("000", "100", "200", "300", "400", "500", "600"),
+                        options = listOf("000", "100", "200", "300", "400", "500", "600", "━"),
                         displayOrder = 0
                     )
                 )
                 dao.insertColumn(
                     ColumnSetting(
                         name = "契機",
-                        options = listOf("pt", "強チェ", "ﾁｬﾝｽ目", "ﾏｷﾞﾁｬﾚ", "黒江ﾁｬﾚ"),
+                        options = listOf("pt", "強チェ", "ﾁｬﾝｽ目", "ﾏｷﾞﾁｬﾚ", "黒江ﾁｬﾚ", "━"),
                         displayOrder = 1
                     )
                 )
                 dao.insertColumn(
                     ColumnSetting(
                         name = "種別",
-                        options = listOf("BIG", "みたま", "AT", "エピボ", "アリナ"),
+                        options = listOf("BIG", "みたま", "AT", "エピボ", "アリナ", "━"),
                         displayOrder = 2
                     )
                 )
@@ -141,14 +141,14 @@ class MainActivity : ComponentActivity() {
                 dao.insertColumn(
                     ColumnSetting(
                         name = "BIG終了画面",
-                        options = listOf("デフォルト", "さな", "フェリシア"),
+                        options = listOf("デフォルト", "さな", "フェリシア", "━"),
                         displayOrder = 4
                     )
                 )
                 dao.insertColumn(
                     ColumnSetting(
                         name = "AT終了画面",
-                        options = listOf("デフォルト", "マギウス", "みかづき荘"),
+                        options = listOf("デフォルト", "マギウス", "みかづき荘", "━"),
                         displayOrder = 5
                     )
                 )
