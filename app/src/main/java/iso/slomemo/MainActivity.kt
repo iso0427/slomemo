@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
@@ -166,7 +167,7 @@ class MainActivity : ComponentActivity() {
                 dao.insertColumn(
                     ColumnSetting(
                         name = "STORY",
-                        options = listOf( "━"),
+                        options = listOf("━"),
                         displayOrder = 6
                     )
                 )
@@ -601,30 +602,73 @@ class MainActivity : ComponentActivity() {
                         .background(Color.Red.copy(alpha = 0.2f)) // 赤い膜
                         .clickable { menuExpanded = false }
                 ) {
-                    // メニュー本体をここに自作する（DropdownMenuの代わりにSurfaceで置く）
+                    // メニュー本体
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 56.dp, end = 16.dp) // 位置を調整
-                            .width(200.dp),
-                        shape = RoundedCornerShape(8.dp),
+                            .padding(top = 80.dp, end = 4.dp) // ★ 1. 【位置】ここをいじると場所が変わる
+                            .width(180.dp),                  // ★ 2. 【幅】ここをいじると横幅が変わる
+                        shape = RoundedCornerShape(5.dp),    // 角の丸み
                         shadowElevation = 8.dp,
                         color = Color.White
                     ) {
-                        Column {
-                            DropdownMenuItem(
-                                text = { Text("+ 実戦データ入力") },
-                                onClick = { showInputArea = true; menuExpanded = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("⚙ 項目・選択肢の設定") },
-                                onClick = { currentScreen = "settings"; menuExpanded = false }
-                            )
+                        Column(
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            // --- 項目1：実戦データ入力 ---
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showInputArea = true
+                                        menuExpanded = false
+                                    }
+                                    .padding(
+                                        horizontal = 16.dp,
+                                        vertical = 16.dp
+                                    ), // ★ 3. 【高さ】ここをいじると押しやすさが変わる
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp) // ★ アイコンの大きさ
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "実戦データ入力",
+                                    fontSize = 18.sp,              // ★ 4. 【文字】ここをいじると文字サイズが変わる
+                                    color = Color.Black
+                                )
+                            }
+
+                            // --- 項目2：設定 ---
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        currentScreen = "settings"
+                                        menuExpanded = false
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "項目・選択肢の設定",
+                                    fontSize = 18.sp,
+                                    color = Color.Black
+                                )
+                            }
                         }
                     }
                 }
             }
-
             // --- 手順4：項目移動メニュー (長押し用レイヤー) ---
             if (showColumnMenuId != null) {
                 // 今長押しされた項目が、全体の中で何番目かを探す
