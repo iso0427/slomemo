@@ -17,8 +17,8 @@ data class ColumnSetting(
 @Entity
 data class MemoRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    // ↓ これを追加！現在の時間をミリ秒で保存します
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isDeleted: Boolean = false
 )
 
 // ③ 実際の入力値（どの行の、どの項目に、何を入れたか）
