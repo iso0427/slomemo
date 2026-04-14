@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,7 +27,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -360,15 +360,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Scaffold(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding(),
-                containerColor = backColor, // ★ Color.White から変更
+                modifier = Modifier.fillMaxSize(),
+                containerColor = backColor,
+                // Scaffoldの自動余白を完全にオフにする
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(backColor) // ★ Color.White から変更
+                            .background(backColor)
+                            // ステータスバー分を自動で開けず、手動で最小限の余白（4dpなど）にする
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -380,76 +381,54 @@ class MainActivity : ComponentActivity() {
                             color = mainText
                         )
 
-                        // メイン画面の時だけ右側にメニューを表示
+                        // 右側のボタン群（Undo/Redo/Menu）
                         if (currentScreen == "main") {
-                            Row(verticalAlignment = Alignment.CenterVertically) { // ボタンを横に並べるためにRowを追加
-
-                                // Undoボタン
-                                IconButton(
-                                    onClick = { performUndo() },
-                                    enabled = undoStack.isNotEmpty()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowBack,
-                                        contentDescription = "Undo",
-                                        tint = if (undoStack.isNotEmpty()) mainText else Color.Gray
-                                    )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { performUndo() }, enabled = undoStack.isNotEmpty()) {
+                                    Icon(Icons.Default.ArrowBack, "Undo", tint = if (undoStack.isNotEmpty()) mainText else Color.Gray)
                                 }
-
-                                // Redoボタン
-                                IconButton(
-                                    onClick = { performRedo() },
-                                    enabled = redoStack.isNotEmpty()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowForward,
-                                        contentDescription = "Redo",
-                                        tint = if (redoStack.isNotEmpty()) mainText else Color.Gray
-                                    )
+                                IconButton(onClick = { performRedo() }, enabled = redoStack.isNotEmpty()) {
+                                    Icon(Icons.Default.ArrowForward, "Redo", tint = if (redoStack.isNotEmpty()) mainText else Color.Gray)
                                 }
-                                Box {
-                                    IconButton(
-                                        onClick = { menuExpanded = true },
-                                        // 少し右に寄せてバランスを取ります
-                                        modifier = Modifier.offset(x = 12.dp)
-                                    ) {
-                                        Icon(Icons.Default.Menu, null, tint = mainText)
-                                    }
-
-                                    // ※ もしここに DropdownMenu のコード（menuExpanded で開くやつ）があれば、
-                                    // それもこの Box の中に入れたままにしておいてくださいね！
+                                IconButton(onClick = { menuExpanded = true }, modifier = Modifier.offset(x = 12.dp)) {
+                                    Icon(Icons.Default.Menu, null, tint = mainText)
                                 }
                             }
-                        } // if の閉じ
-                    } // Row の閉じ
-                }, // topBar の閉じ
+                        }
+                    }
+                },
                 floatingActionButton = {
                     if (currentScreen == "main" && !showInputArea) {
                         FloatingActionButton(
                             onClick = {
                                 inputValues.clear(); editingRecordId = null; showInputArea = true
-                            }, containerColor = Color(0xFF7E57C2), contentColor = Color.White
+                            },
+                            // ナビゲーションバー（画面下の線）に被らないギリギリまで下げる
+                            modifier = Modifier.navigationBarsPadding(),
+                            containerColor = Color(0xFF7E57C2),
+                            contentColor = Color.White
                         ) { Icon(Icons.Default.Add, "入力") }
                     }
-                }) { padding ->
-                Box(
-                    modifier = Modifier
-                        .padding(padding)
-                        .fillMaxSize()
-                ) {
+                }
+            ) { padding ->
+                // コンテンツ表示エリア
+                Box(modifier = Modifier.fillMaxSize()) {
                     if (currentScreen == "main") {
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            // --- 修正：一覧のヘッダー（項目名） ---
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                // topBarが被らないように、上側だけ余白を作る
+                                .padding(top = padding.calculateTopPadding())
+                        ) {
+                            // --- 一覧のヘッダー ---
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(
-                                        if (isDarkMode) Color(0xFF4A4458) else Color(
-                                            0xFFEADDFF
-                                        ).copy(alpha = 0.5f)
-                                    )
-                                    .padding(8.dp), verticalAlignment = Alignment.CenterVertically
+                                    .background(if (isDarkMode) Color(0xFF4A4458) else Color(0xFFEADDFF).copy(alpha = 0.5f))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+
                                 if (showTime) {
                                     Box(
                                         modifier = Modifier.width(50.dp), // ★正確に60.dp確保
