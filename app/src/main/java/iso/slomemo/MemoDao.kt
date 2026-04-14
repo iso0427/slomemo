@@ -99,6 +99,9 @@ interface MemoDao {
     @Query("UPDATE MemoRecord SET isDeleted = 1 WHERE id = :recordId")
     suspend fun softDeleteRecordById(recordId: Int)
 
+    // @Query の中の名前を、実際のテーブル名に変えます
+    @Query("SELECT * FROM AutoInputRule") // ← ここがクラス名と同じ、あるいは定義したテーブル名になっているはずです
+    suspend fun getAllAutoInputRules(): List<AutoInputRule>
 
 
 

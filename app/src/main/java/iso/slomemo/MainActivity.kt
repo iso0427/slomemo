@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -54,6 +55,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -67,6 +69,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -84,6 +87,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -113,9 +117,7 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
 
         val db = Room.databaseBuilder(
-            applicationContext,
-            AppDatabase::class.java,
-            "memo-db"
+            applicationContext, AppDatabase::class.java, "memo-db"
         ).fallbackToDestructiveMigration().build()
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -127,8 +129,7 @@ class MainActivity : ComponentActivity() {
             if (currentColumns.isEmpty()) {
                 dao.insertColumn(
                     ColumnSetting(
-                        name = "pt",
-                        options = listOf(
+                        name = "pt", options = listOf(
                             "000",
                             "100",
                             "200",
@@ -140,14 +141,12 @@ class MainActivity : ComponentActivity() {
                             "800",
                             "900",
                             "━"
-                        ),
-                        displayOrder = 0
+                        ), displayOrder = 0
                     )
                 )
                 dao.insertColumn(
                     ColumnSetting(
-                        name = "契機",
-                        options = listOf(
+                        name = "契機", options = listOf(
                             "pt",
                             "強チェ",
                             "ﾁｬﾝｽ目",
@@ -159,8 +158,7 @@ class MainActivity : ComponentActivity() {
                             "中段チェリー",
                             "フリーズ",
                             "━"
-                        ),
-                        displayOrder = 1
+                        ), displayOrder = 1
                     )
                 )
                 dao.insertColumn(
@@ -172,15 +170,12 @@ class MainActivity : ComponentActivity() {
                 )
                 dao.insertColumn(
                     ColumnSetting(
-                        name = "AT",
-                        options = listOf("〇", "✕", "━"),
-                        displayOrder = 3
+                        name = "AT", options = listOf("〇", "✕", "━"), displayOrder = 3
                     )
                 )
                 dao.insertColumn(
                     ColumnSetting(
-                        name = "BIG終了画面",
-                        options = listOf(
+                        name = "BIG終了画面", options = listOf(
                             "デフォルト",
                             "フェリシア",
                             "さな",
@@ -191,29 +186,19 @@ class MainActivity : ComponentActivity() {
                             "1st",
                             "キュゥべえ",
                             "━"
-                        ),
-                        displayOrder = 4
+                        ), displayOrder = 4
                     )
                 )
                 dao.insertColumn(
                     ColumnSetting(
-                        name = "AT終了画面",
-                        options = listOf(
-                            "デフォルト",
-                            "マギウス",
-                            "みかづき荘",
-                            "ED",
-                            "まどか",
-                            "━"
-                        ),
-                        displayOrder = 5
+                        name = "AT終了画面", options = listOf(
+                            "デフォルト", "マギウス", "みかづき荘", "ED", "まどか", "━"
+                        ), displayOrder = 5
                     )
                 )
                 dao.insertColumn(
                     ColumnSetting(
-                        name = "STORY",
-                        options = listOf("━"),
-                        displayOrder = 6
+                        name = "STORY", options = listOf("━"), displayOrder = 6
                     )
                 )
             }
@@ -227,8 +212,7 @@ class MainActivity : ComponentActivity() {
                     window.statusBarColor = android.graphics.Color.BLACK
                     window.navigationBarColor = android.graphics.Color.BLACK
 
-                    val controller =
-                        androidx.core.view.WindowCompat.getInsetsController(window, view)
+                    val controller = WindowCompat.getInsetsController(window, view)
                     // false にすると文字が白くなる（黒背景用）
                     controller.isAppearanceLightStatusBars = false
                     controller.isAppearanceLightNavigationBars = false
@@ -300,23 +284,55 @@ class MainActivity : ComponentActivity() {
         var showOptionMenuName by remember { mutableStateOf<String?>(null) }
 
         // 削除ダイアログを表示するかどうか
-        var showRuleDeleteConfirm by remember { mutableStateOf(false) }
-// どのルールを消すか一時保存する変数
-        var ruleToDelete by remember { mutableStateOf<AutoInputRule?>(null) }
+        // どのルールを消すか一時保存する変数
 
         // 他の remember 変数が並んでいるところに置く
         var showOptionDeleteConfirm by remember { mutableStateOf(false) }
         var pendingDeleteTarget by remember { mutableStateOf<Pair<ColumnSetting, String>?>(null) }
-// 項目削除の確認用
+        //項目削除の確認用
         var showColumnDeleteConfirm by remember { mutableStateOf(false) }
-// どの項目を消そうとしているか保持する
+        //どの項目を消そうとしているか保持する
         var pendingDeleteColumn by remember { mutableStateOf<ColumnSetting?>(null) }
+        val currentRules = remember { mutableStateListOf<AutoInputRule>() }
 
+        // 履歴を保存するリスト
+        var undoStack by remember { mutableStateOf(listOf<List<AutoInputRule>>()) }
+        var redoStack by remember { mutableStateOf(listOf<List<AutoInputRule>>()) }
+
+        // 状態が変わる前にこれを呼んで履歴に保存する関数
+        fun saveHistory() {
+            undoStack = undoStack + listOf(currentRules.toList())
+            redoStack = emptyList() // 新しい操作をしたら Redo 履歴はクリア
+        }
+
+        // Undo: 一つ前の状態に戻す
+        val performUndo = {
+            if (undoStack.isNotEmpty()) {
+                redoStack = redoStack + listOf(currentRules.toList())
+                val lastState = undoStack.last()
+                undoStack = undoStack.dropLast(1)
+                currentRules.clear()
+                currentRules.addAll(lastState)
+            }
+        }
+        // Redo: Undoした操作をやり直す
+        val performRedo = {
+            if (redoStack.isNotEmpty()) {
+                undoStack = undoStack + listOf(currentRules.toList())
+                val nextState = redoStack.last()
+                redoStack = redoStack.dropLast(1)
+                currentRules.clear()
+                currentRules.addAll(nextState)
+            }
+        }
         fun refreshData() {
             scope.launch {
                 columns = db.memoDao().getAllColumns()
                 records = db.memoDao().getAllRecords()
                 valuesMap = db.memoDao().getAllValues().groupBy { it.recordId }
+                val rulesFromDb = db.memoDao().getAllAutoInputRules()
+                currentRules.clear()
+                currentRules.addAll(rulesFromDb)
             }
         }
 
@@ -366,14 +382,43 @@ class MainActivity : ComponentActivity() {
 
                         // メイン画面の時だけ右側にメニューを表示
                         if (currentScreen == "main") {
-                            Box {
+                            Row(verticalAlignment = Alignment.CenterVertically) { // ボタンを横に並べるためにRowを追加
+
+                                // Undoボタン
                                 IconButton(
-                                    onClick = { menuExpanded = true },
-                                    modifier = Modifier.offset(x = 12.dp)
+                                    onClick = { performUndo() },
+                                    enabled = undoStack.isNotEmpty()
                                 ) {
-                                    Icon(Icons.Default.Menu, null, tint = mainText)
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack,
+                                        contentDescription = "Undo",
+                                        tint = if (undoStack.isNotEmpty()) mainText else Color.Gray
+                                    )
                                 }
 
+                                // Redoボタン
+                                IconButton(
+                                    onClick = { performRedo() },
+                                    enabled = redoStack.isNotEmpty()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowForward,
+                                        contentDescription = "Redo",
+                                        tint = if (redoStack.isNotEmpty()) mainText else Color.Gray
+                                    )
+                                }
+                                Box {
+                                    IconButton(
+                                        onClick = { menuExpanded = true },
+                                        // 少し右に寄せてバランスを取ります
+                                        modifier = Modifier.offset(x = 12.dp)
+                                    ) {
+                                        Icon(Icons.Default.Menu, null, tint = mainText)
+                                    }
+
+                                    // ※ もしここに DropdownMenu のコード（menuExpanded で開くやつ）があれば、
+                                    // それもこの Box の中に入れたままにしておいてくださいね！
+                                }
                             }
                         } // if の閉じ
                     } // Row の閉じ
@@ -383,13 +428,10 @@ class MainActivity : ComponentActivity() {
                         FloatingActionButton(
                             onClick = {
                                 inputValues.clear(); editingRecordId = null; showInputArea = true
-                            },
-                            containerColor = Color(0xFF7E57C2),
-                            contentColor = Color.White
+                            }, containerColor = Color(0xFF7E57C2), contentColor = Color.White
                         ) { Icon(Icons.Default.Add, "入力") }
                     }
-                }
-            ) { padding ->
+                }) { padding ->
                 Box(
                     modifier = Modifier
                         .padding(padding)
@@ -406,8 +448,7 @@ class MainActivity : ComponentActivity() {
                                             0xFFEADDFF
                                         ).copy(alpha = 0.5f)
                                     )
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(8.dp), verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (showTime) {
                                     Box(
@@ -492,8 +533,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                     .padding(vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                                verticalAlignment = Alignment.CenterVertically) {
                                 Switch(checked = showTime, onCheckedChange = { isChecked ->
                                     scope.launch {
                                         db.memoDao().updateSetting(AppSetting(showTime = isChecked))
@@ -503,7 +543,7 @@ class MainActivity : ComponentActivity() {
                                 Text("時間を表示する", color = mainText)
                             }
 
-//                            Spacer(modifier = Modifier.height(16.dp))
+                            //Spacer(modifier = Modifier.height(16.dp))
                             Divider()
                             Spacer(modifier = Modifier.height(16.dp))
 
@@ -576,7 +616,6 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 // indexを使って位置を特定するために forEachIndexed に変更
                                 columns.forEachIndexed { index, col ->
-                                    var showColumnMenu by remember { mutableStateOf(false) }
 
                                     // --- 設定画面の項目並び替えチップ部分 ---
                                     Box {
@@ -589,8 +628,9 @@ class MainActivity : ComponentActivity() {
                                                     color = if (selectedColumnId == col.id) Color.Black else mainText,
                                                     modifier = Modifier.combinedClickable(
                                                         onClick = { selectedColumnId = col.id },
-                                                        onLongClick = { showColumnMenuId = col.id }
-                                                    )
+                                                        onLongClick = {
+                                                            showColumnMenuId = col.id
+                                                        })
                                                 )
                                             },
                                             colors = FilterChipDefaults.filterChipColors(
@@ -698,8 +738,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                         .padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                    verticalAlignment = Alignment.CenterVertically) {
                                     Switch(
                                         checked = col.showTextField,
                                         onCheckedChange = { isChecked ->
@@ -708,8 +747,7 @@ class MainActivity : ComponentActivity() {
                                                     .updateColumn(col.copy(showTextField = isChecked))
                                                 refreshData()
                                             }
-                                        }
-                                    )
+                                        })
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         "入力欄を表示する",
@@ -733,8 +771,7 @@ class MainActivity : ComponentActivity() {
                                         onValueChange = { newOptionName = it },
                                         placeholder = {
                                             Text(
-                                                "新しい選択肢を入力...",
-                                                color = subText
+                                                "新しい選択肢を入力...", color = subText
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
@@ -782,34 +819,43 @@ class MainActivity : ComponentActivity() {
                                         .padding(vertical = 8.dp)
                                 ) {
                                     col.options.forEachIndexed { optIndex, opt ->
-                                        InputChip(
-                                            selected = showOptionMenuName == opt,
-                                            onClick = { showOptionMenuName = opt },
-                                            label = {
-                                                Text(
-                                                    text = opt,
-                                                    color = if (showOptionMenuName == opt) Color.Black else mainText
-                                                )
-                                            },
-                                            colors = InputChipDefaults.inputChipColors(
-                                                containerColor = Color(0xFF333333),
-                                                selectedContainerColor = Color(0xFFEADDFF)
-                                            ),
-                                            // ★ ここを BorderStroke に書き換え！
-                                            border = androidx.compose.foundation.BorderStroke(
-                                                width = 1.dp,
-                                                color = if (showOptionMenuName == opt) Color(
-                                                    0xFFEADDFF
-                                                ) else Color.Gray
-                                            ),
-                                            modifier = Modifier.padding(4.dp)
-                                        )
+                                        // ★ CompositionLocalProvider をループの内側に移動
+                                        CompositionLocalProvider(
+                                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                                        ) {
+                                            InputChip(
+                                                selected = showOptionMenuName == opt,
+                                                onClick = { showOptionMenuName = opt },
+                                                label = {
+                                                    Text(
+                                                        text = opt,
+                                                        color = if (showOptionMenuName == opt) Color.Black else mainText,
+                                                        style = MaterialTheme.typography.bodySmall
+                                                    )
+                                                },
+                                                colors = InputChipDefaults.inputChipColors(
+                                                    containerColor = Color(0xFF333333),
+                                                    selectedContainerColor = Color(0xFFEADDFF)
+                                                ),
+                                                border = null,
+                                                modifier = Modifier
+                                                    .padding(4.dp)
+                                                    .height(32.dp) // これで高さがシュッとします
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = if (showOptionMenuName == opt) Color(
+                                                            0xFFEADDFF
+                                                        ) else Color.Gray,
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    )
+                                            )
+                                        }
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-// --- この項目自体を削除するボタン ---
+                                //--- この項目自体を削除するボタン ---
                                 Button(
                                     onClick = {
                                         pendingDeleteColumn = col
@@ -822,8 +868,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text(
-                                        text = "「${col.name}」を削除する",
-                                        color = mainText
+                                        text = "「${col.name}」を削除する", color = mainText
                                     )
                                 }
                             }
@@ -831,60 +876,52 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 if (showColumnDeleteConfirm && pendingDeleteColumn != null) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = {
-                            showColumnDeleteConfirm = false
-                            pendingDeleteColumn = null
-                        },
-                        title = {
-                            androidx.compose.material3.Text("項目の削除", color = mainText)
-                        },
-                        text = {
-                            androidx.compose.material3.Text(
-                                "「${pendingDeleteColumn?.name}」を削除しますか？\nこの項目に関連するメモや連動設定もすべて削除されます。",
-                                color = mainText
-                            )
-                        },
-                        containerColor = Color(0xFF1E1E1E),
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(
-                                onClick = {
-                                    // ★ ここで実際の削除処理を実行
-                                    val target = pendingDeleteColumn
-                                    if (target != null) {
-                                        scope.launch {
-                                            // 1. 項目自体を消す
-                                            db.memoDao().deleteColumn(target)
+                    AlertDialog(onDismissRequest = {
+                        showColumnDeleteConfirm = false
+                        pendingDeleteColumn = null
+                    }, title = {
+                        Text("項目の削除", color = mainText)
+                    }, text = {
+                        Text(
+                            "「${pendingDeleteColumn?.name}」を削除しますか？\nこの項目に関連するメモや連動設定もすべて削除されます。",
+                            color = mainText
+                        )
+                    }, containerColor = Color(0xFF1E1E1E), confirmButton = {
+                        TextButton(
+                            onClick = {
+                                // ★ ここで実際の削除処理を実行
+                                val target = pendingDeleteColumn
+                                if (target != null) {
+                                    scope.launch {
+                                        // 1. 項目自体を消す
+                                        db.memoDao().deleteColumn(target)
 
-                                            // 2. ★ここを追加：その項目に紐づくメモの値を消す
-                                            db.memoDao().deleteValuesByColumnId(target.id)
+                                        // 2. ★ここを追加：その項目に紐づくメモの値を消す
+                                        db.memoDao().deleteValuesByColumnId(target.id)
 
-                                            // 3. ★ここを追加：その項目がきっかけの連動ルールを消す
-                                            db.memoDao().deleteRulesByTriggerColumn(target.id)
+                                        // 3. ★ここを追加：その項目がきっかけの連動ルールを消す
+                                        db.memoDao().deleteRulesByTriggerColumn(target.id)
 
-                                            // 4. ★ここを追加：その項目が入力先の連動ルールも消す
-                                            db.memoDao().deleteRulesByTargetColumn(target.id)
-                                            // IDをリセットして画面を更新
-                                            selectedColumnId = null
-                                            refreshData()
-                                        }
+                                        // 4. ★ここを追加：その項目が入力先の連動ルールも消す
+                                        db.memoDao().deleteRulesByTargetColumn(target.id)
+                                        // IDをリセットして画面を更新
+                                        selectedColumnId = null
+                                        refreshData()
                                     }
-                                    showColumnDeleteConfirm = false
-                                    pendingDeleteColumn = null
                                 }
-                            ) {
-                                androidx.compose.material3.Text("削除", color = Color(0xFFF44336))
-                            }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = {
                                 showColumnDeleteConfirm = false
                                 pendingDeleteColumn = null
                             }) {
-                                androidx.compose.material3.Text("キャンセル", color = mainText)
-                            }
+                            Text("削除", color = Color(0xFFF44336))
                         }
-                    )
+                    }, dismissButton = {
+                        TextButton(onClick = {
+                            showColumnDeleteConfirm = false
+                            pendingDeleteColumn = null
+                        }) {
+                            Text("キャンセル", color = mainText)
+                        }
+                    })
                 }
             }
 
@@ -894,8 +931,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Transparent) // alpha 0.0f と同じ
-                        .clickable { menuExpanded = false }
-                ) {
+                        .clickable { menuExpanded = false }) {
                     // メニュー本体
                     Surface(
                         modifier = Modifier
@@ -918,10 +954,9 @@ class MainActivity : ComponentActivity() {
                                         menuExpanded = false
                                     }
                                     .padding(horizontal = 16.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                                verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Settings,
+                                    imageVector = Icons.Default.Settings,
                                     contentDescription = null,
                                     tint = mainText,
                                     modifier = Modifier.size(22.dp)
@@ -929,8 +964,7 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "項目・選択肢の設定", // ここだけが残ります
-                                    fontSize = 18.sp,
-                                    color = mainText
+                                    fontSize = 18.sp, color = mainText
                                 )
                             }
 
@@ -942,12 +976,9 @@ class MainActivity : ComponentActivity() {
                                         showResetDialog = true
                                     }
                                     .padding(horizontal = 16.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                                verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Default.Delete,
-                                    null,
-                                    tint = mainText, // ここだけ赤にする
+                                    Icons.Default.Delete, null, tint = mainText, // ここだけ赤にする
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
@@ -966,7 +997,7 @@ class MainActivity : ComponentActivity() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // 警告アイコンを追加
                             Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.Warning,
+                                imageVector = Icons.Default.Warning,
                                 contentDescription = null,
                                 tint = Color.Red
                             )
@@ -993,13 +1024,10 @@ class MainActivity : ComponentActivity() {
                                     showResetDialog = false
                                     menuExpanded = false
                                 }
-                            }
-                        ) {
+                            }) {
                             // 実行ボタンも太字にして強調
                             Text(
-                                "リセットする",
-                                color = Color.Red,
-                                fontWeight = FontWeight.ExtraBold
+                                "リセットする", color = Color.Red, fontWeight = FontWeight.ExtraBold
                             )
                         }
                     },
@@ -1008,8 +1036,7 @@ class MainActivity : ComponentActivity() {
                             // キャンセルは少し控えめな色（黒系）
                             Text("キャンセル", color = Color.Black)
                         }
-                    }
-                )
+                    })
             }
             // --- 手順4：項目移動メニュー (長押し用レイヤー) ---
             if (showColumnMenuId != null) {
@@ -1031,8 +1058,7 @@ class MainActivity : ComponentActivity() {
                             color = surfaceColor, // ★ 0xFF3A3A3A
                             modifier = Modifier
                                 .width(180.dp)
-                                .clickable(enabled = false) { }
-                        ) {
+                                .clickable(enabled = false) { }) {
                             Column(
                                 modifier = Modifier.padding(20.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -1089,9 +1115,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Text(
-                                                "左へ",
-                                                color = Color.Black,
-                                                fontSize = 14.sp
+                                                "左へ", color = Color.Black, fontSize = 14.sp
                                             )
                                         }
                                     }
@@ -1122,15 +1146,13 @@ class MainActivity : ComponentActivity() {
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = if (canMoveLeft) Color(0xFFEADDFF) else Color(
                                                 0xFF333333
-                                            ),
-                                            disabledContainerColor = Color(0xFF222222),
+                                            ), disabledContainerColor = Color(0xFF222222),
                                             // ★ 無効時も中身の色を「黒」に指定
                                             disabledContentColor = Color.Black
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            val tintColor =
-                                                if (canMoveRight) Color.Black else subText
+                                            if (canMoveRight) Color.Black else subText
                                             Icon(
                                                 Icons.Default.ArrowForward,
                                                 null,
@@ -1138,9 +1160,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Text(
-                                                "左へ",
-                                                color = Color.Black,
-                                                fontSize = 14.sp
+                                                "左へ", color = Color.Black, fontSize = 14.sp
                                             )
                                         }
                                     }
@@ -1151,7 +1171,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-// --- 自動入力ルールの設定ダイアログ (以前の構成に戻した修正版) ---
+            //--- 自動入力ルールの設定ダイアログ (以前の構成に戻した修正版) ---
             if (showConditionEditDialog && selectedColumnIdForRule != null && selectedOptionForRule != null) {
                 val localRules = remember { mutableStateListOf<AutoInputRule>() }
                 var isNextRow by remember { mutableStateOf(false) }
@@ -1161,8 +1181,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(selectedColumnIdForRule, selectedOptionForRule) {
                     scope.launch(Dispatchers.IO) {
                         val existingRules = db.memoDao().getRulesByTrigger(
-                            selectedColumnIdForRule!!,
-                            selectedOptionForRule!!
+                            selectedColumnIdForRule!!, selectedOptionForRule!!
                         )
                         launch(Dispatchers.Main) {
                             localRules.clear()
@@ -1185,7 +1204,7 @@ class MainActivity : ComponentActivity() {
                             Text(
                                 "「${selectedOptionForRule}」選択時の連動入力",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                fontWeight = FontWeight.Bold,
                                 color = mainText // ★ 文字色を白に
                             )
                             Spacer(modifier = Modifier.height(16.dp))
@@ -1228,12 +1247,10 @@ class MainActivity : ComponentActivity() {
                             // --- タイミング設定 (ラジオボタン) ---
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 androidx.compose.material3.RadioButton(
-                                    selected = !isNextRow,
-                                    onClick = { isNextRow = false },
+                                    selected = !isNextRow, onClick = { isNextRow = false },
                                     // ★ ラジオボタンの色も紫系に合わせる
                                     colors = androidx.compose.material3.RadioButtonDefaults.colors(
-                                        selectedColor = Color(0xFFEADDFF),
-                                        unselectedColor = subText
+                                        selectedColor = Color(0xFFEADDFF), unselectedColor = subText
                                     )
                                 )
                                 Text(
@@ -1244,8 +1261,7 @@ class MainActivity : ComponentActivity() {
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 androidx.compose.material3.RadioButton(
-                                    selected = isNextRow,
-                                    onClick = { isNextRow = true })
+                                    selected = isNextRow, onClick = { isNextRow = true })
                                 Text(
                                     "次の行",
                                     modifier = Modifier.clickable { isNextRow = true },
@@ -1274,7 +1290,7 @@ class MainActivity : ComponentActivity() {
                                                 color = if (targetColId == c.id) Color.White else mainText
                                             )
                                         },
-                                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                        colors = FilterChipDefaults.filterChipColors(
                                             // 選択されていない時の背景
                                             containerColor = if (isConfigured) Color(0xFF1976D2).copy(
                                                 alpha = 0.0f
@@ -1364,7 +1380,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                androidx.compose.material3.TextButton(onClick = {
+                                TextButton(onClick = {
                                     showConditionEditDialog = false
                                 }) { Text("キャンセル", color = Color(0xFFEADDFF)) }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -1372,15 +1388,13 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         scope.launch {
                                             db.memoDao().deleteRulesByTrigger(
-                                                selectedColumnIdForRule!!,
-                                                selectedOptionForRule!!
+                                                selectedColumnIdForRule!!, selectedOptionForRule!!
                                             )
                                             localRules.forEach { db.memoDao().insertRule(it) }
                                             showConditionEditDialog = false
                                             refreshData()
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
+                                    }, colors = ButtonDefaults.buttonColors(
                                         containerColor = Color(
                                             0xFF7E57C2
                                         )
@@ -1417,8 +1431,7 @@ class MainActivity : ComponentActivity() {
                             color = surfaceColor,
                             modifier = Modifier
                                 .width(180.dp)
-                                .clickable(enabled = false) { }
-                        ) {
+                                .clickable(enabled = false) { }) {
                             Column(
                                 modifier = Modifier.padding(20.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -1459,16 +1472,14 @@ class MainActivity : ComponentActivity() {
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = if (canMoveLeft) Color(0xFFEADDFF) else Color(
                                                 0xFF333333
-                                            ),
-                                            disabledContainerColor = Color(0xFF222222),
+                                            ), disabledContainerColor = Color(0xFF222222),
                                             // ★ 無効時も中身の色を「黒」に指定
                                             disabledContentColor = Color.Black
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                             // ★ 有効なら黒、無効ならグレー
-                                            val tintColor =
-                                                if (canMoveLeft) Color.Black else subText
+                                            if (canMoveLeft) Color.Black else subText
                                             Icon(
                                                 Icons.Default.ArrowBack,
                                                 null,
@@ -1476,9 +1487,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Text(
-                                                "左へ",
-                                                color = Color.Black,
-                                                fontSize = 14.sp
+                                                "左へ", color = Color.Black, fontSize = 14.sp
                                             )
                                         }
                                     }
@@ -1506,13 +1515,11 @@ class MainActivity : ComponentActivity() {
                                             // ★ ルール適用：有効なら薄紫、無効なら暗いグレー
                                             containerColor = if (canMoveRight) Color(0xFFEADDFF) else Color(
                                                 0xFF333333
-                                            ),
-                                            disabledContainerColor = Color(0xFF222222)
+                                            ), disabledContainerColor = Color(0xFF222222)
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            val tintColor =
-                                                if (canMoveRight) Color.Black else subText
+                                            if (canMoveRight) Color.Black else subText
                                             Icon(
                                                 Icons.Default.ArrowForward,
                                                 null,
@@ -1520,9 +1527,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Text(
-                                                "右へ",
-                                                color = Color.Black,
-                                                fontSize = 14.sp
+                                                "右へ", color = Color.Black, fontSize = 14.sp
                                             )
                                         }
                                     }
@@ -1634,8 +1639,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.White.copy(alpha = 0.2f))
-                        .clickable { showInputArea = false }
-                ) {
+                        .clickable { showInputArea = false }) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1671,47 +1675,39 @@ class MainActivity : ComponentActivity() {
         if (showOptionDeleteConfirm && pendingDeleteTarget != null) {
             val (targetCol, targetOpt) = pendingDeleteTarget!!
 
-            AlertDialog(
-                onDismissRequest = {
-                    showOptionDeleteConfirm = false
-                    pendingDeleteTarget = null
-                },
-                title = { Text("選択肢の削除", color = mainText) },
-                text = {
-                    Text(
-                        "「${targetOpt}」を削除しますか？\n選択肢を削除しても関連する連動ルールは残ります。",
-                        color = mainText
-                    )
-                },
-                containerColor = Color(0xFF1E1E1E),
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            // ★ ここで本来の削除処理を実行！
-                            scope.launch {
-                                val opts = targetCol.options.toMutableList()
-                                opts.remove(targetOpt)
-                                db.memoDao().updateColumn(targetCol.copy(options = opts))
-                                db.memoDao().deleteRulesByTrigger(targetCol.id, targetOpt)
-                                refreshData()
-                            }
-                            showOptionDeleteConfirm = false
-                            pendingDeleteTarget = null
-                            showOptionMenuName = null // メニューも閉じる
+            AlertDialog(onDismissRequest = {
+                showOptionDeleteConfirm = false
+                pendingDeleteTarget = null
+            }, title = { Text("選択肢の削除", color = mainText) }, text = {
+                Text(
+                    "「${targetOpt}」を削除しますか？\n選択肢を削除しても関連する連動ルールは残ります。",
+                    color = mainText
+                )
+            }, containerColor = Color(0xFF1E1E1E), confirmButton = {
+                TextButton(
+                    onClick = {
+                        // ★ ここで本来の削除処理を実行！
+                        scope.launch {
+                            val opts = targetCol.options.toMutableList()
+                            opts.remove(targetOpt)
+                            db.memoDao().updateColumn(targetCol.copy(options = opts))
+                            db.memoDao().deleteRulesByTrigger(targetCol.id, targetOpt)
+                            refreshData()
                         }
-                    ) {
-                        Text("削除", color = Color(0xFFF44336))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
                         showOptionDeleteConfirm = false
                         pendingDeleteTarget = null
+                        showOptionMenuName = null // メニューも閉じる
                     }) {
-                        Text("キャンセル", color = mainText)
-                    }
+                    Text("削除", color = Color(0xFFF44336))
                 }
-            )
+            }, dismissButton = {
+                TextButton(onClick = {
+                    showOptionDeleteConfirm = false
+                    pendingDeleteTarget = null
+                }) {
+                    Text("キャンセル", color = mainText)
+                }
+            })
         }
     }
 
@@ -1753,7 +1749,7 @@ class MainActivity : ComponentActivity() {
                     style = MaterialTheme.typography.labelLarge,
                     color = Color(0xFFBB86FC),
                     modifier = Modifier.padding(top = 8.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                    textAlign = TextAlign.Start
                 )
 
                 // 【修正：ここから】
@@ -1845,9 +1841,7 @@ class MainActivity : ComponentActivity() {
                                 if (txt.isNotBlank()) {
                                     db.memoDao().insertValue(
                                         MemoValue(
-                                            recordId = currentRid,
-                                            columnId = cid,
-                                            value = txt
+                                            recordId = currentRid, columnId = cid, value = txt
                                         )
                                     )
                                 }
@@ -1930,15 +1924,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (showDeleteConfirmDialog) {
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showDeleteConfirmDialog = false }, // 外側をタップで閉じる
+                AlertDialog(
+                    onDismissRequest = {
+                        showDeleteConfirmDialog = false
+                    }, // 外側をタップで閉じる
                     title = {
                         Text(text = "削除", color = mainText)
-                    },
-                    text = {
+                    }, text = {
                         Text(text = "この行を削除してもよろしいですか？", color = mainText)
-                    },
-                    containerColor = Color(0xFF1E1E1E), // ダークモードに合う背景色
+                    }, containerColor = Color(0xFF1E1E1E), // ダークモードに合う背景色
                     confirmButton = {
                         TextButton(
                             onClick = {
@@ -1951,17 +1945,14 @@ class MainActivity : ComponentActivity() {
                                     showDeleteConfirmDialog = false // ダイアログを閉じる
                                     onSave() // 前の画面に戻る
                                 }
-                            }
-                        ) {
+                            }) {
                             Text("削除", color = Color(0xFFF44336)) // 削除は赤色に
                         }
-                    },
-                    dismissButton = {
+                    }, dismissButton = {
                         TextButton(onClick = { showDeleteConfirmDialog = false }) {
                             Text("キャンセル", color = mainText)
                         }
-                    }
-                )
+                    })
             }
         }
     }
@@ -1982,8 +1973,7 @@ class MainActivity : ComponentActivity() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onRowClick() }
-        ) {
+                .clickable { onRowClick() }) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1999,7 +1989,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.width(50.dp), // 時間は固定が一番ズレない
                         style = MaterialTheme.typography.bodySmall,
                         color = subText, // ★ 1. Color.Gray から「補足文字色」に変更
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
 
