@@ -815,7 +815,7 @@ class MainActivity : ComponentActivity() {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "「${targetCol?.name}」を移動",
+                                text = "「${targetCol?.name}」",
                                 fontSize = 18.sp, // ★ Cのサイズを維持
                                 fontWeight = FontWeight.Bold,
                                 color = mainText,
