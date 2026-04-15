@@ -18,10 +18,9 @@ interface MemoDao {
     @Insert
     suspend fun insertRecord(record: MemoRecord): Long
 
-    @Query("SELECT * FROM MemoRecord ORDER BY timestamp ASC")
-    suspend fun getAllRecords(): List<MemoRecord> // ← これが MainActivity で必要！
+    @Query("SELECT * FROM MemoRecord WHERE isDeleted = 0 ORDER BY timestamp ASC")
+    suspend fun getAllRecords(): List<MemoRecord>
 
-    // --- 入力された値（Value） ---
     @Insert
     suspend fun insertValue(value: MemoValue)
 
@@ -38,10 +37,6 @@ interface MemoDao {
     // 項目本体を削除
     @Delete
     suspend fun deleteColumn(column: ColumnSetting)
-
-    // 項目に紐付く入力値を削除（重要：これをしないと表がズレる原因になります）
-    @Query("DELETE FROM MemoValue WHERE columnId = :columnId")
-    suspend fun deleteValuesByColumnId(columnId: Int)
 
     @Update
     suspend fun updateColumn(column: ColumnSetting)
@@ -78,14 +73,35 @@ interface MemoDao {
     @Query("SELECT * FROM ColumnSetting ORDER BY displayOrder ASC")
     fun getAllColumnsDirect(): List<ColumnSetting> // Flow ではなく List で即座に取得する用
 
+    // 1. 連動ルールの削除 (テーブル名が AutoInputRule の場合)
+    @Query("DELETE FROM AutoInputRule WHERE triggerColumnId = :columnId")
+    suspend fun deleteRulesByTriggerColumn(columnId: Int)
 
+    @Query("DELETE FROM AutoInputRule WHERE targetColumnId = :columnId")
+    suspend fun deleteRulesByTargetColumn(columnId: Int)
 
+    // 2. メモの値の削除 (テーブル名が MemoValue の場合)
+    @Query("DELETE FROM MemoValue WHERE columnId = :columnId")
+    suspend fun deleteValuesByColumnId(columnId: Int)
 
+    @Query("DELETE FROM MemoRecord") // クラス名に合わせる
+    suspend fun deleteAllMemoRecords()
 
+    // --- リセット（物理削除を論理削除に変更） ---
+    @Query("UPDATE MemoRecord SET isDeleted = 1")
+    suspend fun softDeleteAll()
 
+    // --- Undo（フラグを戻して一括復活） ---
+    @Query("UPDATE MemoRecord SET isDeleted = 0")
+    suspend fun undoDeleteAll()
 
+    // --- (おまけ) 単発の削除も Undo 対応にするなら ---
+    @Query("UPDATE MemoRecord SET isDeleted = 1 WHERE id = :recordId")
+    suspend fun softDeleteRecordById(recordId: Int)
 
-
+    // @Query の中の名前を、実際のテーブル名に変えます
+    @Query("SELECT * FROM AutoInputRule") // ← ここがクラス名と同じ、あるいは定義したテーブル名になっているはずです
+    suspend fun getAllAutoInputRules(): List<AutoInputRule>
 
 
 
