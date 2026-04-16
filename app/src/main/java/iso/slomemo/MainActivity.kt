@@ -748,7 +748,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(top = 80.dp, end = 4.dp) // ★ 1. 【位置】ここをいじると場所が変わる
-                            .width(180.dp),                  // ★ 2. 【幅】ここをいじると横幅が変わる
+                            .width(220.dp),                  // ★ 2. 【幅】ここをいじると横幅が変わる
                         shape = RoundedCornerShape(5.dp),    // 角の丸み
                         shadowElevation = 8.dp,
                         color = surfaceColor, // ★ Color.White から変更
