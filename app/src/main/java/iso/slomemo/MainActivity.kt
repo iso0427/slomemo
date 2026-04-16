@@ -756,32 +756,6 @@ class MainActivity : ComponentActivity() {
                         Column(
                             modifier = Modifier.padding(vertical = 4.dp)
                         ) {
-                            // --- 項目1：実戦データ入力 ---
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        showInputArea = true
-                                        menuExpanded = false
-                                    }
-                                    .padding(
-                                        horizontal = 16.dp,
-                                        vertical = 16.dp
-                                    ), // ★ 3. 【高さ】ここをいじると押しやすさが変わる
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(22.dp) // ★ アイコンの大きさ
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "実戦データ入力",
-                                    fontSize = 18.sp,              // ★ 4. 【文字】ここをいじると文字サイズが変わる
-                                    color = mainText
-                                )
-                            }
 
                             // --- 項目2：設定 ---
                             Row(
@@ -791,13 +765,14 @@ class MainActivity : ComponentActivity() {
                                         currentScreen = "settings"
                                         menuExpanded = false
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                                    .padding(horizontal = 16.dp, vertical = 16.dp), // ★ 高さを少しだけ広げて押しやすく
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = androidx.compose.material.icons.Icons.Default.Settings,
                                     contentDescription = null,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(22.dp),
+                                    tint = mainText
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
@@ -871,7 +846,9 @@ class MainActivity : ComponentActivity() {
                                         showColumnMenuId = null
                                     },
                                     enabled = targetIndex > 0,
-                                    modifier = Modifier.weight(1f).height(60.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(60.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     contentPadding = PaddingValues(0.dp),
                                     colors = if (targetIndex > 0) canMoveColumnColors else cannotMoveColumnColors
@@ -897,7 +874,9 @@ class MainActivity : ComponentActivity() {
                                         showColumnMenuId = null
                                     },
                                     enabled = targetIndex < columns.size - 1,
-                                    modifier = Modifier.weight(1f).height(60.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(60.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     contentPadding = PaddingValues(0.dp),
                                     colors = if (targetIndex < columns.size - 1) canMoveColumnColors else cannotMoveColumnColors
@@ -913,7 +892,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-// --- 自動入力ルールの設定ダイアログ (以前の構成に戻した修正版) ---
+            //--- 自動入力ルールの設定ダイアログ (デザイン統一版) ---
             if (showConditionEditDialog && selectedColumnIdForRule != null && selectedOptionForRule != null) {
                 val localRules = remember { mutableStateListOf<AutoInputRule>() }
                 var isNextRow by remember { mutableStateOf(false) }
@@ -938,30 +917,30 @@ class MainActivity : ComponentActivity() {
                 }) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = Color.White,
+                        // ★ 背景色をダークに
+                        color = Color(0xFF252525),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                "「${selectedOptionForRule}」選択時の自動入力",
+                                "「${selectedOptionForRule}」選択時の連動入力",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = mainText // ★ タイトルを白文字に
                             )
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // --- 一覧表示 (以前の構成) ---
+                            // --- 一覧表示 ---
                             if (localRules.isNotEmpty()) {
                                 Text(
                                     "追加予定の連動",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Color.Gray
+                                    color = subText // ★ グレーに変更
                                 )
                                 localRules.forEach { rule ->
-                                    val targetName =
-                                        columns.find { it.id == rule.targetColumnId }?.name
-                                            ?: "不明"
+                                    val targetName = columns.find { it.id == rule.targetColumnId }?.name ?: "不明"
                                     val timingStr = if (rule.isNextRow) "次の行" else "同じ行"
 
                                     Row(
@@ -973,37 +952,51 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text(
                                             "・[$timingStr] $targetName → ${rule.targetValue}",
-                                            fontSize = 14.sp
+                                            fontSize = 14.sp,
+                                            color = mainText // ★ 白文字に
                                         )
                                         IconButton(
                                             onClick = { localRules.remove(rule) },
                                             modifier = Modifier.size(24.dp)
                                         ) {
-                                            Icon(Icons.Default.Close, null, tint = Color.Red)
+                                            Icon(Icons.Default.Close, null, tint = Color(0xFFCF6679)) // 少し抑えた赤
                                         }
                                     }
                                 }
-                                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                                Divider(modifier = Modifier.padding(vertical = 8.dp), color = subText.copy(alpha = 0.3f))
                             }
 
                             // --- タイミング設定 (ラジオボタン) ---
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 androidx.compose.material3.RadioButton(
                                     selected = !isNextRow,
-                                    onClick = { isNextRow = false })
+                                    onClick = { isNextRow = false },
+                                    // ★ ラジオボタンの色も紫系に合わせる
+                                    colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                                        selectedColor = Color(0xFFBB86FC),
+                                        unselectedColor = subText
+                                    )
+                                )
                                 Text(
                                     "同じ行",
                                     modifier = Modifier.clickable { isNextRow = false },
-                                    fontSize = 14.sp
+                                    fontSize = 14.sp,
+                                    color = mainText
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 androidx.compose.material3.RadioButton(
                                     selected = isNextRow,
-                                    onClick = { isNextRow = true })
+                                    onClick = { isNextRow = true },
+                                    colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                                        selectedColor = Color(0xFFBB86FC),
+                                        unselectedColor = subText
+                                    )
+                                )
                                 Text(
                                     "次の行",
                                     modifier = Modifier.clickable { isNextRow = true },
-                                    fontSize = 14.sp
+                                    fontSize = 14.sp,
+                                    color = mainText
                                 )
                             }
 
@@ -1012,7 +1005,7 @@ class MainActivity : ComponentActivity() {
                             Text(
                                 "対象の項目",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = mainText
+                                color = subText
                             )
                             FlowRow(modifier = Modifier.fillMaxWidth()) {
                                 columns.forEach { c ->
@@ -1021,22 +1014,21 @@ class MainActivity : ComponentActivity() {
                                         selected = targetColId == c.id,
                                         onClick = { targetColId = c.id; targetValue = "" },
                                         label = {
-                                            Text(
-                                                if (c.id == selectedColumnIdForRule) "${c.name}(自分)" else c.name,
-                                                // ★ ここにも mainText を適用（念のため）
-                                                color = if (targetColId == c.id) Color.White else mainText
-                                            )
+                                            Text(if (c.id == selectedColumnIdForRule) "${c.name}(自分)" else c.name)
                                         },
-                                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                                            // 選択されていない時の背景
-                                            containerColor = if (isConfigured) Color(0xFF1976D2).copy(
-                                                alpha = 0.2f
-                                            ) else Color.Transparent,
-                                            // 選択されていない時の文字色（★ Black から mainText へ！）
-                                            labelColor = if (isConfigured) Color(0xFF64B5F6) else mainText,
-                                            // 選択されている時の色
-                                            selectedContainerColor = Color(0xFF7E57C2),
-                                            selectedLabelColor = Color.White
+                                        // ★ チップのデザインを統一
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            labelColor = mainText,                     // 通常：白
+                                            selectedContainerColor = Color(0xFFEADDFF), // 選択：薄紫
+                                            selectedLabelColor = Color.Black            // 選択時文字：黒
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = targetColId == c.id,
+                                            borderColor = if (isConfigured) Color(0xFFBB86FC) else Color.Gray,
+                                            borderWidth = 1.dp,
+                                            selectedBorderColor = Color.Gray,
+                                            selectedBorderWidth = 1.dp
                                         ),
                                         modifier = Modifier.padding(2.dp)
                                     )
@@ -1046,14 +1038,28 @@ class MainActivity : ComponentActivity() {
                             // --- 入力値設定 (チップ一覧) ---
                             if (targetColId != null) {
                                 Spacer(modifier = Modifier.height(12.dp))
-                                val opts =
-                                    columns.find { it.id == targetColId }?.options ?: emptyList()
+                                val opts = columns.find { it.id == targetColId }?.options ?: emptyList()
                                 FlowRow(modifier = Modifier.fillMaxWidth()) {
+                                    // --- 入力値設定 (下のチップ一覧) ---
                                     opts.forEach { opt ->
                                         FilterChip(
                                             selected = targetValue == opt,
                                             onClick = { targetValue = opt },
                                             label = { Text(opt) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                labelColor = mainText,              // 通常時：白
+                                                selectedContainerColor = Color(0xFFEADDFF), // 選択時：薄紫
+                                                selectedLabelColor = Color.Black    // 選択時：黒
+                                            ),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = targetValue == opt,
+                                                // ★ 非選択時も選択時も、枠線はピンクで固定
+                                                borderColor = Color(0xFFFFCDD2),
+                                                borderWidth = 1.dp,
+                                                selectedBorderColor = Color(0xFFFFCDD2),
+                                                selectedBorderWidth = 1.dp
+                                            ),
                                             modifier = Modifier.padding(2.dp)
                                         )
                                     }
@@ -1079,7 +1085,11 @@ class MainActivity : ComponentActivity() {
                                     },
                                     enabled = targetColId != null && targetValue.isNotEmpty(),
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                                    // ★ 追加ボタンを少し明るい紫に
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFBB86FC),
+                                        contentColor = Color.Black
+                                    )
                                 ) {
                                     Text("この連動を追加する")
                                 }
@@ -1092,7 +1102,9 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 androidx.compose.material3.TextButton(onClick = {
                                     showConditionEditDialog = false
-                                }) { Text("キャンセル") }
+                                }) {
+                                    Text("キャンセル", color = subText)
+                                }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = {
@@ -1107,13 +1119,10 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(
-                                        // ★ ここを if (isDarkMode) ... に書き換え
-                                        containerColor = if (isDarkMode) Color(0xFF9575CD) else Color(
-                                            0xFF7E57C2
-                                        )
+                                        containerColor = Color(0xFFBB86FC)
                                     )
                                 ) {
-                                    Text("保存", color = Color.White)
+                                    Text("保存", color = Color.Black)
                                 }
                             }
                         }
@@ -1174,7 +1183,9 @@ class MainActivity : ComponentActivity() {
                                     Button(
                                         onClick = { /* 左移動処理 */ },
                                         enabled = optIndex > 0,
-                                        modifier = Modifier.weight(1f).height(60.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(60.dp),
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = if (optIndex > 0) canMoveColors else cannotMoveColors
@@ -1189,13 +1200,19 @@ class MainActivity : ComponentActivity() {
                                     Button(
                                         onClick = { /* 右移動処理 */ },
                                         enabled = optIndex < col.options.size - 1,
-                                        modifier = Modifier.weight(1f).height(60.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(60.dp),
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = if (optIndex < col.options.size - 1) canMoveColors else cannotMoveColors
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(Icons.Default.ArrowForward, null, tint = Color.Black)
+                                            Icon(
+                                                Icons.Default.ArrowForward,
+                                                null,
+                                                tint = Color.Black
+                                            )
                                             Text("右へ", fontSize = 14.sp, color = Color.Black)
                                         }
                                     }
@@ -1216,16 +1233,28 @@ class MainActivity : ComponentActivity() {
                                             showConditionEditDialog = true
                                             showOptionMenuName = null
                                         },
-                                        modifier = Modifier.weight(1f).height(60.dp), // ★ Cの高さ
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(60.dp), // ★ Cの高さ
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isDarkMode) Color(0xFF4A4458) else Color(0xFFEADDFF)
+                                            containerColor = if (isDarkMode) Color(0xFF4A4458) else Color(
+                                                0xFFEADDFF
+                                            )
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            val tintColor = if (isDarkMode) Color(0xFFD0BCFF) else Color(0xFF7E57C2)
-                                            Icon(Icons.Default.Build, null, tint = tintColor, modifier = Modifier.size(20.dp))
+                                            val tintColor =
+                                                if (isDarkMode) Color(0xFFD0BCFF) else Color(
+                                                    0xFF7E57C2
+                                                )
+                                            Icon(
+                                                Icons.Default.Build,
+                                                null,
+                                                tint = tintColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                             Text(
                                                 "条件編集",
                                                 color = tintColor,
@@ -1249,16 +1278,26 @@ class MainActivity : ComponentActivity() {
                                             }
                                             showOptionMenuName = null
                                         },
-                                        modifier = Modifier.weight(1f).height(60.dp), // ★ Cの高さ
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(60.dp), // ★ Cの高さ
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isDarkMode) Color(0xFF8C1D18).copy(alpha = 0.5f) else Color(0xFFFFEBEE)
+                                            containerColor = if (isDarkMode) Color(0xFF8C1D18).copy(
+                                                alpha = 0.5f
+                                            ) else Color(0xFFFFEBEE)
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            val deleteColor = if (isDarkMode) Color(0xFFFFB4AB) else Color.Red
-                                            Icon(Icons.Default.Delete, null, tint = deleteColor, modifier = Modifier.size(20.dp))
+                                            val deleteColor =
+                                                if (isDarkMode) Color(0xFFFFB4AB) else Color.Red
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                null,
+                                                tint = deleteColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                             Text(
                                                 "削除",
                                                 color = deleteColor,
