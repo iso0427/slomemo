@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity() {
 
 // 2. モードによって切り替わる色の定義（色の司令塔）
         val backColor = if (isDarkMode) Color(0xFF121212) else Color.White      // 画面全体の背景
-        val surfaceColor = if (isDarkMode) Color(0xFF1E1E1E) else Color.White   // メニューやダイアログの箱
+        val surfaceColor = if (isDarkMode) Color(0xFF2d2d2d) else Color.White   // メニューやダイアログの箱
         val mainText = if (isDarkMode) Color.White else Color.Black           // メインの文字
         val subText = if (isDarkMode) Color.LightGray else Color.Gray          // 補足の文字
         val dividerColor = if (isDarkMode) Color(0xFF333333) else Color(0xFFEEEEEE) // 区切り線
@@ -742,6 +742,7 @@ class MainActivity : ComponentActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .background(Color.White.copy(alpha = 0.2f))
                         .clickable { menuExpanded = false }
                 ) {
                     // メニュー本体
