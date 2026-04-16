@@ -737,7 +737,8 @@ class MainActivity : ComponentActivity() {
             }
 
             // --- メニュー専用レイヤー (自作ガードレール) ---
-            if (menuExpanded) {
+            if (menuExpanded)
+            {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
