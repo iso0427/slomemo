@@ -531,12 +531,12 @@ class MainActivity : ComponentActivity() {
                                             ),
                                             // 未選択時に枠線が欲しい場合は以下を追加（不要なら削除してOK）
                                             border = FilterChipDefaults.filterChipBorder(
-                                                //enabled = true,
-                                                //selected = selectedColumnId == col.id, // ここは本体の状態と合わせるのがComposeの鉄則です
+                                                enabled = true,
+                                                selected = selectedColumnId == col.id, // ここは本体の状態と合わせるのがComposeの鉄則です
                                                 borderColor = Color.Gray,
                                                 borderWidth = 1.dp,
-                                                selectedBorderColor = Color.Gray,      // 選択中もグレーの枠線を出す
-                                                selectedBorderWidth = 1.dp             // 選択中も1.dpを維持
+                                                selectedBorderColor = Color.Gray,
+                                                selectedBorderWidth = 1.dp
                                             ),
                                             modifier = Modifier.padding(end = 4.dp)
                                         )
@@ -700,6 +700,8 @@ class MainActivity : ComponentActivity() {
                                                 ),
                                                 // ★ 画像の定義通りに全ての必須パラメータを埋める
                                                 border = InputChipDefaults.inputChipBorder(
+                                                    enabled = true,
+                                                    selected = selectedColumnId == col.id,
                                                     borderColor = Color.Gray,
                                                     borderWidth = 1.dp,
                                                     selectedBorderColor = Color.Gray,      // 選択中（薄紫）でも枠線を出す
@@ -1129,6 +1131,8 @@ class MainActivity : ComponentActivity() {
                                             selectedLabelColor = Color.Black            // 選択時文字：黒
                                         ),
                                         border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = selectedColumnId == targetColId,
                                             borderColor = if (isConfigured) Color(0xFFBB86FC) else Color.Gray,
                                             borderWidth = 1.dp,
                                             selectedBorderColor = Color.Gray,
@@ -1158,6 +1162,8 @@ class MainActivity : ComponentActivity() {
                                             ),
                                             border = FilterChipDefaults.filterChipBorder(
                                                 //★ 非選択時も選択時も、枠線はピンクで固定
+                                                enabled = true,
+                                                selected = selectedColumnId == targetColId,
                                                 borderColor = Color(0xFFFFCDD2),
                                                 borderWidth = 1.dp,
                                                 selectedBorderColor = Color(0xFFFFCDD2),
