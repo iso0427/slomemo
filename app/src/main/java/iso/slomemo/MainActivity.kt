@@ -82,9 +82,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
 
 class MainActivity : ComponentActivity() {
 
@@ -214,7 +216,7 @@ class MainActivity : ComponentActivity() {
         // 1. ダークモードの状態（とりあえずは変数で管理。後でDB保存も可能）
         val isDarkMode = true
 
-// 2. モードによって切り替わる色の定義（色の司令塔）
+        // 2. モードによって切り替わる色の定義（色の司令塔）
         val backColor = if (isDarkMode) Color(0xFF121212) else Color.White      // 画面全体の背景
         val surfaceColor = if (isDarkMode) Color(0xFF1e1e1e) else Color.White   // メニューやダイアログの箱
         val mainText = if (isDarkMode) Color.White else Color.Black           // メインの文字
@@ -225,6 +227,7 @@ class MainActivity : ComponentActivity() {
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
         var showInputArea by remember { mutableStateOf(false) }
         var menuExpanded by remember { mutableStateOf(false) }
+        var showResetConfirmDialog by remember { mutableStateOf(false) }
         var newColumnName by remember { mutableStateOf("") }
         var selectedColumnId by remember { mutableStateOf<Int?>(null) }
         val scope = rememberCoroutineScope()
@@ -240,6 +243,11 @@ class MainActivity : ComponentActivity() {
         var showOptionMenuName by remember { mutableStateOf<String?>(null) }
         var showSettingsDeleteDialog by remember { mutableStateOf(false) }
         var showOptionDeleteConfirmDialog by remember { mutableStateOf(false) }
+        val viewModel: MainViewModel = viewModel()
+        var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
+
+
+
 
         fun refreshData() {
             scope.launch {
@@ -281,20 +289,56 @@ class MainActivity : ComponentActivity() {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(backColor) // ★ Color.White から変更
+                            .background(backColor)
                             .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        // ★ タイトル、Undo/Redo、メニューを綺麗に並べるために構成を調整
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 左側のタイトル
+                        // 1. タイトル
                         Text(
                             text = if (currentScreen == "main") "実戦データ" else "設定",
                             style = MaterialTheme.typography.titleLarge,
-                            color = mainText
+                            color = mainText,
+                            modifier = Modifier.weight(1f) // タイトルを左側に寄せる
                         )
 
-                        // メイン画面の時だけ右側にメニューを表示
+                        // メイン画面の時だけ操作ボタンを表示
                         if (currentScreen == "main") {
+                            // Undoボタン（元に戻す）
+                            IconButton(
+                                onClick = {
+                                    viewModel.undo()
+                                    refreshData()
+                                },
+                                enabled = viewModel.canUndo.value
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack, // ★既存のインポートを使用
+                                    contentDescription = "元に戻す",
+                                    tint = if (viewModel.canUndo.value) mainText else mainText.copy(
+                                        alpha = 0.3f
+                                    )
+                                )
+                            }
+
+                            // Redoボタン（やり直し）
+                            IconButton(
+                                onClick = {
+                                    viewModel.redo()
+                                    refreshData()
+                                },
+                                enabled = viewModel.canRedo.value
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward, // ★既存のインポートを使用
+                                    contentDescription = "やり直し",
+                                    tint = if (viewModel.canRedo.value) mainText else mainText.copy(
+                                        alpha = 0.3f
+                                    )
+                                )
+                            }
+
+                            // 4. メニューボタン
                             Box {
                                 IconButton(
                                     onClick = { menuExpanded = true },
@@ -302,11 +346,10 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Icon(Icons.Default.Menu, null, tint = mainText)
                                 }
-
                             }
-                        } // if の閉じ
-                    } // Row の閉じ
-                }, // topBar の閉じ
+                        }
+                    }
+                },
                 floatingActionButton = {
                     if (currentScreen == "main" && !showInputArea) {
 
@@ -717,7 +760,7 @@ class MainActivity : ComponentActivity() {
 
                                 Button(
                                     onClick = {
-                                        // 直接削除ロジックを書かず、フラグを true にするだけに変更
+                                        pendingDeleteColumnId = col.id
                                         showSettingsDeleteDialog = true
                                     },
                                     colors = ButtonDefaults.buttonColors(
@@ -734,99 +777,57 @@ class MainActivity : ComponentActivity() {
                         } // Columnの終わり
 
                         // ==========================================
-                        // 削除確認ダイアログ本体
+                        // 1つにまとめたダイアログ（これだけ残す）
                         // ==========================================
                         if (showOptionDeleteConfirmDialog) {
-                            selectedColumnId?.let { colId ->
-                                val col = columns.find { it.id == colId } ?: return@let
-                                val optToRemove = showOptionMenuName ?: return@let
+                            // 削除対象のデータを確認
+                            val colId = selectedColumnId
+                            val optToRemove = showOptionMenuName
 
-                                AlertDialog(
-                                    onDismissRequest = { showOptionDeleteConfirmDialog = false },
-                                    title = { Text(text = "選択肢の削除", color = mainText) },
-                                    text = {
-                                        Text(
-                                            text = "「$optToRemove」を削除してもよろしいですか？\nこの選択肢を条件にしている自動入力ルールも削除されます。",
-                                            color = mainText
-                                        )
-                                    },
-                                    containerColor = surfaceColor,
-                                    confirmButton = {
-                                        TextButton(onClick = {
-                                            scope.launch {
-                                                // 選択肢をリストから削除して更新
-                                                val opts = col.options.toMutableList()
-                                                opts.remove(optToRemove)
-                                                db.memoDao().updateColumn(col.copy(options = opts))
+                            if (colId != null && optToRemove != null) {
+                                val col = columns.find { it.id == colId }
 
-                                                // 関連する自動入力ルールを削除
-                                                db.memoDao()
-                                                    .deleteRulesByTrigger(col.id, optToRemove)
-
-                                                refreshData()
-                                                showOptionDeleteConfirmDialog = false
-                                                showOptionMenuName = null
-                                            }
-                                        }) {
-                                            Text("削除", color = Color(0xFFF44336))
-                                        }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = {
+                                if (col != null) {
+                                    AlertDialog(
+                                        onDismissRequest = {
                                             showOptionDeleteConfirmDialog = false
-                                        }) {
-                                            Text("キャンセル", color = mainText)
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                        // ==========================================
-                        // ★ここから追加：選択肢削除の確認ダイアログ
-                        // ==========================================
-                        if (showOptionDeleteConfirmDialog) {
-                            selectedColumnId?.let { colId ->
-                                val col = columns.find { it.id == colId } ?: return@let
-                                val optToRemove = showOptionMenuName ?: return@let
+                                        },
+                                        title = { Text(text = "選択肢の削除", color = mainText) },
+                                        text = {
+                                            Text(
+                                                text = "「$optToRemove」を削除しますか？",
+                                                color = mainText
+                                            )
+                                        },
+                                        containerColor = surfaceColor,
+                                        confirmButton = {
+                                            TextButton(onClick = {
+                                                scope.launch {
+                                                    val opts = col.options.toMutableList()
+                                                    opts.remove(optToRemove)
+                                                    db.memoDao()
+                                                        .updateColumn(col.copy(options = opts))
 
-                                AlertDialog(
-                                    onDismissRequest = { showOptionDeleteConfirmDialog = false },
-                                    title = { Text(text = "選択肢の削除", color = mainText) },
-                                    text = {
-                                        Text(
-                                            text = "「$optToRemove」を削除してもよろしいですか？",
-                                            color = mainText
-                                        )
-                                    },
-                                    containerColor = surfaceColor,
-                                    confirmButton = {
-                                        TextButton(onClick = {
-                                            scope.launch {
-                                                // 選択肢をリストから削除して更新
-                                                val opts = col.options.toMutableList()
-                                                opts.remove(optToRemove)
-                                                db.memoDao().updateColumn(col.copy(options = opts))
+                                                    db.memoDao()
+                                                        .deleteRulesByTrigger(col.id, optToRemove)
 
-                                                // 関連する自動入力ルールを削除
-                                                db.memoDao()
-                                                    .deleteRulesByTrigger(col.id, optToRemove)
-
-                                                refreshData()
-                                                showOptionDeleteConfirmDialog = false
-                                                showOptionMenuName = null
+                                                    refreshData()
+                                                    showOptionDeleteConfirmDialog = false
+                                                    showOptionMenuName = null
+                                                }
+                                            }) {
+                                                Text("削除", color = Color(0xFFF44336))
                                             }
-                                        }) {
-                                            Text("削除", color = Color(0xFFF44336))
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = {
+                                                showOptionDeleteConfirmDialog = false
+                                            }) {
+                                                Text("キャンセル", color = mainText)
+                                            }
                                         }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = {
-                                            showOptionDeleteConfirmDialog = false
-                                        }) {
-                                            Text("キャンセル", color = mainText)
-                                        }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -878,6 +879,31 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "項目・選択肢の設定",
+                                    fontSize = 18.sp,
+                                    color = mainText
+                                )
+                            }
+                            // ★ ここに追加：項目3：メモをリセット
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        // リセット確認ダイアログを表示する
+                                        showResetConfirmDialog = true
+                                        menuExpanded = false
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp),
+                                    tint = mainText
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "メモをリセット",
                                     fontSize = 18.sp,
                                     color = mainText
                                 )
@@ -1484,8 +1510,70 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-        }
-    }
+            if (showSettingsDeleteDialog) {
+                val colToDelete = columns.find { it.id == pendingDeleteColumnId }
+                if (colToDelete != null) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showSettingsDeleteDialog = false
+                            pendingDeleteColumnId = null
+                        },
+                        title = { Text(text = "項目の削除", color = mainText) },
+                        text = {
+                            Text(
+                                text = "「${colToDelete.name}」を削除してもよろしいですか？\nこの項目に含まれるすべてのデータも削除されます。",
+                                color = mainText
+                            )
+                        },
+                        containerColor = surfaceColor,
+                        confirmButton = {
+                            TextButton(onClick = {
+                                scope.launch {
+                                    db.memoDao().deleteColumn(colToDelete)
+                                    refreshData()
+                                    showSettingsDeleteDialog = false
+                                    pendingDeleteColumnId = null
+                                }
+                            }) {
+                                Text("削除", color = Color(0xFFF44336))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showSettingsDeleteDialog = false
+                                pendingDeleteColumnId = null
+                            }) {
+                                Text("キャンセル", color = mainText)
+                            }
+                        }
+                    )
+                }
+            }
+            if (showResetConfirmDialog) {
+                AlertDialog(
+                    onDismissRequest = { showResetConfirmDialog = false },
+                    title = { Text(text = "メモをリセット", color = mainText) },
+                    text = { Text(text = "すべてのメモを削除しますか？", color = mainText) },
+                    containerColor = surfaceColor,
+                    confirmButton = {
+                        TextButton(onClick = {
+                            // ここで「履歴付き」のリセットを呼ぶ
+                            viewModel.resetAllMemosWithHistory()
+                            refreshData()
+                            showResetConfirmDialog = false
+                        }) {
+                            Text("リセット", color = Color(0xFFF44336))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetConfirmDialog = false }) {
+                            Text("キャンセル", color = mainText)
+                        }
+                    }
+                )
+            }
+        } // ← これが Box の閉じカッコ
+    } // ← これが TestColumnApp 関数の閉じカッコ
 
     @Composable
     fun InputFormContent(
@@ -1696,7 +1784,7 @@ class MainActivity : ComponentActivity() {
                 AlertDialog(
                     onDismissRequest = { showDeleteConfirmDialog = false },
                     title = { Text(text = "削除", color = mainText) },
-                    text = { Text(text = "この行を削除してもよろしいですか？", color = mainText) },
+                    text = { Text(text = "この行を削除しますか？", color = mainText) },
                     containerColor = Color(0xFF1E1E1E),
                     confirmButton = {
                         TextButton(onClick = {
