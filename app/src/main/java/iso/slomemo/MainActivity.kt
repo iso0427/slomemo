@@ -1502,6 +1502,7 @@ class MainActivity : ComponentActivity() {
                         Column(modifier = Modifier.navigationBarsPadding()) {
                             InputFormContent(
                                 db = db,
+                                viewModel = viewModel,
                                 columns = columns,
                                 inputValues = inputValues,
                                 editingRecordId = editingRecordId,
@@ -1585,6 +1586,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun InputFormContent(
         db: AppDatabase,
+        viewModel: MainViewModel,
         columns: List<ColumnSetting>,
         inputValues: SnapshotStateMap<Int, String>,
         editingRecordId: Int?,
@@ -1709,10 +1711,10 @@ class MainActivity : ComponentActivity() {
                             }
 
                             if (editingRecordId != null) {
-                                // 編集なら：履歴をバックアップしてから保存
+                                // ★ここをシンプルに書き換えます
                                 viewModel.updateMemoWithHistory(MemoRecord(id = currentRid), newValues)
                             } else {
-                                // 新規なら：直接保存
+                                // 新規は直接保存
                                 newValues.forEach { db.memoDao().insertValue(it) }
                             }
 
