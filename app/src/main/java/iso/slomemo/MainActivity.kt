@@ -85,8 +85,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
 
 class MainActivity : ComponentActivity() {
 
@@ -246,9 +246,6 @@ class MainActivity : ComponentActivity() {
         val viewModel: MainViewModel = viewModel()
         var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
 
-
-
-
         fun refreshData() {
             scope.launch {
                 columns = db.memoDao().getAllColumns()
@@ -307,8 +304,11 @@ class MainActivity : ComponentActivity() {
                             // Undoボタン（元に戻す）
                             IconButton(
                                 onClick = {
-                                    viewModel.undo()
-                                    refreshData()
+                                    scope.launch {
+                                        viewModel.undo()
+                                        delay(200) // DBへの書き戻しを待つ
+                                        refreshData()
+                                    }
                                 },
                                 enabled = viewModel.canUndo.value
                             ) {
@@ -324,8 +324,12 @@ class MainActivity : ComponentActivity() {
                             // Redoボタン（やり直し）
                             IconButton(
                                 onClick = {
-                                    viewModel.redo()
-                                    refreshData()
+                                    scope.launch {
+                                        viewModel.redo()
+                                        // ★ ここ！Undoと同じく、DBが空っぽになるのを待つ
+                                        delay(200)
+                                        refreshData()
+                                    }
                                 },
                                 enabled = viewModel.canRedo.value
                             ) {
@@ -1557,10 +1561,13 @@ class MainActivity : ComponentActivity() {
                     containerColor = surfaceColor,
                     confirmButton = {
                         TextButton(onClick = {
-                            // ここで「履歴付き」のリセットを呼ぶ
-                            viewModel.resetAllMemosWithHistory()
-                            refreshData()
-                            showResetConfirmDialog = false
+                            // ★修正：scope.launch と delay を使って、削除を待ってから画面を更新する
+                            scope.launch {
+                                viewModel.resetAllMemosWithHistory()
+                                kotlinx.coroutines.delay(150) // 0.15秒待ってDB書き込みを確実に待機
+                                refreshData()
+                                showResetConfirmDialog = false
+                            }
                         }) {
                             Text("リセット", color = Color(0xFFF44336))
                         }
@@ -1687,72 +1694,56 @@ class MainActivity : ComponentActivity() {
                 Button(
                     onClick = {
                         scope.launch {
-                            // 1. 現在の行を保存
-                            val rid = if (editingRecordId != null) {
-                                db.memoDao().deleteValuesByRecordId(editingRecordId)
-                                editingRecordId.toLong()
+                            // --- 1. IDの確定（編集か新規か） ---
+                            val currentRid = if (editingRecordId != null) {
+                                // 編集の場合は既存のIDを使う
+                                editingRecordId
                             } else {
-                                db.memoDao().insertRecord(MemoRecord())
-                            }
-                            val currentRid = rid.toInt()
-
-                            inputValues.forEach { (cid, txt) ->
-                                if (txt.isNotBlank()) {
-                                    // ★ここを修正：メソッド呼び出しを正しく記述
-                                    db.memoDao().insertValue(
-                                        MemoValue(
-                                            recordId = currentRid,
-                                            columnId = cid,
-                                            value = txt
-                                        )
-                                    )
-                                }
+                                // 新規の場合は新しいRecordを作ってIDをもらう
+                                db.memoDao().insertRecord(MemoRecord()).toInt()
                             }
 
-                            // 2. 連動チェック（自分自身も含めて実行）
+                            // --- 2. データの保存（Undo履歴対応 or 直接保存） ---
+                            val newValues = inputValues.filter { it.value.isNotBlank() }.map { (cid, txt) ->
+                                MemoValue(recordId = currentRid, columnId = cid, value = txt)
+                            }
+
+                            if (editingRecordId != null) {
+                                // 編集なら：履歴をバックアップしてから保存
+                                viewModel.updateMemoWithHistory(MemoRecord(id = currentRid), newValues)
+                            } else {
+                                // 新規なら：直接保存
+                                newValues.forEach { db.memoDao().insertValue(it) }
+                            }
+
+                            // --- 3. 連動チェック（AutoInputRule） ---
+                            // 編集・新規どちらの場合も、入力された値をもとに連動を走らせる
                             inputValues.forEach { (cid, txt) ->
                                 val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                 rules.forEach { rule ->
                                     if (rule.isNextRow) {
                                         val allRecords = db.memoDao().getAllRecords()
-                                        val currentIndex =
-                                            allRecords.indexOfFirst { it.id == currentRid }
-                                        val nextRecord =
-                                            if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
-                                                allRecords[currentIndex + 1]
-                                            } else null
+                                        val currentIndex = allRecords.indexOfFirst { it.id == currentRid }
+                                        val nextRecord = if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
+                                            allRecords[currentIndex + 1]
+                                        } else null
 
                                         if (nextRecord != null) {
-                                            db.memoDao().insertValue(
-                                                MemoValue(
-                                                    recordId = nextRecord.id,
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
-                                            )
+                                            db.memoDao().insertValue(MemoValue(recordId = nextRecord.id, columnId = rule.targetColumnId, value = rule.targetValue))
                                         } else {
                                             val newNextRid = db.memoDao().insertRecord(MemoRecord())
-                                            db.memoDao().insertValue(
-                                                MemoValue(
-                                                    recordId = newNextRid.toInt(),
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
-                                            )
+                                            db.memoDao().insertValue(MemoValue(recordId = newNextRid.toInt(), columnId = rule.targetColumnId, value = rule.targetValue))
                                         }
                                     } else {
                                         if (cid != rule.targetColumnId) {
-                                            db.memoDao().insertValue(
-                                                MemoValue(
-                                                    recordId = currentRid,
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
-                                            )
+                                            db.memoDao().insertValue(MemoValue(recordId = currentRid, columnId = rule.targetColumnId, value = rule.targetValue))
                                         }
                                     }
                                 }
                             }
+
+                            // --- 4. 仕上げ ---
+                            delay(150) // DBへの書き込み完了を少し待つ
                             onSave()
                         }
                     },
@@ -1763,15 +1754,16 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Text(
                         if (editingRecordId != null) "変更を保存" else "メモに追加",
-                        color = Color.White
+                        color = mainText,
+                        fontSize = 20.sp
                     )
                 }
 
                 if (editingRecordId != null) {
                     Button(
                         onClick = { showDeleteConfirmDialog = true },
-                        modifier = Modifier.size(56.dp),
-                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier.size(44.dp),
+                        shape = RoundedCornerShape(22.dp),
                         contentPadding = PaddingValues(0.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))
                     ) {

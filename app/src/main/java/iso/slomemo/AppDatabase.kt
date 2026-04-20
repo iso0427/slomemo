@@ -18,8 +18,7 @@ data class AppSetting(
         MemoRecord::class,
         MemoValue::class,
         AppSetting::class,
-        AutoInputRule::class // ★ これを追加！
-        // SelectionOption::class // もし使っているならこれも必要です
+        AutoInputRule::class
     ],
     version = 7 // ★ 6 から 7 に上げます
 )
