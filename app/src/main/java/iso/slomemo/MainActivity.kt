@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,11 +35,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.filled.Undo // くるっと戻る矢印
-import androidx.compose.material.icons.filled.Redo // くるっと進む矢印
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
@@ -81,6 +79,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -95,16 +94,20 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     fun calculateVisualWidth(text: String): Float {
-        if (text.isEmpty()) return 1.0f // 空でも1文字分の幅を確保
-        var width = 0f
-        for (char in text) {
-            if (char.code in 0x00..0x7F || char.code in 0xFF61..0xFF9F) {
-                width += 0.52f // 半角を少しだけ広めに（フォントの遊び分）
-            } else {
-                width += 1.0f
+        var score = 0f
+        text.forEach { char ->
+            score += when {
+                // 1. 一般的な半角英数 (ASCII)
+                char.code <= 128 -> 0.5f
+
+                // 2. 半角カナ (Unicodeの範囲: FF61〜FF9F)
+                char in '\uFF61'..'\uFF9F' -> 0.5f
+
+                // 3. それ以外（全角漢字、全角カナなど）
+                else -> 1.0f
             }
         }
-        return width
+        return score
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -258,6 +261,31 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val columnWeights = remember(columns, valuesMap) {
+            // 先に全データを「列ごとの最大スコア」にまとめてしまう（ループは1回で済む）
+            val maxScores = mutableMapOf<Int, Float>()
+
+            valuesMap.values.flatten().forEach { memoValue ->
+                val score = calculateVisualWidth(memoValue.value)
+                val currentMax = maxScores[memoValue.columnId] ?: 0f
+                if (score > currentMax) {
+                    maxScores[memoValue.columnId] = score
+                }
+            }
+
+            // 各列について、ヘッダーとデータの大きい方を採用する
+            columns.associate { col ->
+                // 1. 項目名（ヘッダー）の幅を計算
+                val headerScore = calculateVisualWidth(col.name)
+
+                // 2. 手前のループで計算した「その列のデータ最大幅」を取得
+                val contentMaxScore = maxScores[col.id] ?: 0f
+
+                // 3. 両方のうち大きい方を採用し、最低幅（2.0fなど）を保証する
+                col.id to maxOf(headerScore, contentMaxScore).coerceAtLeast(1.5f)
+            }
+        } // ← remember の閉じカッコ
+
         LaunchedEffect(Unit) { refreshData() }
 
         Box(
@@ -317,7 +345,7 @@ class MainActivity : ComponentActivity() {
                                 enabled = viewModel.canUndo.value
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Undo,
+                                    painter = painterResource(id = R.drawable.ic_undo),
                                     contentDescription = "元に戻す",
                                     tint = if (viewModel.canUndo.value) mainText else mainText.copy(
                                         alpha = 0.3f
@@ -338,7 +366,8 @@ class MainActivity : ComponentActivity() {
                                 enabled = viewModel.canRedo.value
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Redo,
+                                    // ★ ここを imageVector から painterResource に書き換えます
+                                    painter = painterResource(id = R.drawable.ic_redo),
                                     contentDescription = "やり直し",
                                     tint = if (viewModel.canRedo.value) mainText else mainText.copy(
                                         alpha = 0.3f
@@ -382,41 +411,45 @@ class MainActivity : ComponentActivity() {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(
-                                        if (isDarkMode) Color(0xFF4A4458) else Color(
-                                            0xFFEADDFF
-                                        ).copy(alpha = 0.5f)
-                                    )
-                                    .padding(8.dp),
+                                    .background(if (isDarkMode) Color(0xFF4A4458) else Color(0xFFEADDFF).copy(alpha = 0.5f))
+                                    .padding(vertical = 8.dp), // .padding(8.dp) だと中身の Box と競合してズレるため調整
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // 1. 「時間」列の幅を50.dpで固定
                                 if (showTime) {
                                     Box(
-                                        modifier = Modifier.width(50.dp), // ★正確に60.dp確保
+                                        modifier = Modifier.width(50.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(
-                                            "時間",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = mainText
-                                        )
+                                        Text("時間", style = MaterialTheme.typography.labelMedium, color = mainText)
                                     }
+                                    // ★ 縦線の分（1.5.dp）の Spacer を忘れずに入れる
+                                    Spacer(modifier = Modifier.width(1.5.dp))
                                 }
-                                // --- 一覧のヘッダー（項目名） ---
-                                columns.forEach { col ->
-                                    val weight = calculateVisualWidth(col.name).coerceIn(1.0f, 2.5f)
+
+                                // 2. 項目名の列
+                                columns.forEachIndexed { index, col ->
+                                    // ★ 歴史データ行と同じ columnWeights を使う
+                                    val weight = columnWeights[col.id] ?: 1.0f
 
                                     Box(
-                                        modifier = Modifier.weight(weight),
-                                        contentAlignment = Alignment.Center // ★ここが中央の基準点
+                                        modifier = Modifier
+                                            .weight(weight)
+                                            .padding(horizontal = 4.dp), // ★ HistoryRow と完全に合わせる
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = col.name,
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = mainText, // ★ ここを mainText に変更（または追加）
+                                            color = mainText,
                                             maxLines = 1,
-                                            // textAlign = ... はあえて書かない（Boxに任せる）
+                                            overflow = TextOverflow.Clip
                                         )
+                                    }
+
+                                    // ★ 縦線の分（1.5.dp）の Spacer を忘れずに入れる
+                                    if (index < columns.size - 1) {
+                                        Spacer(modifier = Modifier.width(1.5.dp))
                                     }
                                 }
                             }
@@ -430,6 +463,7 @@ class MainActivity : ComponentActivity() {
                                         columns = columns,
                                         values = valuesMap[record.id] ?: emptyList(),
                                         showTime = showTime,
+                                        columnWeights = columnWeights, // ★ ここに追加！
                                         onRowClick = {
                                             scope.launch {
                                                 val currentValues =
@@ -1700,25 +1734,40 @@ class MainActivity : ComponentActivity() {
                 Button(
                     onClick = {
                         scope.launch {
-                            // --- 1. IDの確定（編集か新規か） ---
-                            val currentRid = if (editingRecordId != null) {
-                                // 編集の場合は既存のIDを使う
-                                editingRecordId
-                            } else {
-                                // 新規の場合は新しいRecordを作ってIDをもらう
-                                db.memoDao().insertRecord(MemoRecord()).toInt()
-                            }
-
-                            // --- 2. データの保存（Undo履歴対応 or 直接保存） ---
-                            val newValues = inputValues.filter { it.value.isNotBlank() }.map { (cid, txt) ->
-                                MemoValue(recordId = currentRid, columnId = cid, value = txt)
-                            }
+                            // 1. IDと時刻の確定
+                            val currentRid: Int
+                            val currentTimestamp: Long
 
                             if (editingRecordId != null) {
-                                // ★ここをシンプルに書き換えます
-                                viewModel.updateMemoWithHistory(MemoRecord(id = currentRid), newValues)
+                                // 【編集の場合】既存のレコードを取得して、その「時刻」をそのまま使う
+                                val existingRecord = db.memoDao().getRecordById(editingRecordId)
+                                currentRid = editingRecordId
+                                currentTimestamp =
+                                    existingRecord?.timestamp ?: System.currentTimeMillis()
                             } else {
-                                // 新規は直接保存
+                                // 【新規の場合】新しいレコードを作成（今の時刻）
+                                currentTimestamp = System.currentTimeMillis()
+                                currentRid = db.memoDao()
+                                    .insertRecord(MemoRecord(timestamp = currentTimestamp)).toInt()
+                            }
+
+                            // 2. データの保存
+                            val newValues =
+                                inputValues.filter { it.value.isNotBlank() }.map { (cid, txt) ->
+                                    MemoValue(recordId = currentRid, columnId = cid, value = txt)
+                                }
+
+                            if (editingRecordId != null) {
+                                // 編集時：時刻を維持したままアップデート
+                                viewModel.updateMemoWithHistory(
+                                    MemoRecord(
+                                        id = currentRid,
+                                        timestamp = currentTimestamp
+                                    ), // ★時刻を維持！
+                                    newValues
+                                )
+                            } else {
+                                // 新規時：そのまま保存
                                 newValues.forEach { db.memoDao().insertValue(it) }
                             }
 
@@ -1729,20 +1778,40 @@ class MainActivity : ComponentActivity() {
                                 rules.forEach { rule ->
                                     if (rule.isNextRow) {
                                         val allRecords = db.memoDao().getAllRecords()
-                                        val currentIndex = allRecords.indexOfFirst { it.id == currentRid }
-                                        val nextRecord = if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
-                                            allRecords[currentIndex + 1]
-                                        } else null
+                                        val currentIndex =
+                                            allRecords.indexOfFirst { it.id == currentRid }
+                                        val nextRecord =
+                                            if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
+                                                allRecords[currentIndex + 1]
+                                            } else null
 
                                         if (nextRecord != null) {
-                                            db.memoDao().insertValue(MemoValue(recordId = nextRecord.id, columnId = rule.targetColumnId, value = rule.targetValue))
+                                            db.memoDao().insertValue(
+                                                MemoValue(
+                                                    recordId = nextRecord.id,
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
+                                            )
                                         } else {
                                             val newNextRid = db.memoDao().insertRecord(MemoRecord())
-                                            db.memoDao().insertValue(MemoValue(recordId = newNextRid.toInt(), columnId = rule.targetColumnId, value = rule.targetValue))
+                                            db.memoDao().insertValue(
+                                                MemoValue(
+                                                    recordId = newNextRid.toInt(),
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
+                                            )
                                         }
                                     } else {
                                         if (cid != rule.targetColumnId) {
-                                            db.memoDao().insertValue(MemoValue(recordId = currentRid, columnId = rule.targetColumnId, value = rule.targetValue))
+                                            db.memoDao().insertValue(
+                                                MemoValue(
+                                                    recordId = currentRid,
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
+                                            )
                                         }
                                     }
                                 }
@@ -1815,6 +1884,7 @@ class MainActivity : ComponentActivity() {
         columns: List<ColumnSetting>,
         values: List<MemoValue>,
         showTime: Boolean,
+        columnWeights: Map<Int, Float>,
         onRowClick: () -> Unit,
         onDelete: () -> Unit,
         mainText: Color,
@@ -1829,7 +1899,8 @@ class MainActivity : ComponentActivity() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
+                    .height(IntrinsicSize.Min) // 縦線を出すために必須
+                    .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showTime) {
@@ -1838,35 +1909,52 @@ class MainActivity : ComponentActivity() {
                             .format(record.timestamp)
                     Text(
                         text = timeText,
-                        modifier = Modifier.width(50.dp), // 時間は固定が一番ズレない
+                        modifier = Modifier.width(50.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = subText, // ★ 1. Color.Gray から「補足文字色」に変更
+                        color = subText,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    // ★ 縦線1：時間とデータの境目
+                    Spacer(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(1.5.dp) // 少し太くしました
+                            .background(dividerColor) // 透過なし！
                     )
                 }
 
-                // --- HistoryRow 内の各列 ---
-                columns.forEach { col ->
+                columns.forEachIndexed { index, col ->
                     val value = values.find { it.columnId == col.id }?.value ?: ""
-
-                    // ★重要：計算式をヘッダーと「完全に」一致させる
-                    // 中身(value)ではなく、項目名(col.name)の幅だけで一旦固定してみてください
-                    val weight = calculateVisualWidth(col.name).coerceIn(1.0f, 2.5f)
-
+                    val weight = columnWeights[col.id] ?: 1.0f
+                    println("列ID: ${col.id}, 列名: ${col.name}, 最終ウェイト: $weight")
                     Box(
-                        modifier = Modifier.weight(weight),
-                        contentAlignment = Alignment.Center // ★ヘッダーと全く同じ基準点
+                        modifier = Modifier
+                            .weight(weight)
+                            .padding(horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = value,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = mainText, // ★ 2. ここを追加：モードに合わせて白/黒切り替え
-                            maxLines = 1
+                            color = mainText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip
                         )
                     }
+
+                    //// ★ 縦線2：項目ごとの区切り線
+                    //if (index < columns.size - 1) {
+                    //    Spacer(
+                    //        modifier = Modifier
+                    //            .fillMaxHeight()
+                    //            .width(1.5.dp) // 少し太くしました
+                    //            .background(dividerColor) // 透過なし！
+                    //    )
+                    //}
                 }
-            } // ★ 3. Color.LightGray から「区切り線色」に変更
-            Divider(color = dividerColor)
+            }
+            Divider(color = dividerColor, thickness = 1.dp) // 横線
         }
     }
 }
