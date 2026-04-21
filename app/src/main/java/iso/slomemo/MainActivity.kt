@@ -33,7 +33,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Undo // くるっと戻る矢印
+import androidx.compose.material.icons.filled.Redo // くるっと進む矢印
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
@@ -313,7 +317,7 @@ class MainActivity : ComponentActivity() {
                                 enabled = viewModel.canUndo.value
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowBack, // ★既存のインポートを使用
+                                    imageVector = Icons.AutoMirrored.Filled.Undo,
                                     contentDescription = "元に戻す",
                                     tint = if (viewModel.canUndo.value) mainText else mainText.copy(
                                         alpha = 0.3f
@@ -334,7 +338,7 @@ class MainActivity : ComponentActivity() {
                                 enabled = viewModel.canRedo.value
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowForward, // ★既存のインポートを使用
+                                    imageVector = Icons.AutoMirrored.Filled.Redo,
                                     contentDescription = "やり直し",
                                     tint = if (viewModel.canRedo.value) mainText else mainText.copy(
                                         alpha = 0.3f

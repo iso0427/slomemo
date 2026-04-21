@@ -90,7 +90,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.0")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
-
+    implementation("androidx.compose.material:material-icons-extended")
 
 
 }
