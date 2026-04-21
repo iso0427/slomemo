@@ -412,10 +412,10 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(if (isDarkMode) Color(0xFF4A4458) else Color(0xFFEADDFF).copy(alpha = 0.5f))
-                                    .padding(vertical = 8.dp), // .padding(8.dp) だと中身の Box と競合してズレるため調整
+                                    .padding(vertical = 8.dp)
+                                    .height(IntrinsicSize.Min), // ★ 縦線を親の高さ（文字の高さ）に合わせるために必須
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 1. 「時間」列の幅を50.dpで固定
                                 if (showTime) {
                                     Box(
                                         modifier = Modifier.width(50.dp),
@@ -423,19 +423,22 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text("時間", style = MaterialTheme.typography.labelMedium, color = mainText)
                                     }
-                                    // ★ 縦線の分（1.5.dp）の Spacer を忘れずに入れる
-                                    Spacer(modifier = Modifier.width(1.5.dp))
+                                    // --- 時間の横の縦線 ---
+                                    Spacer(
+                                        modifier = Modifier
+                                            .fillMaxHeight() // 親の高さ（IntrinsicSize.Min）に合わせる
+                                            .width(1.5.dp)
+                                            .background(dividerColor)
+                                    )
                                 }
 
-                                // 2. 項目名の列
                                 columns.forEachIndexed { index, col ->
-                                    // ★ 歴史データ行と同じ columnWeights を使う
                                     val weight = columnWeights[col.id] ?: 1.0f
 
                                     Box(
                                         modifier = Modifier
                                             .weight(weight)
-                                            .padding(horizontal = 4.dp), // ★ HistoryRow と完全に合わせる
+                                            .padding(horizontal = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
@@ -447,9 +450,14 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
 
-                                    // ★ 縦線の分（1.5.dp）の Spacer を忘れずに入れる
+                                    // --- 項目間の縦線 ---
                                     if (index < columns.size - 1) {
-                                        Spacer(modifier = Modifier.width(1.5.dp))
+                                        Spacer(
+                                            modifier = Modifier
+                                                .fillMaxHeight() // 親の高さに合わせる
+                                                .width(1.5.dp)
+                                                .background(dividerColor)
+                                        )
                                     }
                                 }
                             }
@@ -1943,15 +1951,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    //// ★ 縦線2：項目ごとの区切り線
-                    //if (index < columns.size - 1) {
-                    //    Spacer(
-                    //        modifier = Modifier
-                    //            .fillMaxHeight()
-                    //            .width(1.5.dp) // 少し太くしました
-                    //            .background(dividerColor) // 透過なし！
-                    //    )
-                    //}
+                    // ★ 縦線2：項目ごとの区切り線
+                    if (index < columns.size - 1) {
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(1.5.dp) // 少し太くしました
+                                .background(dividerColor) // 透過なし！
+                        )
+                    }
                 }
             }
             Divider(color = dividerColor, thickness = 1.dp) // 横線
