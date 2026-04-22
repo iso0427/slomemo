@@ -5,18 +5,21 @@ import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 
 // ① 項目名そのものを保存する（例：「pt」「契機」など）
-@Entity
+@Entity(tableName = "column_settings")
 data class ColumnSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val machineId: Int, // ★追加：どの機種の項目か
     val name: String,
     val options: List<String> = emptyList(),
     val displayOrder: Int = 0,
     val showTextField: Boolean = false
 )
+
 // ② 1行分の「データのまとまり」を管理する
-@Entity
+@Entity(tableName = "memo_records")
 data class MemoRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val machineId: Int, // ★追加：どの機種のデータか
     val timestamp: Long = System.currentTimeMillis(),
     val isDeleted: Boolean = false
 )

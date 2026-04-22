@@ -261,8 +261,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val columnWeights = remember(columns, valuesMap) {
-            // 先に全データを「列ごとの最大スコア」にまとめてしまう（ループは1回で済む）
+        val columnWeights = remember(columns, valuesMap, valuesMap.hashCode()) {
             val maxScores = mutableMapOf<Int, Float>()
 
             valuesMap.values.flatten().forEach { memoValue ->
@@ -273,16 +272,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // 各列について、ヘッダーとデータの大きい方を採用する
             columns.associate { col ->
-                // 1. 項目名（ヘッダー）の幅を計算
                 val headerScore = calculateVisualWidth(col.name)
-
-                // 2. 手前のループで計算した「その列のデータ最大幅」を取得
                 val contentMaxScore = maxScores[col.id] ?: 0f
-
-                // 3. 両方のうち大きい方を採用し、最低幅（2.0fなど）を保証する
-                col.id to maxOf(headerScore, contentMaxScore).coerceAtLeast(1.5f)
+                col.id to maxOf(headerScore, contentMaxScore).coerceAtLeast(2.0f)
             }
         } // ← remember の閉じカッコ
 
@@ -428,7 +421,7 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier
                                             .fillMaxHeight() // 親の高さ（IntrinsicSize.Min）に合わせる
                                             .width(1.5.dp)
-                                            .background(dividerColor)
+                                            .background(Color(0xFF777777))
                                     )
                                 }
 
@@ -456,7 +449,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier
                                                 .fillMaxHeight() // 親の高さに合わせる
                                                 .width(1.5.dp)
-                                                .background(dividerColor)
+                                                .background(Color(0xFF777777))
                                         )
                                     }
                                 }

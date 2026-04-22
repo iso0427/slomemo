@@ -14,17 +14,19 @@ data class AppSetting(
 
 @Database(
     entities = [
+        Machine::class,
         ColumnSetting::class,
         MemoRecord::class,
         MemoValue::class,
         AppSetting::class,
         AutoInputRule::class
     ],
-    version = 7 // ★ 6 から 7 に上げます
+    version = 8
 )
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun memoDao(): MemoDao
+    abstract fun machineDao(): MachineDao
 }
 
 class Converters {
