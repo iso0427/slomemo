@@ -90,6 +90,12 @@ import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+
 
 class MainActivity : ComponentActivity() {
 
@@ -205,9 +211,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            val navController = rememberNavController()
+
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
-                    TestColumnApp(db)
+                    // ★ ここが画面遷移の司令塔（NavHost）
+                    NavHost(navController = navController, startDestination = "machine_selection") {
+
+                        // ① 機種選択画面
+                        composable("machine_selection") {
+                            MachineSelectionScreen(db = db, onMachineSelected = { id ->
+                                navController.navigate("memo/$id")
+                            })
+                        }
+// ② メモ画面（machineId を受け取る）
+                        composable(
+                            route = "memo/{machineId}",
+                            arguments = listOf(navArgument("machineId") { type = NavType.IntType })
+                        ) { backStackEntry ->
+                            val machineId = backStackEntry.arguments?.getInt("machineId") ?: 0
+                            // 次のステップで TestColumnApp を MemoScreen にリネームして呼び出します
+                            MemoScreen(db = db, machineId = machineId)
+                        }
+                    }
                 }
             }
         }
@@ -219,16 +245,19 @@ class MainActivity : ComponentActivity() {
         ExperimentalLayoutApi::class
     )
     @Composable
-    fun TestColumnApp(db: AppDatabase) {
+    fun MemoScreen(db: AppDatabase, machineId: Int) { // 名前変更 & 引数追加
         // 1. ダークモードの状態（とりあえずは変数で管理。後でDB保存も可能）
         val isDarkMode = true
 
         // 2. モードによって切り替わる色の定義（色の司令塔）
-        val backColor = if (isDarkMode) Color(0xFF121212) else Color.White      // 画面全体の背景
-        val surfaceColor = if (isDarkMode) Color(0xFF1e1e1e) else Color.White   // メニューやダイアログの箱
+        val backColor =
+            if (isDarkMode) Color(0xFF121212) else Color.White      // 画面全体の背景
+        val surfaceColor =
+            if (isDarkMode) Color(0xFF1e1e1e) else Color.White   // メニューやダイアログの箱
         val mainText = if (isDarkMode) Color.White else Color.Black           // メインの文字
         val subText = if (isDarkMode) Color.LightGray else Color.Gray          // 補足の文字
-        val dividerColor = if (isDarkMode) Color(0xFF333333) else Color(0xFFEEEEEE) // 区切り線
+        val dividerColor =
+            if (isDarkMode) Color(0xFF333333) else Color(0xFFEEEEEE) // 区切り線
         var currentScreen by remember { mutableStateOf("main") }
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
@@ -241,7 +270,8 @@ class MainActivity : ComponentActivity() {
         val inputValues = remember { mutableStateMapOf<Int, String>() }
         var editingRecordId by remember { mutableStateOf<Int?>(null) }
         var valuesMap by remember { mutableStateOf<Map<Int, List<MemoValue>>>(emptyMap()) }
-        val appSetting by db.memoDao().getSettingFlow().collectAsState(initial = AppSetting())
+        val appSetting by db.memoDao().getSettingFlow()
+            .collectAsState(initial = AppSetting())
         val showTime = appSetting?.showTime ?: true
         var showConditionEditDialog by remember { mutableStateOf(false) }
         var selectedOptionForRule by remember { mutableStateOf<String?>(null) }
@@ -255,8 +285,9 @@ class MainActivity : ComponentActivity() {
 
         fun refreshData() {
             scope.launch {
-                columns = db.memoDao().getAllColumns()
-                records = db.memoDao().getAllRecords()
+                // 先ほど MemoDao に追加した「機種別取得」メソッドを使う
+                columns = db.memoDao().getColumnsByMachineDirect(machineId)
+                records = db.memoDao().getRecordsByMachine(machineId)
                 valuesMap = db.memoDao().getAllValues().groupBy { it.recordId }
             }
         }
@@ -385,7 +416,8 @@ class MainActivity : ComponentActivity() {
 
                         FloatingActionButton(
                             onClick = {
-                                inputValues.clear(); editingRecordId = null; showInputArea = true
+                                inputValues.clear(); editingRecordId =
+                                null; showInputArea = true
                             },
                             containerColor = Color(0xFF7E57C2),
                             contentColor = Color.White
@@ -404,7 +436,11 @@ class MainActivity : ComponentActivity() {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (isDarkMode) Color(0xFF4A4458) else Color(0xFFEADDFF).copy(alpha = 0.5f))
+                                    .background(
+                                        if (isDarkMode) Color(0xFF4A4458) else Color(
+                                            0xFFEADDFF
+                                        ).copy(alpha = 0.5f)
+                                    )
                                     .padding(vertical = 8.dp)
                                     .height(IntrinsicSize.Min), // ★ 縦線を親の高さ（文字の高さ）に合わせるために必須
                                 verticalAlignment = Alignment.CenterVertically
@@ -414,7 +450,11 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.width(50.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text("時間", style = MaterialTheme.typography.labelMedium, color = mainText)
+                                        Text(
+                                            "時間",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = mainText
+                                        )
                                     }
                                     // --- 時間の横の縦線 ---
                                     Spacer(
@@ -468,7 +508,8 @@ class MainActivity : ComponentActivity() {
                                         onRowClick = {
                                             scope.launch {
                                                 val currentValues =
-                                                    db.memoDao().getValuesForRecord(record.id)
+                                                    db.memoDao()
+                                                        .getValuesForRecord(record.id)
                                                 inputValues.clear()
                                                 currentValues.forEach {
                                                     inputValues[it.columnId] = it.value
@@ -510,11 +551,14 @@ class MainActivity : ComponentActivity() {
                                     .padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Switch(checked = showTime, onCheckedChange = { isChecked ->
-                                    scope.launch {
-                                        db.memoDao().updateSetting(AppSetting(showTime = isChecked))
-                                    }
-                                })
+                                Switch(
+                                    checked = showTime,
+                                    onCheckedChange = { isChecked ->
+                                        scope.launch {
+                                            db.memoDao()
+                                                .updateSetting(AppSetting(showTime = isChecked))
+                                        }
+                                    })
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text("時間を表示する", color = mainText)
                             }
@@ -589,7 +633,11 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 // indexを使って位置を特定するために forEachIndexed に変更
                                 columns.forEachIndexed { index, col ->
-                                    var showColumnMenu by remember { mutableStateOf(false) }
+                                    var showColumnMenu by remember {
+                                        mutableStateOf(
+                                            false
+                                        )
+                                    }
 
                                     // --- 設定画面の項目並び替えチップ部分 ---
                                     Box {
@@ -601,7 +649,9 @@ class MainActivity : ComponentActivity() {
                                                     text = col.name,
                                                     // ★ color = mainText は削除（下の colors で一括管理するため）
                                                     modifier = Modifier.combinedClickable(
-                                                        onClick = { selectedColumnId = col.id },
+                                                        onClick = {
+                                                            selectedColumnId = col.id
+                                                        },
                                                         onLongClick = {
                                                             selectedColumnId = col.id
                                                             showColumnMenuId = col.id
@@ -612,7 +662,9 @@ class MainActivity : ComponentActivity() {
                                             // ★ ここから追加：Bの設計思想に基づいた色指定
                                             colors = FilterChipDefaults.filterChipColors(
                                                 labelColor = mainText,              // 未選択時の文字色（パキッとした白）
-                                                selectedContainerColor = Color(0xFFEADDFF), // 選択時の背景色（紫）
+                                                selectedContainerColor = Color(
+                                                    0xFFEADDFF
+                                                ), // 選択時の背景色（紫）
                                                 selectedLabelColor = Color.Black    // 選択時の文字色（白）
                                             ),
                                             // 未選択時に枠線が欲しい場合は以下を追加（不要なら削除してOK）
@@ -752,7 +804,8 @@ class MainActivity : ComponentActivity() {
                                         onClick = {
                                             if (newOptionName.isNotBlank()) {
                                                 scope.launch {
-                                                    val opts = col.options.toMutableList()
+                                                    val opts =
+                                                        col.options.toMutableList()
                                                     opts.add(newOptionName)
                                                     db.memoDao()
                                                         .updateColumn(col.copy(options = opts))
@@ -770,7 +823,11 @@ class MainActivity : ComponentActivity() {
                                 FlowRow(modifier = Modifier.fillMaxWidth()) {
                                     // optIndexを使って位置を特定するために forEachIndexed に変更
                                     col.options.forEachIndexed { optIndex, opt ->
-                                        var showOptMenu by remember { mutableStateOf(false) }
+                                        var showOptMenu by remember {
+                                            mutableStateOf(
+                                                false
+                                            )
+                                        }
 
                                         Box {
                                             InputChip(
@@ -781,7 +838,9 @@ class MainActivity : ComponentActivity() {
                                                 label = { Text(text = opt) },
                                                 colors = InputChipDefaults.inputChipColors(
                                                     labelColor = mainText,                 // 未選択：白
-                                                    selectedContainerColor = Color(0xFFEADDFF), // 選択（メニュー中）：薄紫
+                                                    selectedContainerColor = Color(
+                                                        0xFFEADDFF
+                                                    ), // 選択（メニュー中）：薄紫
                                                     selectedLabelColor = Color.Black
                                                 ),
                                                 // ★ 画像の定義通りに全ての必須パラメータを埋める
@@ -835,7 +894,12 @@ class MainActivity : ComponentActivity() {
                                         onDismissRequest = {
                                             showOptionDeleteConfirmDialog = false
                                         },
-                                        title = { Text(text = "選択肢の削除", color = mainText) },
+                                        title = {
+                                            Text(
+                                                text = "選択肢の削除",
+                                                color = mainText
+                                            )
+                                        },
                                         text = {
                                             Text(
                                                 text = "「$optToRemove」を削除しますか？",
@@ -846,16 +910,21 @@ class MainActivity : ComponentActivity() {
                                         confirmButton = {
                                             TextButton(onClick = {
                                                 scope.launch {
-                                                    val opts = col.options.toMutableList()
+                                                    val opts =
+                                                        col.options.toMutableList()
                                                     opts.remove(optToRemove)
                                                     db.memoDao()
                                                         .updateColumn(col.copy(options = opts))
 
                                                     db.memoDao()
-                                                        .deleteRulesByTrigger(col.id, optToRemove)
+                                                        .deleteRulesByTrigger(
+                                                            col.id,
+                                                            optToRemove
+                                                        )
 
                                                     refreshData()
-                                                    showOptionDeleteConfirmDialog = false
+                                                    showOptionDeleteConfirmDialog =
+                                                        false
                                                     showOptionMenuName = null
                                                 }
                                             }) {
@@ -1009,7 +1078,8 @@ class MainActivity : ComponentActivity() {
                                         list.add(targetIndex - 1, item)
                                         scope.launch {
                                             list.forEachIndexed { i, c ->
-                                                db.memoDao().updateColumn(c.copy(displayOrder = i))
+                                                db.memoDao()
+                                                    .updateColumn(c.copy(displayOrder = i))
                                             }
                                             refreshData()
                                         }
@@ -1023,8 +1093,16 @@ class MainActivity : ComponentActivity() {
                                     colors = if (targetIndex > 0) canMoveColumnColors else cannotMoveColumnColors
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(Icons.Default.ArrowBack, null, tint = Color.Black)
-                                        Text("左へ", fontSize = 16.sp, color = Color.Black)
+                                        Icon(
+                                            Icons.Default.ArrowBack,
+                                            null,
+                                            tint = Color.Black
+                                        )
+                                        Text(
+                                            "左へ",
+                                            fontSize = 16.sp,
+                                            color = Color.Black
+                                        )
                                     }
                                 }
 
@@ -1036,7 +1114,8 @@ class MainActivity : ComponentActivity() {
                                         list.add(targetIndex + 1, item)
                                         scope.launch {
                                             list.forEachIndexed { i, c ->
-                                                db.memoDao().updateColumn(c.copy(displayOrder = i))
+                                                db.memoDao()
+                                                    .updateColumn(c.copy(displayOrder = i))
                                             }
                                             refreshData()
                                         }
@@ -1050,8 +1129,16 @@ class MainActivity : ComponentActivity() {
                                     colors = if (targetIndex < columns.size - 1) canMoveColumnColors else cannotMoveColumnColors
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(Icons.Default.ArrowForward, null, tint = Color.Black)
-                                        Text("右へ", fontSize = 16.sp, color = Color.Black)
+                                        Icon(
+                                            Icons.Default.ArrowForward,
+                                            null,
+                                            tint = Color.Black
+                                        )
+                                        Text(
+                                            "右へ",
+                                            fontSize = 16.sp,
+                                            color = Color.Black
+                                        )
                                     }
                                 }
                             }
@@ -1111,7 +1198,8 @@ class MainActivity : ComponentActivity() {
                                     val targetName =
                                         columns.find { it.id == rule.targetColumnId }?.name
                                             ?: "不明"
-                                    val timingStr = if (rule.isNextRow) "次の行" else "同じ行"
+                                    val timingStr =
+                                        if (rule.isNextRow) "次の行" else "同じ行"
 
                                     Row(
                                         modifier = Modifier
@@ -1186,10 +1274,13 @@ class MainActivity : ComponentActivity() {
                             )
                             FlowRow(modifier = Modifier.fillMaxWidth()) {
                                 columns.forEach { c ->
-                                    val isConfigured = localRules.any { it.targetColumnId == c.id }
+                                    val isConfigured =
+                                        localRules.any { it.targetColumnId == c.id }
                                     FilterChip(
                                         selected = targetColId == c.id,
-                                        onClick = { targetColId = c.id; targetValue = "" },
+                                        onClick = {
+                                            targetColId = c.id; targetValue = ""
+                                        },
                                         label = {
                                             Text(if (c.id == selectedColumnIdForRule) "${c.name}(自分)" else c.name)
                                         },
@@ -1202,7 +1293,9 @@ class MainActivity : ComponentActivity() {
                                         border = FilterChipDefaults.filterChipBorder(
                                             enabled = true,
                                             selected = selectedColumnId == targetColId,
-                                            borderColor = if (isConfigured) Color(0xFFBB86FC) else Color.Gray,
+                                            borderColor = if (isConfigured) Color(
+                                                0xFFBB86FC
+                                            ) else Color.Gray,
                                             borderWidth = 1.dp,
                                             selectedBorderColor = Color.Gray,
                                             selectedBorderWidth = 1.dp
@@ -1216,7 +1309,8 @@ class MainActivity : ComponentActivity() {
                             if (targetColId != null) {
                                 Spacer(modifier = Modifier.height(12.dp))
                                 val opts =
-                                    columns.find { it.id == targetColId }?.options ?: emptyList()
+                                    columns.find { it.id == targetColId }?.options
+                                        ?: emptyList()
                                 FlowRow(modifier = Modifier.fillMaxWidth()) {
                                     // --- 入力値設定 (下のチップ一覧) ---
                                     opts.forEach { opt ->
@@ -1226,7 +1320,9 @@ class MainActivity : ComponentActivity() {
                                             label = { Text(opt) },
                                             colors = FilterChipDefaults.filterChipColors(
                                                 labelColor = mainText,              // 通常時：白
-                                                selectedContainerColor = Color(0xFFEADDFF), // 選択時：薄紫
+                                                selectedContainerColor = Color(
+                                                    0xFFEADDFF
+                                                ), // 選択時：薄紫
                                                 selectedLabelColor = Color.Black    // 選択時：黒
                                             ),
                                             border = FilterChipDefaults.filterChipBorder(
@@ -1291,7 +1387,9 @@ class MainActivity : ComponentActivity() {
                                                 selectedColumnIdForRule!!,
                                                 selectedOptionForRule!!
                                             )
-                                            localRules.forEach { db.memoDao().insertRule(it) }
+                                            localRules.forEach {
+                                                db.memoDao().insertRule(it)
+                                            }
                                             showConditionEditDialog = false
                                             refreshData()
                                         }
@@ -1385,8 +1483,16 @@ class MainActivity : ComponentActivity() {
                                         colors = if (optIndex > 0) canMoveColors else cannotMoveColors
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(Icons.Default.ArrowBack, null, tint = Color.Black)
-                                            Text("左へ", fontSize = 14.sp, color = Color.Black)
+                                            Icon(
+                                                Icons.Default.ArrowBack,
+                                                null,
+                                                tint = Color.Black
+                                            )
+                                            Text(
+                                                "左へ",
+                                                fontSize = 14.sp,
+                                                color = Color.Black
+                                            )
                                         }
                                     }
 
@@ -1421,7 +1527,11 @@ class MainActivity : ComponentActivity() {
                                                 null,
                                                 tint = Color.Black
                                             )
-                                            Text("右へ", fontSize = 14.sp, color = Color.Black)
+                                            Text(
+                                                "右へ",
+                                                fontSize = 14.sp,
+                                                color = Color.Black
+                                            )
                                         }
                                     }
                                 }
@@ -1447,7 +1557,9 @@ class MainActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isDarkMode) Color(0xFF4A4458) else Color(
+                                            containerColor = if (isDarkMode) Color(
+                                                0xFF4A4458
+                                            ) else Color(
                                                 0xFFEADDFF
                                             )
                                         )
@@ -1485,7 +1597,9 @@ class MainActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isDarkMode) Color(0xFF8C1D18).copy(
+                                            containerColor = if (isDarkMode) Color(
+                                                0xFF8C1D18
+                                            ).copy(
                                                 alpha = 0.5f
                                             ) else Color(0xFFFFEBEE)
                                         )
@@ -1597,7 +1711,12 @@ class MainActivity : ComponentActivity() {
                 AlertDialog(
                     onDismissRequest = { showResetConfirmDialog = false },
                     title = { Text(text = "メモをリセット", color = mainText) },
-                    text = { Text(text = "すべてのメモを削除しますか？", color = mainText) },
+                    text = {
+                        Text(
+                            text = "すべてのメモを削除しますか？",
+                            color = mainText
+                        )
+                    },
                     containerColor = surfaceColor,
                     confirmButton = {
                         TextButton(onClick = {
@@ -1674,12 +1793,14 @@ class MainActivity : ComponentActivity() {
                     ) {
                         options.forEach { option ->
                             val isSelected = (currentValue == option)
-                            val bgColor = if (isSelected) Color(0xFF7E57C2) else Color(0xFF333333)
+                            val bgColor =
+                                if (isSelected) Color(0xFF7E57C2) else Color(0xFF333333)
                             val textColor = if (isSelected) Color.White else mainText
 
                             Surface(
                                 onClick = {
-                                    inputValues[column.id] = if (isSelected) "" else option
+                                    inputValues[column.id] =
+                                        if (isSelected) "" else option
                                 },
                                 shape = RoundedCornerShape(8.dp),
                                 color = bgColor,
@@ -1691,7 +1812,11 @@ class MainActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier.padding(horizontal = 16.dp)
                                 ) {
-                                    Text(text = option, color = textColor, fontSize = 14.sp)
+                                    Text(
+                                        text = option,
+                                        color = textColor,
+                                        fontSize = 14.sp
+                                    )
                                 }
                             }
                         }
@@ -1741,22 +1866,30 @@ class MainActivity : ComponentActivity() {
 
                             if (editingRecordId != null) {
                                 // 【編集の場合】既存のレコードを取得して、その「時刻」をそのまま使う
-                                val existingRecord = db.memoDao().getRecordById(editingRecordId)
+                                val existingRecord =
+                                    db.memoDao().getRecordById(editingRecordId)
                                 currentRid = editingRecordId
                                 currentTimestamp =
-                                    existingRecord?.timestamp ?: System.currentTimeMillis()
+                                    existingRecord?.timestamp
+                                        ?: System.currentTimeMillis()
                             } else {
                                 // 【新規の場合】新しいレコードを作成（今の時刻）
                                 currentTimestamp = System.currentTimeMillis()
                                 currentRid = db.memoDao()
-                                    .insertRecord(MemoRecord(timestamp = currentTimestamp)).toInt()
+                                    .insertRecord(MemoRecord(timestamp = currentTimestamp))
+                                    .toInt()
                             }
 
                             // 2. データの保存
                             val newValues =
-                                inputValues.filter { it.value.isNotBlank() }.map { (cid, txt) ->
-                                    MemoValue(recordId = currentRid, columnId = cid, value = txt)
-                                }
+                                inputValues.filter { it.value.isNotBlank() }
+                                    .map { (cid, txt) ->
+                                        MemoValue(
+                                            recordId = currentRid,
+                                            columnId = cid,
+                                            value = txt
+                                        )
+                                    }
 
                             if (editingRecordId != null) {
                                 // 編集時：時刻を維持したままアップデート
@@ -1795,7 +1928,8 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             )
                                         } else {
-                                            val newNextRid = db.memoDao().insertRecord(MemoRecord())
+                                            val newNextRid =
+                                                db.memoDao().insertRecord(MemoRecord())
                                             db.memoDao().insertValue(
                                                 MemoValue(
                                                     recordId = newNextRid.toInt(),
@@ -1826,7 +1960,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .weight(1f)
                         .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(
+                            0xFF7E57C2
+                        )
+                    )
                 ) {
                     Text(
                         if (editingRecordId != null) "変更を保存" else "メモに追加",
@@ -1841,9 +1979,17 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.size(44.dp),
                         shape = RoundedCornerShape(22.dp),
                         contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(
+                                0xFFB3261E
+                            )
+                        )
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = "削除", tint = Color.White)
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "削除",
+                            tint = Color.White
+                        )
                     }
                 }
             }
@@ -1906,7 +2052,10 @@ class MainActivity : ComponentActivity() {
             ) {
                 if (showTime) {
                     val timeText =
-                        java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                        java.text.SimpleDateFormat(
+                            "HH:mm",
+                            java.util.Locale.getDefault()
+                        )
                             .format(record.timestamp)
                     Text(
                         text = timeText,
