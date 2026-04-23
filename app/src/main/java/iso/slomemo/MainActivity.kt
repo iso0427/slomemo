@@ -84,18 +84,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
-
 
 class MainActivity : ComponentActivity() {
 
@@ -126,76 +124,6 @@ class MainActivity : ComponentActivity() {
             "memo-db"
         ).fallbackToDestructiveMigration().build()
 
-        lifecycleScope.launch(Dispatchers.IO) {
-            val dao = db.memoDao()
-            // 1. 今、項目が空っぽかどうか確認する（Direct版をDaoに追加しておくこと！）
-            val currentColumns = dao.getAllColumnsDirect()
-
-            // 2. 空っぽなら、いつもの「pt」「G数」「契機」を勝手に入れる
-            if (currentColumns.isEmpty()) {
-                dao.insertColumn(
-                    ColumnSetting(
-                        name = "pt",
-                        options = listOf(
-                            "000",
-                            "100",
-                            "200",
-                            "300",
-                            "400",
-                            "500",
-                            "600",
-                            "700",
-                            "800",
-                            "900",
-                            "━"
-                        ),
-                        displayOrder = 0
-                    )
-                )
-                dao.insertColumn(
-                    ColumnSetting(
-                        name = "契機",
-                        options = listOf("pt", "強チェ", "ﾁｬﾝｽ目", "ﾏｷﾞﾁｬﾚ", "黒江ﾁｬﾚ", "━"),
-                        displayOrder = 1
-                    )
-                )
-                dao.insertColumn(
-                    ColumnSetting(
-                        name = "種別",
-                        options = listOf("BIG", "みたま", "AT", "エピボ", "アリナ", "━"),
-                        displayOrder = 2
-                    )
-                )
-                dao.insertColumn(
-                    ColumnSetting(
-                        name = "AT",
-                        options = listOf("〇", "✕", "━"),
-                        displayOrder = 3
-                    )
-                )
-                dao.insertColumn(
-                    ColumnSetting(
-                        name = "BIG終了画面",
-                        options = listOf("デフォルト", "さな", "フェリシア", "━"),
-                        displayOrder = 4
-                    )
-                )
-                dao.insertColumn(
-                    ColumnSetting(
-                        name = "AT終了画面",
-                        options = listOf("デフォルト", "マギウス", "みかづき荘", "━"),
-                        displayOrder = 5
-                    )
-                )
-                dao.insertColumn(
-                    ColumnSetting(
-                        name = "STORY",
-                        options = listOf("━"),
-                        displayOrder = 6
-                    )
-                )
-            }
-        }
 
         setContent {
             val view = androidx.compose.ui.platform.LocalView.current
@@ -246,18 +174,14 @@ class MainActivity : ComponentActivity() {
     )
     @Composable
     fun MemoScreen(db: AppDatabase, machineId: Int) { // 名前変更 & 引数追加
-        // 1. ダークモードの状態（とりあえずは変数で管理。後でDB保存も可能）
-        val isDarkMode = true
 
         // 2. モードによって切り替わる色の定義（色の司令塔）
-        val backColor =
-            if (isDarkMode) Color(0xFF121212) else Color.White      // 画面全体の背景
-        val surfaceColor =
-            if (isDarkMode) Color(0xFF1e1e1e) else Color.White   // メニューやダイアログの箱
-        val mainText = if (isDarkMode) Color.White else Color.Black           // メインの文字
-        val subText = if (isDarkMode) Color.LightGray else Color.Gray          // 補足の文字
-        val dividerColor =
-            if (isDarkMode) Color(0xFF333333) else Color(0xFFEEEEEE) // 区切り線
+        val backColor = Color.Black            // 画面全体の背景
+        val surfaceColor = Color(0xFF1e1e1e)   // メニューやダイアログの箱
+        val mainText = Color.White             // メインの文字
+        val subText = Color.LightGray          // 補足の文字
+        val dividerColor = Color(0xFF333333)   // 区切り線
+
         var currentScreen by remember { mutableStateOf("main") }
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
@@ -282,9 +206,14 @@ class MainActivity : ComponentActivity() {
         var showOptionDeleteConfirmDialog by remember { mutableStateOf(false) }
         val viewModel: MainViewModel = viewModel()
         var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
+        var machineName by remember { mutableStateOf("読み込み中...") }
 
         fun refreshData() {
             scope.launch {
+                val machine = db.machineDao().getMachineById(machineId)
+                if (machine != null) {
+                    machineName = machine.name
+                }
                 // 先ほど MemoDao に追加した「機種別取得」メソッドを使う
                 columns = db.memoDao().getColumnsByMachineDirect(machineId)
                 records = db.memoDao().getRecordsByMachine(machineId)
@@ -349,10 +278,12 @@ class MainActivity : ComponentActivity() {
                     ) {
                         // 1. タイトル
                         Text(
-                            text = if (currentScreen == "main") "実戦データ" else "設定",
+                            text = if (currentScreen == "main") machineName else "設定",
                             style = MaterialTheme.typography.titleLarge,
                             color = mainText,
-                            modifier = Modifier.weight(1f) // タイトルを左側に寄せる
+                            modifier = Modifier.weight(1f), // タイトルを左側に寄せる
+                            maxLines = 1,                                   // ★追加
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis // ★追加
                         )
 
                         // メイン画面の時だけ操作ボタンを表示
@@ -436,11 +367,7 @@ class MainActivity : ComponentActivity() {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(
-                                        if (isDarkMode) Color(0xFF4A4458) else Color(
-                                            0xFFEADDFF
-                                        ).copy(alpha = 0.5f)
-                                    )
+                                    .background(Color(0xFF4A4458))
                                     .padding(vertical = 8.dp)
                                     .height(IntrinsicSize.Min), // ★ 縦線を親の高さ（文字の高さ）に合わせるために必須
                                 verticalAlignment = Alignment.CenterVertically
@@ -603,6 +530,7 @@ class MainActivity : ComponentActivity() {
                                                 db.memoDao().insertColumn(
                                                     ColumnSetting(
                                                         name = newColumnName,
+                                                        machineId = machineId, // ★これを追加！
                                                         displayOrder = columns.size
                                                     )
                                                 )
@@ -1488,9 +1416,10 @@ class MainActivity : ComponentActivity() {
                                                 null,
                                                 tint = Color.Black
                                             )
+
                                             Text(
                                                 "左へ",
-                                                fontSize = 14.sp,
+                                                fontSize = 16.sp,
                                                 color = Color.Black
                                             )
                                         }
@@ -1527,9 +1456,10 @@ class MainActivity : ComponentActivity() {
                                                 null,
                                                 tint = Color.Black
                                             )
+
                                             Text(
                                                 "右へ",
-                                                fontSize = 14.sp,
+                                                fontSize = 16.sp,
                                                 color = Color.Black
                                             )
                                         }
@@ -1553,32 +1483,29 @@ class MainActivity : ComponentActivity() {
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(60.dp), // ★ Cの高さ
+                                            .height(60.dp),
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
+                                        // ★ MachineActionDialog と同じ紫に変更
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isDarkMode) Color(
-                                                0xFF4A4458
-                                            ) else Color(
-                                                0xFFEADDFF
-                                            )
+                                            containerColor = Color(0xFF6750A4),
+                                            contentColor = Color.White
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            val tintColor =
-                                                if (isDarkMode) Color(0xFFD0BCFF) else Color(
-                                                    0xFF7E57C2
-                                                )
                                             Icon(
                                                 Icons.Default.Build,
                                                 null,
-                                                tint = tintColor,
-                                                modifier = Modifier.size(20.dp)
+                                                tint = Color.White,
+                                                //modifier = Modifier.size(20.dp)
                                             )
+
+                                            Spacer(modifier = Modifier.height(2.dp))
+
                                             Text(
                                                 "条件編集",
-                                                color = tintColor,
-                                                fontSize = 14.sp, // ★ Cのサイズ
+                                                color = Color.White,
+                                                fontSize = 16.sp, // ★ MachineActionDialog と同じ 16.sp に変更
                                                 maxLines = 1,
                                                 softWrap = false,
                                                 overflow = TextOverflow.Visible
@@ -1593,30 +1520,29 @@ class MainActivity : ComponentActivity() {
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(60.dp), // ★ Cの高さ
+                                            .height(60.dp),
                                         shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(0.dp),
+                                        // ★ MachineActionDialog と同じ赤に変更
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isDarkMode) Color(
-                                                0xFF8C1D18
-                                            ).copy(
-                                                alpha = 0.5f
-                                            ) else Color(0xFFFFEBEE)
+                                            containerColor = Color(0xFFB3261E),
+                                            contentColor = Color.White
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            val deleteColor =
-                                                if (isDarkMode) Color(0xFFFFB4AB) else Color.Red
                                             Icon(
                                                 Icons.Default.Delete,
                                                 null,
-                                                tint = deleteColor,
-                                                modifier = Modifier.size(20.dp)
+                                                tint = Color.White,
+                                                //modifier = Modifier.size(20.dp)
                                             )
+
+                                            Spacer(modifier = Modifier.height(2.dp))
+
                                             Text(
                                                 "削除",
-                                                color = deleteColor,
-                                                fontSize = 14.sp, // ★ Cのサイズ
+                                                color = Color.White,
+                                                fontSize = 16.sp, // ★ MachineActionDialog と同じ 16.sp に変更
                                                 maxLines = 1,
                                                 softWrap = false,
                                                 overflow = TextOverflow.Visible
@@ -1654,6 +1580,7 @@ class MainActivity : ComponentActivity() {
                         // ★ 隙間管理：ナビゲーションバー分の余白を内側に持たせる
                         Column(modifier = Modifier.navigationBarsPadding()) {
                             InputFormContent(
+                                machineId = machineId,
                                 db = db,
                                 viewModel = viewModel,
                                 columns = columns,
@@ -1722,7 +1649,7 @@ class MainActivity : ComponentActivity() {
                         TextButton(onClick = {
                             // ★修正：scope.launch と delay を使って、削除を待ってから画面を更新する
                             scope.launch {
-                                viewModel.resetAllMemosWithHistory()
+                                viewModel.resetAllMemosWithHistory(machineId) // ★ machineId を渡す
                                 kotlinx.coroutines.delay(150) // 0.15秒待ってDB書き込みを確実に待機
                                 refreshData()
                                 showResetConfirmDialog = false
@@ -1743,6 +1670,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun InputFormContent(
+        machineId: Int,
         db: AppDatabase,
         viewModel: MainViewModel,
         columns: List<ColumnSetting>,
@@ -1873,11 +1801,15 @@ class MainActivity : ComponentActivity() {
                                     existingRecord?.timestamp
                                         ?: System.currentTimeMillis()
                             } else {
-                                // 【新規の場合】新しいレコードを作成（今の時刻）
+                                // 【新規の場合】新しいレコードを作成
                                 currentTimestamp = System.currentTimeMillis()
                                 currentRid = db.memoDao()
-                                    .insertRecord(MemoRecord(timestamp = currentTimestamp))
-                                    .toInt()
+                                    .insertRecord(
+                                        MemoRecord(
+                                            machineId = machineId, // ★ ここで使う！
+                                            timestamp = currentTimestamp
+                                        )
+                                    ).toInt()
                             }
 
                             // 2. データの保存
@@ -1896,6 +1828,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel.updateMemoWithHistory(
                                     MemoRecord(
                                         id = currentRid,
+                                        machineId = machineId,
                                         timestamp = currentTimestamp
                                     ), // ★時刻を維持！
                                     newValues
@@ -1911,7 +1844,7 @@ class MainActivity : ComponentActivity() {
                                 val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                 rules.forEach { rule ->
                                     if (rule.isNextRow) {
-                                        val allRecords = db.memoDao().getAllRecords()
+                                        val allRecords = db.memoDao().getRecordsByMachine(machineId)
                                         val currentIndex =
                                             allRecords.indexOfFirst { it.id == currentRid }
                                         val nextRecord =
@@ -1928,8 +1861,9 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             )
                                         } else {
-                                            val newNextRid =
-                                                db.memoDao().insertRecord(MemoRecord())
+                                            val newNextRid = db.memoDao().insertRecord(
+                                                MemoRecord(machineId = machineId)
+                                            )
                                             db.memoDao().insertValue(
                                                 MemoValue(
                                                     recordId = newNextRid.toInt(),

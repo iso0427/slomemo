@@ -54,18 +54,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun resetAllMemosWithHistory() {
+    fun resetAllMemosWithHistory(machineId: Int) { // ★ 引数に machineId を追加
         viewModelScope.launch(Dispatchers.IO) {
-            val currentRecords = dao.getAllRecords()
-            val currentValues = dao.getAllValues() // ★ 全データを取得
+            // ★ 機種別のレコードを取得するように修正
+            val currentRecords = dao.getRecordsByMachine(machineId)
+
+            // Valueの方は、全取得してからこの機種に関連するものだけに絞り込む
+            // (またはDaoに getValuesByMachine(machineId) を作っても良いですが、一旦これで)
+            val recordIds = currentRecords.map { it.id }
+            val currentValues = dao.getAllValues().filter { it.recordId in recordIds }
 
             if (currentRecords.isNotEmpty()) {
-                // ★ 両方を履歴に積む
+                // 履歴に積む
                 undoStack.push(MemoAction.Reset(currentRecords, currentValues))
                 redoStack.clear()
 
-                dao.deleteAllMemoValues()
-                dao.deleteAllRecords()
+                // ★ 削除も「その機種に関連するもの」だけに限定する
+                // もし Dao に deleteValuesByMachine 等がない場合は、
+                // recordIds をループして消すか、Daoに専用メソッドを追加してください。
+                currentRecords.forEach { record ->
+                    dao.deleteValuesByRecordId(record.id)
+                    dao.deleteRecordById(record.id)
+                }
+
                 updateStackStates()
             }
         }

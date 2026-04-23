@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -24,4 +25,16 @@ interface MachineDao {
     // 特定のIDの機種を取得
     @Query("SELECT * FROM machines WHERE id = :id")
     suspend fun getMachineById(id: Int): Machine?
+
+    @Update
+    suspend fun updateMachine(machine: Machine)
+
+    @Update
+    suspend fun updateMachines(machines: List<Machine>)
+
+
+
+
+
+
 }
