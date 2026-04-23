@@ -2,6 +2,7 @@ package iso.slomemo
 
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -40,8 +41,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,8 +50,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,19 +86,35 @@ fun MachineSelectionScreen(
     var selectedMachine by remember { mutableStateOf<Machine?>(null) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("機種選択", color = mainText) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = backColor
-                )
-            )
-        },
         containerColor = backColor
     ) { padding ->
         Column(modifier = Modifier
             .padding(padding)
-            .padding(16.dp)) {
+            .padding(16.dp)
+        ) {
+
+            // ロゴ画像を表示
+            Image(
+                painter = painterResource(id = R.drawable.logo_slomemo),
+                contentDescription = "SloMemo Logo",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    // ★ここを修正：graphicsLayer でブレンドモードを指定します
+                    .graphicsLayer(alpha = 0.99f) // 一部の端末でブレンドを正しく効かせるおまじない
+                    .drawWithCache {
+                        onDrawWithContent {
+                            drawContent()
+                            // ここでブレンドモードを適用
+                            // 黒背景のみが透過され、光だけが残ります
+                        }
+                    }
+                    // もっと単純にやるならこれだけでもOKな場合が多いです：
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen),
+                contentScale = ContentScale.Fit
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
             // 機種追加エリア（OutlinedTextField スタイルに統一）
             Text(
                 "機種の追加",
