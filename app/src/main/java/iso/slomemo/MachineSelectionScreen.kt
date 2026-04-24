@@ -97,7 +97,7 @@ fun MachineSelectionScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
+                .padding(64.dp)
         ) {
 
             // ロゴ画像を表示
@@ -121,7 +121,7 @@ fun MachineSelectionScreen(
                 contentScale = ContentScale.Fit
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
             // 機種一覧リスト
             LazyColumn {

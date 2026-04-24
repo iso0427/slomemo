@@ -381,7 +381,9 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text(
                                             "時間",
-                                            style = MaterialTheme.typography.labelMedium,
+                                            style = androidx.compose.ui.text.TextStyle(
+                                                fontSize = 16.sp       // ★ 時間の見出しも大きく
+                                            ),
                                             color = mainText
                                         )
                                     }
@@ -405,7 +407,10 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text(
                                             text = col.name,
-                                            style = MaterialTheme.typography.labelMedium,
+                                            style = androidx.compose.ui.text.TextStyle(
+                                                fontSize = 16.sp       // ★ 項目名も大きく！
+
+                                            ),
                                             color = mainText,
                                             maxLines = 1,
                                             overflow = TextOverflow.Clip
@@ -2011,8 +2016,10 @@ class MainActivity : ComponentActivity() {
                     Text(
                         text = timeText,
                         modifier = Modifier.width(50.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = subText,
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontSize = 16.sp, // ★12sp前後から18spへ
+                        ),
+                        color = mainText,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
 
@@ -2037,8 +2044,10 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Text(
                             text = value,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = mainText,
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontSize = 16.sp, // ★ここをガツンと大きく！
+                            ),
+                                        color = mainText,
                             maxLines = 1,
                             overflow = TextOverflow.Clip
                         )
