@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,6 +85,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -1095,9 +1097,24 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                androidx.compose.ui.window.Dialog(onDismissRequest = {
-                    showConditionEditDialog = false
-                }) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showConditionEditDialog = false },
+                    properties = DialogProperties(
+                        usePlatformDefaultWidth = false, // これをfalseにする
+                        decorFitsSystemWindows = false
+                    )
+                ) {
+                    // 画面全体を覆うBoxを自分で作ることで、背景色を自由にする
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White.copy(alpha = 0.2f)) // ← ここで好きな色と透明度を指定！
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) { showConditionEditDialog = false },
+                        contentAlignment = Alignment.Center
+                    ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         // ★ 背景色をダークに
@@ -1331,7 +1348,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                }
+                }}
             }
 
             // --- 手順3：選択肢操作メニュー (選択肢用レイヤー) ---
