@@ -390,20 +390,25 @@ fun MachineActionDialog(
                     disabledContentColor = Color.Black
                 )
 
-                // 1段目：左右移動ボタン
+                // 1段目：上下移動ボタン
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 左へ
+                    // 上へ
                     Button(
                         onClick = {
                             val list = allMachines.toMutableList()
                             val item = list.removeAt(currentIndex)
                             list.add(currentIndex - 1, item)
+
                             scope.launch {
-                                // 並び替え保存処理（必要に応じて実装）
-                                onDismiss()
+                                // リストの順番通りに 0, 1, 2... と番号を振り直す
+                                val updatedList = list.mapIndexed { index, machine ->
+                                    machine.copy(position = index)
+                                }
+                                // DBに一括保存
+                                db.machineDao().updateMachines(updatedList)
                             }
                         },
                         enabled = currentIndex > 0,
@@ -415,20 +420,30 @@ fun MachineActionDialog(
                         colors = if (currentIndex > 0) canMoveColors else cannotMoveColors
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.ArrowBack, null, tint = Color.Black)
-                            Text("左へ", fontSize = 16.sp, color = Color.Black)
+                            Icon(
+                                Icons.Default.ArrowBack, // 左右で使っているやつ
+                                null,
+                                modifier = Modifier.graphicsLayer(rotationZ = 90f), // 90度回して上に向ける
+                                tint = Color.Black
+                            )
+                            Text("上へ", fontSize = 16.sp, color = Color.Black)
                         }
                     }
 
-                    // 右へ
+                    // 下へ
                     Button(
                         onClick = {
                             val list = allMachines.toMutableList()
                             val item = list.removeAt(currentIndex)
                             list.add(currentIndex + 1, item)
+
                             scope.launch {
-                                // 並び替え保存処理（必要に応じて実装）
-                                onDismiss()
+                                // リストの順番通りに 0, 1, 2... と番号を振り直す
+                                val updatedList = list.mapIndexed { index, machine ->
+                                    machine.copy(position = index)
+                                }
+                                // DBに一括保存
+                                db.machineDao().updateMachines(updatedList)
                             }
                         },
                         enabled = currentIndex < allMachines.size - 1,
@@ -440,8 +455,14 @@ fun MachineActionDialog(
                         colors = if (currentIndex < allMachines.size - 1) canMoveColors else cannotMoveColors
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.ArrowForward, null, tint = Color.Black)
-                            Text("右へ", fontSize = 16.sp, color = Color.Black)
+                            // ★ アイコンを ArrowDown に変更
+                            Icon(
+                                Icons.Default.ArrowForward, // 左右で使っているやつ
+                                null,
+                                modifier = Modifier.graphicsLayer(rotationZ = 90f), // 90度回して下に向ける
+                                tint = Color.Black
+                            )
+                            Text("下へ", fontSize = 16.sp, color = Color.Black)
                         }
                     }
                 }

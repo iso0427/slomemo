@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MachineDao {
     // 機種一覧をすべて取得（名前順）
-    @Query("SELECT * FROM machines ORDER BY id ASC")
+    @Query("SELECT * FROM machines ORDER BY position ASC")
     fun getAllMachines(): Flow<List<Machine>>
 
     // 新しい機種を登録
