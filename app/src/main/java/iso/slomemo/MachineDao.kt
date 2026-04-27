@@ -32,7 +32,8 @@ interface MachineDao {
     @Update
     suspend fun updateMachines(machines: List<Machine>)
 
-
+    @Query("SELECT MAX(position) FROM machines")
+    suspend fun getMaxPosition(): Int?
 
 
 

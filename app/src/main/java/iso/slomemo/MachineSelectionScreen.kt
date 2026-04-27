@@ -36,11 +36,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -89,6 +89,8 @@ fun MachineSelectionScreen(
 
     // ダイアログ用の状態（画面のCompose関数の冒頭などで定義）
     var showAddDialog by remember { mutableStateOf(false) }
+
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
 
     Scaffold(
@@ -204,41 +206,54 @@ fun MachineSelectionScreen(
                 }
 
 // --- 一番下に追加する「新規登録」ボタン ---
-                item {
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
+                if (machines.isNotEmpty()) {
+                    item {
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
 
-                    // 形状や余白を機種ボタンと完全に一致させる
-                    val registerBrush = when {
-                        isPressed -> Brush.verticalGradient(listOf(Color(0xFF444444), Color(0xFF222222)))
-                        else -> Brush.verticalGradient(listOf(Color(0xFFffffcc), Color(0xFFbbbb00)))
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp), // ★機種ボタンと同じ 6.dp に統一
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.Transparent,
-                        shadowElevation = if (isPressed) 12.dp else 4.dp
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .background(brush = registerBrush)
-                                .clickable(
-                                    interactionSource = interactionSource,
-                                    indication = null,
-                                    onClick = { showAddDialog = true }
+                        // 形状や余白を機種ボタンと完全に一致させる
+                        val registerBrush = when {
+                            isPressed -> Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF444444),
+                                    Color(0xFF222222)
                                 )
-                                .padding(20.dp), // ★中のパディングも 20.dp で統一
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "＋ 新規登録",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 30.sp, // ★文字サイズも 30.sp に統一
-                                color = Color(0xff000033)
                             )
+
+                            else -> Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFFffffcc),
+                                    Color(0xFFbbbb00)
+                                )
+                            )
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp), // ★機種ボタンと同じ 6.dp に統一
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.Transparent,
+                            shadowElevation = if (isPressed) 12.dp else 4.dp
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .background(brush = registerBrush)
+                                    .clickable(
+                                        interactionSource = interactionSource,
+                                        indication = null,
+                                        onClick = { showAddDialog = true }
+                                    )
+                                    .padding(20.dp), // ★中のパディングも 20.dp で統一
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "＋ 新規登録",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 30.sp, // ★文字サイズも 30.sp に統一
+                                    color = Color(0xff000033)
+                                )
+                            }
                         }
                     }
                 }
@@ -248,14 +263,27 @@ fun MachineSelectionScreen(
             if (showAddDialog) {
                 AlertDialog(
                     onDismissRequest = { showAddDialog = false },
-                    title = { Text("新規機種登録") },
+                    containerColor = surfaceColor, // ★ デザイン統一
+                    title = { Text("新規機種登録", color = mainText) }, // ★ デザイン統一
                     text = {
                         OutlinedTextField(
                             value = newMachineName,
                             onValueChange = { newMachineName = it },
-                            label = { Text("機種名を入力") },
+                            placeholder = {
+                                Text("機種名を入力", fontSize = 14.sp, color = subText)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedContainerColor = Color(0xFF474747), // ★ 編集と同じ明るいグレー
+                                unfocusedContainerColor = Color(0xFF474747),
+                                cursorColor = Color.White,
+                                focusedBorderColor = Color.Gray,
+                                unfocusedBorderColor = Color.Transparent
+                            )
                         )
                     },
                     confirmButton = {
@@ -263,24 +291,33 @@ fun MachineSelectionScreen(
                             onClick = {
                                 if (newMachineName.isNotBlank()) {
                                     val name = newMachineName
-                                    scope.launch {
-                                        db.machineDao().insertMachine(Machine(name = name))
-                                    }
                                     newMachineName = ""
-                                    showAddDialog = false
+                                    scope.launch {
+                                        // 既存機種の position をずらして、一番上(0)に追加するロジック
+                                        val currentMachines = machines
+                                        val updatedList =
+                                            currentMachines.map { it.copy(position = it.position + 1) }
+                                        db.machineDao().updateMachines(updatedList)
+                                        db.machineDao()
+                                            .insertMachine(Machine(name = name, position = 0))
+                                        showAddDialog = false
+                                    }
                                 }
                             }
                         ) {
-                            Text("追加")
+                            Text(
+                                "追加",
+                                color = Color(0xFF7E57C2),
+                                fontWeight = FontWeight.Bold
+                            ) // ★ 文字色を紫に
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showAddDialog = false }) {
-                            Text("キャンセル")
+                            Text("キャンセル", color = mainText) // ★ キャンセルは白系で統一
                         }
                     }
                 )
-
             }
         }
     }
@@ -309,29 +346,116 @@ fun MachineSelectionScreen(
         )
     }
 
-    // 名前編集用入力ダイアログ
+    // --- 名前編集用入力ダイアログ ---
     if (showEditDialog && machineToEdit != null) {
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
-            title = { Text("機種名の編集") },
+            containerColor = surfaceColor,
+            title = { Text("機種名の編集", color = mainText) },
             text = {
-                TextField(
+                // ★ こちらも全く同じデザインを適用
+                OutlinedTextField(
                     value = editNameText,
                     onValueChange = { editNameText = it },
-                    singleLine = true
+                    placeholder = {
+                        Text("機種名を入力", fontSize = 14.sp, color = subText) // subTextを使用
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF474747),
+                        unfocusedContainerColor = Color(0xFF474747),
+                        cursorColor = Color.White,
+                        focusedBorderColor = Color.Gray,
+                        unfocusedBorderColor = Color.Transparent
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF7E57C2)),
+                    onClick = {
+                        if (editNameText.isNotBlank()) {
+                            scope.launch {
+                                db.machineDao()
+                                    .updateMachine(machineToEdit!!.copy(name = editNameText))
+                                showEditDialog = false
+                            }
+                        }
+                    }
+                ) {
+                    Text("保存", color = Color(0xFF7E57C2), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) { Text("キャンセル") }
+            }
+        )
+    }
+    if (showDeleteConfirmDialog && selectedMachine != null) {
+        AlertDialog(
+            onDismissRequest = {
+
+                // キャンセルした時も、大元のダイアログまで閉じるならここに追加
+                showActionDialog = false
+            },
+            containerColor = surfaceColor,
+            title = { Text(text = "機種の削除", color = mainText) },
+            text = {
+                Text(
+                    text = "「${selectedMachine!!.name}」を削除してもよろしいですか？\nこの機種に含まれるすべてのメモも削除されます。",
+                    color = mainText
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        db.machineDao().updateMachine(machineToEdit!!.copy(name = editNameText))
-                        showEditDialog = false
+                        db.machineDao().deleteMachine(selectedMachine!!)
+
+                        // ★ ここで順番にフラグを折る！
+                        showDeleteConfirmDialog = false
+                        showActionDialog = false
                     }
-                }) { Text("保存") }
+                }) {
+                    Text("削除", color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("キャンセル") }
+                TextButton(onClick = {
+                    showDeleteConfirmDialog = false
+                    showActionDialog = false // ここもお好みで
+                }) {
+                    Text("キャンセル", color = mainText)
+                }
             }
+        )
+    }
+    // ★ タイル型ダイアログの表示
+    if (showActionDialog && selectedMachine != null) {
+        MachineActionDialog(
+            selectedMachine = selectedMachine!!,
+            allMachines = machines,
+            onDismiss = { showActionDialog = false },
+            onRename = {
+                showActionDialog = false
+                machineToEdit = selectedMachine
+                editNameText = selectedMachine!!.name
+                showEditDialog = true
+            },
+            onDelete = {
+                // ★ ここがポイント！
+                // showActionDialog = false を先に書くと、
+                // 次のフラグを立てる前にダイアログが消えて、処理が中断されることがあります。
+
+                showDeleteConfirmDialog = true  // 1. まず確認ダイアログのフラグを立てる
+                showActionDialog = false        // 2. その後でアクションダイアログを閉じる
+            },
+            db = db,
+            scope = scope,
+            onRefresh = { }
         )
     }
 }
@@ -495,7 +619,9 @@ fun MachineActionDialog(
 
                     // 削除ボタン
                     Button(
-                        onClick = onDelete,
+                        onClick = {
+                            onDelete() // これを呼ぶだけでOK！
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(60.dp),
