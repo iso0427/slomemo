@@ -1706,6 +1706,43 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
+        // 1. プレビュー用のデータ作成（今の入力内容を反映）
+        // inputValues.toMap() を remember の鍵にすることで、入力のたびにプレビューが更新されます
+        val previewValues = remember(inputValues.toMap()) {
+            columns.map { col ->
+                MemoValue(
+                    recordId = editingRecordId ?: 0,
+                    columnId = col.id,
+                    value = inputValues[col.id] ?: ""
+                )
+            }
+        }
+
+        // 2. プレビュー用の「幅」を計算（一覧と同じロジック）
+        val columnWeights = remember(columns, previewValues) {
+            val maxScores = mutableMapOf<Int, Float>()
+            previewValues.forEach { memoValue ->
+                // ★ もし calculateVisualWidth で赤線が出るなら viewModel.calculateVisualWidth に書き換えてみてください
+                val score = calculateVisualWidth(memoValue.value)
+                val currentMax = maxScores[memoValue.columnId] ?: 0f
+                if (score > currentMax) maxScores[memoValue.columnId] = score
+            }
+            columns.associate { col ->
+                val headerScore = calculateVisualWidth(col.name)
+                val contentMaxScore = maxScores[col.id] ?: 0f
+                col.id to maxOf(headerScore, contentMaxScore).coerceAtLeast(2.0f)
+            }
+        }
+
+        // 3. プレビュー用のダミーレコード
+        val previewRecord = remember(editingRecordId) {
+            MemoRecord(
+                id = editingRecordId ?: 0,
+                machineId = machineId,
+                timestamp = System.currentTimeMillis()
+            )
+        }
+
         Column(
             modifier = Modifier
                 .padding(16.dp)
@@ -1717,7 +1754,39 @@ class MainActivity : ComponentActivity() {
                 style = MaterialTheme.typography.headlineSmall,
                 color = mainText
             )
+
             Spacer(modifier = Modifier.height(16.dp))
+
+            // --- プレビューエリア ---
+            Text(
+                text = "プレビュー",
+                fontSize = 12.sp,
+                color = Color(0xFFBB86FC),
+                modifier = Modifier.padding(horizontal = 16.dp) // テキストには余白を残す
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF121212)) // ここで背景を画面いっぱいに塗る
+                    .padding(vertical = 8.dp)
+            ) {
+                HistoryRow(
+                    db = db,
+                    record = previewRecord,
+                    columns = columns,
+                    values = previewValues,
+                    showTime = true,
+                    columnWeights = columnWeights,
+                    onRowClick = {},
+                    onDelete = {},
+                    mainText = mainText,
+                    subText = subText,
+                    dividerColor = Color.Gray
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
 
             columns.forEach { column ->
                 val options = column.options

@@ -346,20 +346,17 @@ fun MachineSelectionScreen(
         )
     }
 
-    // --- 名前編集用入力ダイアログ ---
+    // 1. 名前編集用入力ダイアログ
     if (showEditDialog && machineToEdit != null) {
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
             containerColor = surfaceColor,
             title = { Text("機種名の編集", color = mainText) },
             text = {
-                // ★ こちらも全く同じデザインを適用
                 OutlinedTextField(
                     value = editNameText,
                     onValueChange = { editNameText = it },
-                    placeholder = {
-                        Text("機種名を入力", fontSize = 14.sp, color = subText) // subTextを使用
-                    },
+                    placeholder = { Text("機種名を入力", fontSize = 14.sp, color = subText) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(8.dp),
@@ -376,12 +373,10 @@ fun MachineSelectionScreen(
             },
             confirmButton = {
                 TextButton(
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF7E57C2)),
                     onClick = {
                         if (editNameText.isNotBlank()) {
                             scope.launch {
-                                db.machineDao()
-                                    .updateMachine(machineToEdit!!.copy(name = editNameText))
+                                db.machineDao().updateMachine(machineToEdit!!.copy(name = editNameText))
                                 showEditDialog = false
                             }
                         }
@@ -391,49 +386,66 @@ fun MachineSelectionScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("キャンセル") }
-            }
-        )
-    }
-    if (showDeleteConfirmDialog && selectedMachine != null) {
-        AlertDialog(
-            onDismissRequest = {
-
-                // キャンセルした時も、大元のダイアログまで閉じるならここに追加
-                showActionDialog = false
-            },
-            containerColor = surfaceColor,
-            title = { Text(text = "機種の削除", color = mainText) },
-            text = {
-                Text(
-                    text = "「${selectedMachine!!.name}」を削除してもよろしいですか？\nこの機種に含まれるすべてのメモも削除されます。",
-                    color = mainText
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        db.machineDao().deleteMachine(selectedMachine!!)
-
-                        // ★ ここで順番にフラグを折る！
-                        showDeleteConfirmDialog = false
-                        showActionDialog = false
-                    }
-                }) {
-                    Text("削除", color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDeleteConfirmDialog = false
-                    showActionDialog = false // ここもお好みで
-                }) {
+                TextButton(onClick = { showEditDialog = false }) {
                     Text("キャンセル", color = mainText)
                 }
             }
         )
     }
-    // ★ タイル型ダイアログの表示
+
+    // 2. 削除確認用ダイアログ
+    if (showDeleteConfirmDialog && selectedMachine != null) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                // これを true にしておけば、システム標準の黒い膜（Dim）が自動で出ます
+                usePlatformDefaultWidth = true,
+                decorFitsSystemWindows = true
+            )
+        ) {
+            // システムの黒い膜の上に、さらに 0.105f の白い膜を重ねる
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.2f)) // あなたが見つけた黄金比
+                    .clickable { showDeleteConfirmDialog = false },
+                contentAlignment = Alignment.Center
+            ) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteConfirmDialog = false },
+                    modifier = Modifier.clickable(enabled = false) { },
+                    containerColor = surfaceColor,
+                    title = {
+                        Text(text = "機種の削除", color = mainText, fontWeight = FontWeight.Bold)
+                    },
+                    text = {
+                        Text(
+                            text = "「${selectedMachine!!.name}」を削除してもよろしいですか？\nこの機種に含まれるすべてのメモも削除されます。",
+                            color = mainText
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            scope.launch {
+                                db.machineDao().deleteMachine(selectedMachine!!)
+                                showDeleteConfirmDialog = false
+                                showActionDialog = false
+                            }
+                        }) {
+                            Text("削除", color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                            Text("キャンセル", color = mainText)
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    // 3. タイル型アクションダイアログ（これが一番最後にくるように配置）
     if (showActionDialog && selectedMachine != null) {
         MachineActionDialog(
             selectedMachine = selectedMachine!!,
@@ -446,12 +458,9 @@ fun MachineSelectionScreen(
                 showEditDialog = true
             },
             onDelete = {
-                // ★ ここがポイント！
-                // showActionDialog = false を先に書くと、
-                // 次のフラグを立てる前にダイアログが消えて、処理が中断されることがあります。
-
-                showDeleteConfirmDialog = true  // 1. まず確認ダイアログのフラグを立てる
-                showActionDialog = false        // 2. その後でアクションダイアログを閉じる
+                // ここが正解の処理！
+                showDeleteConfirmDialog = true
+                showActionDialog = false
             },
             db = db,
             scope = scope,
@@ -478,7 +487,8 @@ fun MachineActionDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White.copy(alpha = 0.2f)) // 背景の透過
+            //.background(Color.Black.copy(alpha = 0.4f))
+            .background(Color.White.copy(alpha = 0.105f))
             .clickable { onDismiss() }, // 外側をタップしたら閉じる
         contentAlignment = Alignment.Center
     ) {
