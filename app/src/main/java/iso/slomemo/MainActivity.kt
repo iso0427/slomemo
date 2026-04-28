@@ -1818,8 +1818,21 @@ class MainActivity : ComponentActivity() {
 
                             Surface(
                                 onClick = {
-                                    inputValues[column.id] =
-                                        if (isSelected) "" else option
+                                    val newValue = if (isSelected) "" else option
+                                    inputValues[column.id] = newValue
+
+                                    // --- ここから連動処理 ---
+                                    if (newValue.isNotBlank()) {
+                                        scope.launch {
+                                            val rules = db.memoDao().getRulesByTrigger(column.id, newValue)
+                                            rules.forEach { rule ->
+                                                if (!rule.isNextRow && rule.targetColumnId != column.id) {
+                                                    inputValues[rule.targetColumnId] = rule.targetValue
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // --- ここまで ---
                                 },
                                 shape = RoundedCornerShape(8.dp),
                                 color = bgColor,
@@ -1846,7 +1859,20 @@ class MainActivity : ComponentActivity() {
                 if (options.isEmpty() || column.showTextField) {
                     OutlinedTextField(
                         value = currentValue,
-                        onValueChange = { inputValues[column.id] = it },
+                        onValueChange = { newValue ->
+                            inputValues[column.id] = newValue
+
+                            // --- ここから連動処理 ---
+                            scope.launch {
+                                val rules = db.memoDao().getRulesByTrigger(column.id, newValue)
+                                rules.forEach { rule ->
+                                    if (!rule.isNextRow && rule.targetColumnId != column.id) {
+                                        inputValues[rule.targetColumnId] = rule.targetValue
+                                    }
+                                }
+                            }
+                            // --- ここまで ---
+                        },
                         placeholder = {
                             if (options.isNotEmpty()) {
                                 Text("入力欄", fontSize = 12.sp, color = subText)
