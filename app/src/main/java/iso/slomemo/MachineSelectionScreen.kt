@@ -75,7 +75,7 @@ fun MachineSelectionScreen(
     val mainText = Color.White           // メインの文字
     val subText = Color.LightGray        // 補足の文字
 
-    val machines by db.machineDao().getAllMachines().collectAsState(initial = emptyList())
+    val machines by db.machineDao().getAllMachines().collectAsState(initial = null)
     var newMachineName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
@@ -127,102 +127,37 @@ fun MachineSelectionScreen(
 
             // 機種一覧リスト
             LazyColumn {
-                items(machines) { machine ->
-                    // 状態を検知するための準備
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    var isActuallyPressed by remember { mutableStateOf(false) }
+                // データ読み込み中（null）はチラつき防止のため何も表示しない
+                if (machines != null) {
 
-                    val isSelected = selectedMachine?.id == machine.id && showActionDialog
-
-                    // 2. 押されたら、少しだけ状態を維持するロジック
-                    LaunchedEffect(isActuallyPressed) {
-                        if (isActuallyPressed) {
-                            kotlinx.coroutines.delay(200) // 0.2秒間は必ず色を変える
-                            isActuallyPressed = false
-                        }
-                    }
-
-                    // 色の決定ロジック
-                    val buttonBrush = when {
-                        // 1. 長押し確定済み または 短いタップの演出中 → 薄い紫
-                        isSelected || isActuallyPressed -> Brush.verticalGradient(
-                            listOf(
-                                Color(
-                                    0xFFEADDFF
-                                ), Color(0xFFC0A0FF)
-                            )
-                        )
-
-                        // 2. 「触っている最中」かつ「まだ確定前」 → グレー（今の長押し中はこちら）
-                        isPressed -> Brush.verticalGradient(
-                            listOf(
-                                Color(0xFF444444),
-                                Color(0xFF222222)
-                            )
-                        )
-
-                        // 3. 通常時
-                        else -> Brush.verticalGradient(listOf(Color(0xFF555555), Color(0xFF333333)))
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.Transparent,
-                        shadowElevation = if (isActuallyPressed || isSelected) 12.dp else 4.dp
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .background(brush = buttonBrush)
-                                .combinedClickable(
-                                    interactionSource = interactionSource,
-                                    indication = null, // ★ これで勝手に暗くなるのを防ぐ
-                                    onClick = {
-                                        isActuallyPressed = true // タップした瞬間にフラグを立てる
-                                        scope.launch {
-                                            kotlinx.coroutines.delay(100) // 視覚確認のため少し待つ
-                                            onMachineSelected(machine.id)
-                                        }
-                                    },
-                                    onLongClick = {
-                                        selectedMachine = machine
-                                        showActionDialog = true
-                                    }
-                                )
-                                .padding(20.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = machine.name,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 30.sp,
-                                color = if (isSelected || isActuallyPressed) Color(0xFF152200) else mainText
-                            )
-                        }
-                    }
-                }
-
-// --- 一番下に追加する「新規登録」ボタン ---
-                    item {
+                    // A. 機種リストの表示
+                    items(machines!!) { machine ->
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
+                        var isActuallyPressed by remember { mutableStateOf(false) }
 
-                        // 形状や余白を機種ボタンと完全に一致させる
-                        val registerBrush = when {
+                        val isSelected = selectedMachine?.id == machine.id && showActionDialog
+
+                        LaunchedEffect(isActuallyPressed) {
+                            if (isActuallyPressed) {
+                                kotlinx.coroutines.delay(200)
+                                isActuallyPressed = false
+                            }
+                        }
+
+                        val buttonBrush = when {
+                            isSelected || isActuallyPressed -> Brush.verticalGradient(
+                                listOf(Color(0xFFEADDFF), Color(0xFFC0A0FF))
+                            )
+
                             isPressed -> Brush.verticalGradient(
-                                listOf(
-                                    Color(0xFF444444),
-                                    Color(0xFF222222)
-                                )
+                                listOf(Color(0xFF444444), Color(0xFF222222))
                             )
 
                             else -> Brush.verticalGradient(
                                 listOf(
-                                    Color(0xFFffffcc),
-                                    Color(0xFFbbbb00)
+                                    Color(0xFF555555),
+                                    Color(0xFF333333)
                                 )
                             )
                         }
@@ -230,101 +165,119 @@ fun MachineSelectionScreen(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 6.dp), // ★機種ボタンと同じ 6.dp に統一
+                                .padding(vertical = 6.dp),
                             shape = RoundedCornerShape(12.dp),
                             color = Color.Transparent,
-                            shadowElevation = if (isPressed) 12.dp else 4.dp
+                            shadowElevation = if (isActuallyPressed || isSelected) 12.dp else 4.dp
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .background(brush = registerBrush)
-                                    .clickable(
+                                    .background(brush = buttonBrush)
+                                    .combinedClickable(
                                         interactionSource = interactionSource,
                                         indication = null,
-                                        onClick = { showAddDialog = true }
+                                        onClick = {
+                                            isActuallyPressed = true
+                                            scope.launch {
+                                                kotlinx.coroutines.delay(100)
+                                                onMachineSelected(machine.id)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            selectedMachine = machine
+                                            showActionDialog = true
+                                        }
                                     )
-                                    .padding(20.dp), // ★中のパディングも 20.dp で統一
+                                    .padding(20.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "＋ 新規登録",
+                                    text = machine.name,
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 30.sp, // ★文字サイズも 30.sp に統一
-                                    color = Color(0xff000033)
+                                    fontSize = 30.sp,
+                                    color = if (isSelected || isActuallyPressed) Color(0xFF152200) else mainText
                                 )
                             }
                         }
                     }
-            }
 
-// --- 入力用ダイアログ ---
-            if (showAddDialog) {
-                AlertDialog(
-                    onDismissRequest = { showAddDialog = false },
-                    containerColor = surfaceColor, // ★ デザイン統一
-                    title = { Text("新規機種登録", color = mainText) }, // ★ デザイン統一
-                    text = {
-                        OutlinedTextField(
-                            value = newMachineName,
-                            onValueChange = { newMachineName = it },
-                            placeholder = {
-                                Text("機種名を入力", fontSize = 14.sp, color = subText)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = Color(0xFF474747), // ★ 編集と同じ明るいグレー
-                                unfocusedContainerColor = Color(0xFF474747),
-                                cursorColor = Color.White,
-                                focusedBorderColor = Color.Gray,
-                                unfocusedBorderColor = Color.Transparent
-                            )
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                if (newMachineName.isNotBlank()) {
-                                    val name = newMachineName
-                                    newMachineName = ""
-                                    scope.launch {
-                                        // 既存機種の position をずらして、一番上(0)に追加するロジック
-                                        val currentMachines = machines
-                                        val updatedList =
-                                            currentMachines.map { it.copy(position = it.position + 1) }
-                                        db.machineDao().updateMachines(updatedList)
-                                        db.machineDao()
-                                            .insertMachine(Machine(name = name, position = 0))
-                                        showAddDialog = false
-                                    }
-                                }
-                            }
-                        ) {
-                            Text(
-                                "追加",
-                                color = Color(0xFF7E57C2),
-                                fontWeight = FontWeight.Bold
-                            ) // ★ 文字色を紫に
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showAddDialog = false }) {
-                            Text("キャンセル", color = mainText) // ★ キャンセルは白系で統一
-                        }
+                    // B. リストの最後に「新規登録」ボタンを表示（データ0件でも表示される）
+                    item {
+                        RegistrationButton(onClick = { showAddDialog = true })
                     }
-                )
+                }
             }
         }
+    }
+
+    // --- 入力用ダイアログ ---
+    if (showAddDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            containerColor = surfaceColor, // ★ デザイン統一
+            title = { Text("新規機種登録", color = mainText) }, // ★ デザイン統一
+            text = {
+                OutlinedTextField(
+                    value = newMachineName,
+                    onValueChange = { newMachineName = it },
+                    placeholder = {
+                        Text("機種名を入力", fontSize = 14.sp, color = subText)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF474747), // ★ 編集と同じ明るいグレー
+                        unfocusedContainerColor = Color(0xFF474747),
+                        cursorColor = Color.White,
+                        focusedBorderColor = Color.Gray,
+                        unfocusedBorderColor = Color.Transparent
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newMachineName.isNotBlank()) {
+                            val name = newMachineName
+                            newMachineName = ""
+                            scope.launch {
+                                // machines が null の場合は空リストとして扱うように修正
+                                val currentMachines = machines ?: emptyList()
+
+                                val updatedList =
+                                    currentMachines.map { it.copy(position = it.position + 1) }
+
+                                db.machineDao().updateMachines(updatedList)
+                                db.machineDao()
+                                    .insertMachine(Machine(name = name, position = 0))
+                                showAddDialog = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        "追加",
+                        color = Color(0xFF7E57C2),
+                        fontWeight = FontWeight.Bold
+                    ) // ★ 文字色を紫に
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) {
+                    Text("キャンセル", color = mainText) // ★ キャンセルは白系で統一
+                }
+            }
+        )
     }
 
     // ★ タイル型ダイアログの表示（ここを修正！）
     if (showActionDialog && selectedMachine != null) {
         MachineActionDialog(
             selectedMachine = selectedMachine!!,
-            allMachines = machines, // ★追加
+            allMachines = machines ?: emptyList(),
             onDismiss = { showActionDialog = false },
             onRename = {
                 showActionDialog = false
@@ -374,7 +327,8 @@ fun MachineSelectionScreen(
                     onClick = {
                         if (editNameText.isNotBlank()) {
                             scope.launch {
-                                db.machineDao().updateMachine(machineToEdit!!.copy(name = editNameText))
+                                db.machineDao()
+                                    .updateMachine(machineToEdit!!.copy(name = editNameText))
                                 showEditDialog = false
                             }
                         }
@@ -396,50 +350,57 @@ fun MachineSelectionScreen(
         androidx.compose.ui.window.Dialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
             properties = androidx.compose.ui.window.DialogProperties(
-                // これを true にしておけば、システム標準の黒い膜（Dim）が自動で出ます
+                // システム標準の暗転（Dim）を有効にし、画面全体に広げる
                 usePlatformDefaultWidth = true,
                 decorFitsSystemWindows = true
             )
         ) {
-            // システムの黒い膜の上に、さらに 0.105f の白い膜を重ねる
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.2f)) // あなたが見つけた黄金比
-                    .clickable { showDeleteConfirmDialog = false },
-                contentAlignment = Alignment.Center
-            ) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteConfirmDialog = false },
-                    modifier = Modifier.clickable(enabled = false) { },
-                    containerColor = surfaceColor,
-                    title = {
-                        Text(text = "機種の削除", color = mainText, fontWeight = FontWeight.Bold)
-                    },
-                    text = {
-                        Text(
-                            text = "「${selectedMachine!!.name}」を削除してもよろしいですか？\nこの機種に含まれるすべてのメモも削除されます。",
-                            color = mainText
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
+            // Boxを削除し、直接AlertDialogを配置。これで「寸足らず」が直ります
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmDialog = false },
+                containerColor = surfaceColor, // 180dpのタイルと同じ背景色
+                title = {
+                    Text(
+                        text = "機種の削除",
+                        color = mainText,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = "「${selectedMachine!!.name}」を削除してもよろしいですか？\n\n※この機種に含まれるすべてのメモも完全に削除されます。",
+                        color = mainText,
+                        lineHeight = 20.sp
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
                             scope.launch {
                                 db.machineDao().deleteMachine(selectedMachine!!)
                                 showDeleteConfirmDialog = false
                                 showActionDialog = false
                             }
-                        }) {
-                            Text("削除", color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
                         }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                            Text("キャンセル", color = mainText)
-                        }
+                    ) {
+                        Text(
+                            text = "削除",
+                            color = Color(0xFFF44336), // 警告の赤色
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                )
-            }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showDeleteConfirmDialog = false }
+                    ) {
+                        Text(
+                            text = "キャンセル",
+                            color = mainText
+                        )
+                    }
+                }
+            )
         }
     }
 
@@ -447,7 +408,7 @@ fun MachineSelectionScreen(
     if (showActionDialog && selectedMachine != null) {
         MachineActionDialog(
             selectedMachine = selectedMachine!!,
-            allMachines = machines,
+            allMachines = machines ?: emptyList(),
             onDismiss = { showActionDialog = false },
             onRename = {
                 showActionDialog = false
@@ -666,6 +627,47 @@ fun ActionTile(label: String, icon: ImageVector, bgColor: Color, onClick: () -> 
         ) {
             Icon(icon, contentDescription = null, tint = Color.White)
             Text(text = label, color = Color.White, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+// MachineSelectionScreen 関数の外側（ファイルの最後など）に配置
+@Composable
+fun RegistrationButton(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val registerBrush = if (isPressed) {
+        Brush.verticalGradient(listOf(Color(0xFF444444), Color(0xFF222222)))
+    } else {
+        Brush.verticalGradient(listOf(Color(0xFFffffcc), Color(0xFFbbbb00)))
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.Transparent,
+        shadowElevation = if (isPressed) 12.dp else 4.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .background(brush = registerBrush)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick
+                )
+                .padding(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "＋ 新規登録",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 30.sp,
+                color = Color(0xff000033)
+            )
         }
     }
 }
