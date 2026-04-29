@@ -5,12 +5,6 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.RoomDatabase
 
-// ★ ステップ1：設定を保存する「箱」を定義
-@Entity
-data class AppSetting(
-    @PrimaryKey val id: Int = 1,
-    val showTime: Boolean = true
-)
 
 @Database(
     entities = [

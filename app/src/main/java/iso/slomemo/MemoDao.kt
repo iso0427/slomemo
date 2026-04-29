@@ -3,6 +3,7 @@ package iso.slomemo
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -10,46 +11,31 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MemoDao {
 
+    // --- 設定（AppSetting）関連 ---
+    @Query("SELECT * FROM app_settings WHERE id = 0 LIMIT 1")
+    suspend fun getSetting(): AppSetting?
 
-    @androidx.room.Query("SELECT * FROM AppSetting WHERE id = 1")
-    fun getSettingFlow(): kotlinx.coroutines.flow.Flow<AppSetting?>
+    @Query("SELECT * FROM app_settings WHERE id = 0")
+    fun getSettingFlow(): Flow<AppSetting?>
 
-    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateSetting(setting: AppSetting)
 
-    @androidx.room.Insert
+    // --- 自動入力ルール（AutoInputRule）関連 ---
+    @Insert
     suspend fun insertRule(rule: AutoInputRule)
 
-    @androidx.room.Query("SELECT * FROM AutoInputRule")
+    @Query("SELECT * FROM AutoInputRule")
     suspend fun getAllRules(): List<AutoInputRule>
 
-    @androidx.room.Query("DELETE FROM AutoInputRule WHERE triggerColumnId = :colId AND triggerValue = :value")
+    @Query("SELECT * FROM AutoInputRule")
+    suspend fun getAllAutoInputRules(): List<AutoInputRule>
+
+    @Query("DELETE FROM AutoInputRule WHERE triggerColumnId = :colId AND triggerValue = :value")
     suspend fun deleteRulesByTrigger(colId: Int, value: String)
 
-    @androidx.room.Query("SELECT * FROM AutoInputRule WHERE triggerColumnId = :colId AND triggerValue = :value")
+    @Query("SELECT * FROM AutoInputRule WHERE triggerColumnId = :colId AND triggerValue = :value")
     suspend fun getRulesByTrigger(colId: Int, value: String): List<AutoInputRule>
-
-
-
-
-    @Insert
-    suspend fun insertColumn(column: ColumnSetting)
-
-    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
-    suspend fun insertRecord(record: MemoRecord): Long
-
-    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
-    suspend fun insertValue(value: MemoValue)
-
-
-
-    @Delete
-    suspend fun deleteColumn(column: ColumnSetting)
-
-
-
-    @Update
-    suspend fun updateColumn(column: ColumnSetting)
 
     @Query("DELETE FROM AutoInputRule WHERE targetColumnId = :columnId")
     suspend fun deleteRulesByTargetColumn(columnId: Int)
@@ -57,8 +43,21 @@ interface MemoDao {
     @Query("DELETE FROM AutoInputRule WHERE triggerColumnId = :columnId")
     suspend fun deleteRulesByTriggerColumn(columnId: Int)
 
-    @Query("DELETE FROM memo_records")
-    suspend fun deleteAllMemoRecords()
+    // --- 機種・項目・データ関連 ---
+    @Insert
+    suspend fun insertColumn(column: ColumnSetting)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRecord(record: MemoRecord): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertValue(value: MemoValue)
+
+    @Delete
+    suspend fun deleteColumn(column: ColumnSetting)
+
+    @Update
+    suspend fun updateColumn(column: ColumnSetting)
 
     @Query("DELETE FROM memo_records")
     suspend fun deleteAllRecords()
@@ -96,9 +95,7 @@ interface MemoDao {
     @Query("SELECT * FROM MemoValue WHERE recordId = :recordId")
     suspend fun getValuesForRecord(recordId: Int): List<MemoValue>
 
-    @Query("SELECT * FROM AutoInputRule")
-    suspend fun getAllAutoInputRules(): List<AutoInputRule>
-
+    // --- 削除（ソフトデリート）関連 ---
     @Query("UPDATE memo_records SET isDeleted = 1")
     suspend fun softDeleteAll()
 
@@ -107,10 +104,4 @@ interface MemoDao {
 
     @Query("UPDATE memo_records SET isDeleted = 1 WHERE id = :recordId")
     suspend fun softDeleteRecordById(recordId: Int)
-
-
-
-
-
-
 }

@@ -4,11 +4,11 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 
-// ① 項目名そのものを保存する（例：「pt」「契機」など）
+// ① 項目名そのものを保存する
 @Entity(tableName = "column_settings")
 data class ColumnSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val machineId: Int, // ★追加：どの機種の項目か
+    val machineId: Int,
     val name: String,
     val options: List<String> = emptyList(),
     val displayOrder: Int = 0,
@@ -19,12 +19,12 @@ data class ColumnSetting(
 @Entity(tableName = "memo_records")
 data class MemoRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val machineId: Int, // ★追加：どの機種のデータか
+    val machineId: Int,
     val timestamp: Long = System.currentTimeMillis(),
     val isDeleted: Boolean = false
 )
 
-// ③ 実際の入力値（どの行の、どの項目に、何を入れたか）
+// ③ 実際の入力値
 @Entity(
     foreignKeys = [
         ForeignKey(entity = MemoRecord::class, parentColumns = ["id"], childColumns = ["recordId"], onDelete = ForeignKey.CASCADE),
@@ -38,7 +38,7 @@ data class MemoValue(
     val value: String
 )
 
-// ④ 項目に紐付く「選択肢」を保存する箱
+// ④ 項目に紐付く「選択肢」
 @Entity(
     foreignKeys = [
         ForeignKey(
@@ -55,13 +55,20 @@ data class SelectionOption(
     val optionName: String
 )
 
-// ⑤ 自動入力のルールを保存する箱
-@androidx.room.Entity
+// ⑤ 自動入力のルール
+@Entity
 data class AutoInputRule(
-    @androidx.room.PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val triggerColumnId: Int, // 引き金になる項目のID
-    val triggerValue: String,  // 引き金になる選択肢（例："BIG"）
-    val targetColumnId: Int,   // 自動入力させたい項目のID
-    val targetValue: String,   // 自動入力する値（例："━"）
-    val isNextRow: Boolean     // false: 同じ行 / true: 次の行
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val triggerColumnId: Int,
+    val triggerValue: String,
+    val targetColumnId: Int,
+    val targetValue: String,
+    val isNextRow: Boolean
+)
+
+// ⑥ アプリ全体の設定
+@Entity(tableName = "app_settings")
+data class AppSetting(
+    @PrimaryKey val id: Int = 0,
+    val showTime: Boolean = true
 )

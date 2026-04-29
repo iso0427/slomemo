@@ -206,7 +206,6 @@ fun MachineSelectionScreen(
                 }
 
 // --- 一番下に追加する「新規登録」ボタン ---
-                if (machines.isNotEmpty()) {
                     item {
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
@@ -256,7 +255,6 @@ fun MachineSelectionScreen(
                             }
                         }
                     }
-                }
             }
 
 // --- 入力用ダイアログ ---

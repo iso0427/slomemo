@@ -24,6 +24,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ② 新しい memoDao を使う
     val dao = db.memoDao()
 
+    var showTimeSetting = mutableStateOf(true)
+
+
+    init {
+        loadSettings()
+    }
+
+    fun loadSettings() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val setting = dao.getSetting() // getSetting() は AppSetting を 1件取得する想定
+            if (setting != null) {
+                // メインスレッドで値を反映
+                viewModelScope.launch(Dispatchers.Main) {
+                    showTimeSetting.value = setting.showTime
+                }
+            }
+        }
+    }
+
     // 1. MemoAction の定義を「値」も持てるように変更
     sealed class MemoAction {
         // リセット用（既存）
