@@ -101,17 +101,17 @@ class MainActivity : ComponentActivity() {
 
     fun calculateVisualWidth(text: String): Float {
         var score = 0f
-        text.forEach { char ->
+        var i = 0
+        while (i < text.length) {
+            val codePoint = text.codePointAt(i)
+
             score += when {
-                // 1. 一般的な半角英数 (ASCII)
-                char.code <= 128 -> 0.5f
-
-                // 2. 半角カナ (Unicodeの範囲: FF61〜FF9F)
-                char in '\uFF61'..'\uFF9F' -> 0.5f
-
-                // 3. それ以外（全角漢字、全角カナなど）
-                else -> 1.0f
+                codePoint <= 128 -> 0.5f       // 半角英数
+                codePoint in 0xFF61..0xFF9F -> 0.5f // 半角カナ
+                else -> 1.0f                   // 全角・絵文字もここを通るが、1回しか足されない
             }
+
+            i += Character.charCount(codePoint) // 次の「本物の1文字」へ進む
         }
         return score
     }
@@ -2144,7 +2144,8 @@ class MainActivity : ComponentActivity() {
                 columns.forEachIndexed { index, col ->
                     val value = values.find { it.columnId == col.id }?.value ?: ""
                     val weight = columnWeights[col.id] ?: 1.0f
-                    println("列ID: ${col.id}, 列名: ${col.name}, 最終ウェイト: $weight")
+                    // ★ println を Log.d に書き換え（タグを付ける）
+                    android.util.Log.d("SloMemoDebug", "列名: ${col.name}, weight: $weight")
                     Box(
                         modifier = Modifier
                             .weight(weight)
