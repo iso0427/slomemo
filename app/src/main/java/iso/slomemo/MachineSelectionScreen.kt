@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,6 +36,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -92,118 +95,184 @@ fun MachineSelectionScreen(
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
+    var menuExpanded by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = backColor
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(64.dp)
-        ) {
-
-            // ロゴ画像を表示
-            Image(
-                painter = painterResource(id = R.drawable.logo_slomemo),
-                contentDescription = "SloMemo Logo",
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = backColor
+        ) { padding ->
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    // ★ここを修正：graphicsLayer でブレンドモードを指定します
-                    .graphicsLayer(alpha = 0.99f) // 一部の端末でブレンドを正しく効かせるおまじない
-                    .drawWithCache {
-                        onDrawWithContent {
-                            drawContent()
-                            // ここでブレンドモードを適用
-                            // 黒背景のみが透過され、光だけが残ります
-                        }
-                    }
-                    // もっと単純にやるならこれだけでもOKな場合が多いです：
-                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen),
-                contentScale = ContentScale.Fit
-            )
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // 機種一覧リスト
-            LazyColumn {
-                // データ読み込み中（null）はチラつき防止のため何も表示しない
-                if (machines != null) {
-
-                    // A. 機種リストの表示
-                    items(machines!!) { machine ->
-                        val interactionSource = remember { MutableInteractionSource() }
-                        val isPressed by interactionSource.collectIsPressedAsState()
-                        var isActuallyPressed by remember { mutableStateOf(false) }
-
-                        val isSelected = selectedMachine?.id == machine.id && showActionDialog
-
-                        LaunchedEffect(isActuallyPressed) {
-                            if (isActuallyPressed) {
-                                kotlinx.coroutines.delay(200)
-                                isActuallyPressed = false
-                            }
-                        }
-
-                        val buttonBrush = when {
-                            isSelected || isActuallyPressed -> Brush.verticalGradient(
-                                listOf(Color(0xFFEADDFF), Color(0xFFC0A0FF))
-                            )
-
-                            isPressed -> Brush.verticalGradient(
-                                listOf(Color(0xFF444444), Color(0xFF222222))
-                            )
-
-                            else -> Brush.verticalGradient(
-                                listOf(
-                                    Color(0xFF555555),
-                                    Color(0xFF333333)
-                                )
-                            )
-                        }
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.Transparent,
-                            shadowElevation = if (isActuallyPressed || isSelected) 12.dp else 4.dp
+                    .padding(padding)
+                // .padding(64.dp) ← ここが全体にかかっているので、メニューを置くために調整が必要
+            ) {
+                // ★ 右上のメニューボタン用のRowを追加
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End // 右寄せ
+                ) {
+                    Box {
+                        IconButton(
+                            onClick = { menuExpanded = true },
+                            modifier = Modifier.offset(x = 12.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .background(brush = buttonBrush)
-                                    .combinedClickable(
-                                        interactionSource = interactionSource,
-                                        indication = null,
-                                        onClick = {
-                                            isActuallyPressed = true
-                                            scope.launch {
-                                                kotlinx.coroutines.delay(100)
-                                                onMachineSelected(machine.id)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            selectedMachine = machine
-                                            showActionDialog = true
-                                        }
+                            Icon(Icons.Default.Menu, null, tint = mainText)
+                        }
+                    }
+                }
+
+                // ここから下のコンテンツは、元の 64.dp パディングを意識して調整
+                Column(modifier = Modifier.padding(horizontal = 64.dp)) {
+
+                    // ロゴ画像を表示
+                    Image(
+                        painter = painterResource(id = R.drawable.logo_slomemo),
+                        contentDescription = "SloMemo Logo",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                            // ★ここを修正：graphicsLayer でブレンドモードを指定します
+                            .graphicsLayer(alpha = 0.99f) // 一部の端末でブレンドを正しく効かせるおまじない
+                            .drawWithCache {
+                                onDrawWithContent {
+                                    drawContent()
+                                    // ここでブレンドモードを適用
+                                    // 黒背景のみが透過され、光だけが残ります
+                                }
+                            }
+                            // もっと単純にやるならこれだけでもOKな場合が多いです：
+                            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen),
+                        contentScale = ContentScale.Fit
+                    )
+
+                    Spacer(modifier = Modifier.height(48.dp))
+
+                    // 機種一覧リスト
+                    LazyColumn {
+                        // データ読み込み中（null）はチラつき防止のため何も表示しない
+                        if (machines != null) {
+
+                            // A. 機種リストの表示
+                            items(machines!!) { machine ->
+                                val interactionSource = remember { MutableInteractionSource() }
+                                val isPressed by interactionSource.collectIsPressedAsState()
+                                var isActuallyPressed by remember { mutableStateOf(false) }
+
+                                val isSelected =
+                                    selectedMachine?.id == machine.id && showActionDialog
+
+                                LaunchedEffect(isActuallyPressed) {
+                                    if (isActuallyPressed) {
+                                        kotlinx.coroutines.delay(200)
+                                        isActuallyPressed = false
+                                    }
+                                }
+
+                                val buttonBrush = when {
+                                    isSelected || isActuallyPressed -> Brush.verticalGradient(
+                                        listOf(Color(0xFFEADDFF), Color(0xFFC0A0FF))
                                     )
-                                    .padding(20.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = machine.name,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 30.sp,
-                                    color = if (isSelected || isActuallyPressed) Color(0xFF152200) else mainText
-                                )
+
+                                    isPressed -> Brush.verticalGradient(
+                                        listOf(Color(0xFF444444), Color(0xFF222222))
+                                    )
+
+                                    else -> Brush.verticalGradient(
+                                        listOf(
+                                            Color(0xFF555555),
+                                            Color(0xFF333333)
+                                        )
+                                    )
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.Transparent,
+                                    shadowElevation = if (isActuallyPressed || isSelected) 12.dp else 4.dp
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(brush = buttonBrush)
+                                            .combinedClickable(
+                                                interactionSource = interactionSource,
+                                                indication = null,
+                                                onClick = {
+                                                    isActuallyPressed = true
+                                                    scope.launch {
+                                                        kotlinx.coroutines.delay(100)
+                                                        onMachineSelected(machine.id)
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    selectedMachine = machine
+                                                    showActionDialog = true
+                                                }
+                                            )
+                                            .padding(20.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = machine.name,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 30.sp,
+                                            color = if (isSelected || isActuallyPressed) Color(
+                                                0xFF152200
+                                            ) else mainText
+                                        )
+                                    }
+                                }
+                            }
+
+                            // B. リストの最後に「新規登録」ボタンを表示（データ0件でも表示される）
+                            item {
+                                RegistrationButton(onClick = { showAddDialog = true })
                             }
                         }
                     }
+                }
+            }
+        }
 
-                    // B. リストの最後に「新規登録」ボタンを表示（データ0件でも表示される）
-                    item {
-                        RegistrationButton(onClick = { showAddDialog = true })
+        if (menuExpanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { menuExpanded = false } // 背景タップで閉じる
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 50.dp, end = 16.dp)
+                        .width(200.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = surfaceColor,
+                    shadowElevation = 8.dp
+                ) {
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        MenuRow(
+                            icon = Icons.Default.Edit,
+                            label = "新規機種を登録",
+                            onClick = {
+                                showAddDialog = true
+                                menuExpanded = false
+                            },
+                            mainText = mainText
+                        )
+                        MenuRow(
+                            icon = Icons.Default.ArrowForward,
+                            label = "バックアップ(CSV)",
+                            onClick = {
+                                // ここにCSV出力ロジックを後で書く
+                                menuExpanded = false
+                            },
+                            mainText = mainText
+                        )
                     }
                 }
             }
@@ -669,5 +738,25 @@ fun RegistrationButton(onClick: () -> Unit) {
                 color = Color(0xff000033)
             )
         }
+    }
+}
+
+@Composable
+fun MenuRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    mainText: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = mainText, modifier = Modifier.size(20.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(label, color = mainText, fontSize = 14.sp)
     }
 }
