@@ -902,7 +902,7 @@ class MainActivity : ComponentActivity() {
                             .width(220.dp),                  // ★ 2. 【幅】ここをいじると横幅が変わる
                         shape = RoundedCornerShape(5.dp),    // 角の丸み
                         shadowElevation = 8.dp,
-                        color = surfaceColor, // ★ Color.White から変更
+                        color = surfaceColor,
                     ) {
                         Column(
                             modifier = Modifier.padding(vertical = 4.dp)

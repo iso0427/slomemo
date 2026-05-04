@@ -35,6 +35,9 @@ interface MachineDao {
     @Query("SELECT MAX(position) FROM machines")
     suspend fun getMaxPosition(): Int?
 
+    @Query("SELECT * FROM machines ORDER BY position ASC")
+    suspend fun getAllMachinesOnce(): List<Machine>
+
 
 
 

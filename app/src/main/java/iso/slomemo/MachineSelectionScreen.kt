@@ -97,6 +97,10 @@ fun MachineSelectionScreen(
 
     var menuExpanded by remember { mutableStateOf(false) }
 
+    androidx.activity.compose.BackHandler(enabled = menuExpanded) {
+        menuExpanded = false
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = backColor
@@ -227,11 +231,6 @@ fun MachineSelectionScreen(
                                     }
                                 }
                             }
-
-                            // B. リストの最後に「新規登録」ボタンを表示（データ0件でも表示される）
-                            item {
-                                RegistrationButton(onClick = { showAddDialog = true })
-                            }
                         }
                     }
                 }
@@ -242,15 +241,15 @@ fun MachineSelectionScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
+                    .background(Color.White.copy(alpha = 0.2f))
                     .clickable { menuExpanded = false } // 背景タップで閉じる
             ) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 50.dp, end = 16.dp)
-                        .width(200.dp),
-                    shape = RoundedCornerShape(8.dp),
+                        .padding(top = 80.dp, end = 4.dp)
+                        .width(220.dp),
+                    shape = RoundedCornerShape(5.dp),
                     color = surfaceColor,
                     shadowElevation = 8.dp
                 ) {
@@ -258,6 +257,7 @@ fun MachineSelectionScreen(
                         MenuRow(
                             icon = Icons.Default.Edit,
                             label = "新規機種を登録",
+                            fontSize = 18.sp,
                             onClick = {
                                 showAddDialog = true
                                 menuExpanded = false
@@ -267,6 +267,7 @@ fun MachineSelectionScreen(
                         MenuRow(
                             icon = Icons.Default.ArrowForward,
                             label = "バックアップ(CSV)",
+                            fontSize = 18.sp,
                             onClick = {
                                 // ここにCSV出力ロジックを後で書く
                                 menuExpanded = false
@@ -700,53 +701,13 @@ fun ActionTile(label: String, icon: ImageVector, bgColor: Color, onClick: () -> 
     }
 }
 
-// MachineSelectionScreen 関数の外側（ファイルの最後など）に配置
-@Composable
-fun RegistrationButton(onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val registerBrush = if (isPressed) {
-        Brush.verticalGradient(listOf(Color(0xFF444444), Color(0xFF222222)))
-    } else {
-        Brush.verticalGradient(listOf(Color(0xFFffffcc), Color(0xFFbbbb00)))
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = Color.Transparent,
-        shadowElevation = if (isPressed) 12.dp else 4.dp
-    ) {
-        Box(
-            modifier = Modifier
-                .background(brush = registerBrush)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
-                )
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "＋ 新規登録",
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 30.sp,
-                color = Color(0xff000033)
-            )
-        }
-    }
-}
-
 @Composable
 fun MenuRow(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
-    mainText: Color
+    mainText: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit = 14.sp // ← ここに「文字サイズ」の項目を追加
 ) {
     Row(
         modifier = Modifier
@@ -757,6 +718,7 @@ fun MenuRow(
     ) {
         Icon(icon, null, tint = mainText, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(label, color = mainText, fontSize = 14.sp)
+        // 下の fontSize を、上で追加した fontSize に連動させる
+        Text(label, color = mainText, fontSize = fontSize)
     }
 }
