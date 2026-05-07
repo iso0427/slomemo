@@ -106,7 +106,8 @@ fun MachineSelectionScreen(
                             // 2. その機種に紐づく項目（ColumnSetting）を取得
                             val columns = db.memoDao().getColumnsByMachineDirect(machine.id)
                             columns.forEach { column ->
-                                append("COLUMN,${column.id},${machine.id},${column.name},,,${column.displayOrder},${column.showTextField}\n")
+                                val optionsString = column.options.joinToString("|")
+                                append("COLUMN,${column.id},${machine.id},${column.name},\"${optionsString}\",,${column.displayOrder},${column.showTextField}\n")
 
                                 // 3. 項目に紐づく選択肢（SelectionOption）を取得
                                 val options = db.memoDao().getOptionsByColumn(column.id)
@@ -116,11 +117,11 @@ fun MachineSelectionScreen(
                             }
                         }
 
-                        // 4. 連動ルール（AutoInputRule）をすべて書き出す
+                        // バックアップ側の RULE ループ（4. 連動ルール）
                         val rules = db.memoDao().getAllAutoInputRules()
                         rules.forEach { rule ->
-                            append("RULE,${rule.id},,${rule.triggerValue},${rule.targetValue},,${rule.triggerColumnId},${rule.isNextRow}\n")
-                            // ※targetColumnIdなどの予備情報は必要に応じて列を追加してください
+                            // 5列目に targetColumnId、6列目に triggerColumnId を入れる
+                            append("RULE,${rule.id},,${rule.triggerValue},${rule.targetValue},${rule.targetColumnId},${rule.triggerColumnId},${rule.isNextRow}\n")
                         }
                     }.toString()
 
@@ -130,6 +131,108 @@ fun MachineSelectionScreen(
                     println("詳細バックアップ成功")
                 } catch (e: Exception) {
                     e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    // ファイルを選択して読み込むためのランチャー
+    val importCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { targetUri ->
+            scope.launch {
+                try {
+                    context.contentResolver.openInputStream(targetUri)?.use { inputStream ->
+                        val reader = inputStream.bufferedReader()
+                        val lines = reader.readLines()
+                        if (lines.isEmpty()) return@launch
+
+                        // 1. 既存データの削除（全入れ替えパターン）
+                        db.machineDao().deleteAllMachines()
+                        db.memoDao().deleteAllRecords()
+                        db.memoDao().deleteAllMemoValues()
+                        // ルールも一旦リセットする場合
+                        db.memoDao().getAllAutoInputRules().forEach {
+                            db.memoDao().deleteRulesByTriggerColumn(it.triggerColumnId)
+                        }
+
+                        // IDの紐付け直し用マップ
+                        val machineIdMap = mutableMapOf<Int, Int>() // 旧ID -> 新ID
+                        val columnIdMap = mutableMapOf<Int, Int>()  // 旧ID -> 新ID
+
+                        // 2. 解析開始
+                        lines.drop(1).forEach { line ->
+                            val tokens = line.split(",")
+                            if (tokens.size < 8) return@forEach
+
+                            val type = tokens[0]
+                            val oldId = tokens[1].toIntOrNull() ?: 0
+                            val parentId = tokens[2].toIntOrNull() ?: 0
+                            val name = tokens[3].replace("\"", "")
+
+                            when (type) {
+                                "MACHINE" -> {
+                                    val newId = db.machineDao().insertMachine(
+                                        Machine(name = name, position = tokens[6].toIntOrNull() ?: 0)
+                                    ).toInt()
+                                    machineIdMap[oldId] = newId
+                                }
+                                "COLUMN" -> {
+                                    val newMachineId = machineIdMap[parentId] ?: return@forEach
+
+                                    // 保存時に「|」で区切った選択肢リストを分解して戻す
+                                    val optionsList = tokens[4].replace("\"", "").let {
+                                        if (it.isEmpty()) emptyList<String>() else it.split("|")
+                                    }
+
+                                    val newId = db.memoDao().insertColumnWithIdReturn(
+                                        ColumnSetting(
+                                            machineId = newMachineId,
+                                            name = name,
+                                            options = optionsList, // ★ここで選択肢リストが復元される
+                                            displayOrder = tokens[6].toIntOrNull() ?: 0,
+                                            showTextField = tokens[7].toBoolean()
+                                        )
+                                    ).toInt()
+                                    columnIdMap[oldId] = newId
+                                }
+                                "OPTION" -> {
+                                    val newColumnId = columnIdMap[parentId] ?: return@forEach
+                                    // SelectionOptionテーブル（連動用）も一応復元しておく
+                                    db.memoDao().insertSelectionOption(
+                                        SelectionOption(
+                                            columnId = newColumnId,
+                                            optionName = name
+                                        )
+                                    )
+                                }
+                                "RULE" -> {
+                                    // triggerColumnId(tokens[6]) と targetColumnId(tokens[5]と仮定) を新IDに変換
+                                    val oldTriggerId = tokens[6].toIntOrNull() ?: 0
+                                    val oldTargetId = tokens[5].toIntOrNull() ?: 0
+
+                                    val newTriggerId = columnIdMap[oldTriggerId] ?: return@forEach
+                                    val newTargetId = columnIdMap[oldTargetId] ?: 0 // targetIdが不明でも0で通す
+
+                                    db.memoDao().insertAutoInputRule(
+                                        AutoInputRule(
+                                            triggerColumnId = newTriggerId,
+                                            triggerValue = name,
+                                            targetColumnId = newTargetId,
+                                            targetValue = tokens[4],
+                                            isNextRow = tokens[7].toBoolean()
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // 成功を知らせるトーストを出すと分かりやすい
+                    android.widget.Toast.makeText(context, "データを復元しました", android.widget.Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    android.widget.Toast.makeText(context, "インポートに失敗しました", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -329,6 +432,18 @@ fun MachineSelectionScreen(
                                 val fileName = "slomemo_backup_$timeStamp.csv"
 
                                 createCsvLauncher.launch(fileName)
+                            },
+                            mainText = mainText
+                        )
+
+                        MenuRow(
+                            icon = Icons.Default.ArrowBack, // インポートっぽく「戻る」矢印
+                            label = "インポート(CSV)",
+                            fontSize = 18.sp,
+                            onClick = {
+                                menuExpanded = false
+                                // CSVファイルだけを選択できるように制限して起動
+                                importCsvLauncher.launch(arrayOf("text/csv"))
                             },
                             mainText = mainText
                         )
@@ -778,5 +893,56 @@ fun MenuRow(
         Spacer(modifier = Modifier.width(12.dp))
         // 下の fontSize を、上で追加した fontSize に連動させる
         Text(label, color = mainText, fontSize = fontSize)
+    }
+}
+
+suspend fun importFromCsv(lines: List<String>, db: AppDatabase) {
+    // 1. 既存データを全削除（慎重に！）
+    db.machineDao().deleteAllMachines() // machineDaoにこのメソッドが必要
+    db.memoDao().deleteAllRecords()
+    db.memoDao().deleteAllMemoValues()
+    // 必要に応じて他のテーブルも削除
+
+    // IDを紐付け直すための地図（Map）
+    val machineIdMap = mutableMapOf<Int, Int>() // 旧機種ID -> 新機種ID
+    val columnIdMap = mutableMapOf<Int, Int>()  // 旧項目ID -> 新項目ID
+
+    lines.drop(1).forEach { line -> // ヘッダーを飛ばす
+        val tokens = line.split(",")
+        if (tokens.size < 4) return@forEach
+
+        val type = tokens[0]
+        val oldId = tokens[1].toIntOrNull() ?: 0
+        val parentId = tokens[2].toIntOrNull() ?: 0
+        val name = tokens[3].replace("\"", "") // 引用符を外す
+
+        when (type) {
+            "MACHINE" -> {
+                val newId = db.machineDao().insertMachine(
+                    Machine(name = name, position = tokens[6].toIntOrNull() ?: 0)
+                ).toInt()
+                machineIdMap[oldId] = newId
+            }
+            "COLUMN" -> {
+                val newMachineId = machineIdMap[parentId] ?: return@forEach
+                val newId = db.memoDao().insertColumnWithIdReturn( // InsertでLongを返すようにDaoを調整
+                    ColumnSetting(
+                        machineId = newMachineId,
+                        name = name,
+                        displayOrder = tokens[6].toIntOrNull() ?: 0,
+                        showTextField = tokens[7].toBoolean()
+                    )
+                ).toInt()
+                columnIdMap[oldId] = newId
+            }
+            "OPTION" -> {
+                val newColumnId = columnIdMap[parentId] ?: return@forEach
+                // SelectionOptionテーブルへ保存
+                // db.memoDao().insertOption(...) を使う
+            }
+            "RULE" -> {
+                // AutoInputRuleの復元ロジック
+            }
+        }
     }
 }

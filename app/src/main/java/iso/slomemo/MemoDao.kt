@@ -109,7 +109,14 @@ interface MemoDao {
     @Query("SELECT * FROM SelectionOption WHERE columnId = :columnId")
     suspend fun getOptionsByColumn(columnId: Int): List<SelectionOption>
 
+    @Insert
+    suspend fun insertColumnWithIdReturn(column: ColumnSetting): Long
 
+    @Insert
+    suspend fun insertSelectionOption(option: SelectionOption)
+
+    @Insert
+    suspend fun insertAutoInputRule(rule: AutoInputRule)
 
 
 

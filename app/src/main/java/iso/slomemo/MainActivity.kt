@@ -1263,12 +1263,14 @@ class MainActivity : ComponentActivity() {
                                 // --- 入力値設定 (チップ一覧) ---
                                 if (targetColId != null) {
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    val opts =
-                                        columns.find { it.id == targetColId }?.options
-                                            ?: emptyList()
+
+                                    // ★ ここを修正：本来の選択肢の後ろに "━" を追加する
+                                    val baseOpts = columns.find { it.id == targetColId }?.options ?: emptyList()
+                                    val uiOpts = baseOpts + listOf("━") // + の位置を後ろに入れ替え
+
                                     FlowRow(modifier = Modifier.fillMaxWidth()) {
-                                        // --- 入力値設定 (下のチップ一覧) ---
-                                        opts.forEach { opt ->
+                                        // ★ opts ではなく uiOpts を使う
+                                        uiOpts.forEach { opt ->
                                             FilterChip(
                                                 selected = targetValue == opt,
                                                 onClick = { targetValue = opt },
@@ -1764,14 +1766,14 @@ class MainActivity : ComponentActivity() {
                 color = mainText
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // --- プレビューエリア ---
-            Text(text = "プレビュー", fontSize = 12.sp, color = Color(0xFFBB86FC))
+            Text(text = "プレビュー", fontSize = 14.sp, color = Color(0xFFBB86FC))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    //.padding(vertical = 8.dp)
             ) {
                 HistoryRow(
                     db = db,
@@ -1788,8 +1790,8 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = Color.DarkGray, thickness = 1.dp)
+            //Spacer(modifier = Modifier.height(16.dp))
+            //Divider(color = Color.DarkGray, thickness = 1.dp)
             // ------------------------------------------
 
             Column(
@@ -1830,24 +1832,34 @@ class MainActivity : ComponentActivity() {
 
                                 Surface(
                                     onClick = {
+                                        val oldValue = currentValue // 変更前の値を覚えとく
                                         val newValue = if (isSelected) "" else option
                                         inputValues[column.id] = newValue
 
-                                        // --- ここから連動処理 ---
-                                        if (newValue.isNotBlank()) {
-                                            scope.launch {
-                                                val rules = db.memoDao()
-                                                    .getRulesByTrigger(column.id, newValue)
-                                                rules.forEach { rule ->
+                                        scope.launch {
+                                            // 1. 【打ち消し】前の値(oldValue)で発動していた連動をクリアする
+                                            if (oldValue.isNotBlank()) {
+                                                val oldRules = db.memoDao().getRulesByTrigger(column.id, oldValue)
+                                                oldRules.forEach { rule ->
+                                                    // 「同じ行」かつ「連動先が自分以外」なら、一旦空にする
                                                     if (!rule.isNextRow && rule.targetColumnId != column.id) {
-                                                        inputValues[rule.targetColumnId] =
-                                                            rule.targetValue
+                                                        inputValues[rule.targetColumnId] = ""
+                                                    }
+                                                }
+                                            }
+
+                                            // 2. 【発動】新しい値(newValue)で連動を上書きする
+                                            if (newValue.isNotBlank()) {
+                                                val newRules = db.memoDao().getRulesByTrigger(column.id, newValue)
+                                                newRules.forEach { rule ->
+                                                    if (!rule.isNextRow && rule.targetColumnId != column.id) {
+                                                        inputValues[rule.targetColumnId] = rule.targetValue
                                                     }
                                                 }
                                             }
                                         }
-                                        // --- ここまで ---
                                     },
+                                    // ... (以下略)
                                     shape = RoundedCornerShape(8.dp),
                                     color = bgColor,
                                     modifier = Modifier

@@ -38,6 +38,10 @@ interface MachineDao {
     @Query("SELECT * FROM machines ORDER BY position ASC")
     suspend fun getAllMachinesOnce(): List<Machine>
 
+    @Query("DELETE FROM machines")
+    suspend fun deleteAllMachines()
+
+
 
 
 
