@@ -1,5 +1,7 @@
 package iso.slomemo
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -61,6 +63,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -81,6 +84,56 @@ fun MachineSelectionScreen(
     val machines by db.machineDao().getAllMachines().collectAsState(initial = null)
     var newMachineName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+
+    val context = LocalContext.current
+
+    val createCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        uri?.let { targetUri ->
+            scope.launch {
+                try {
+                    val allMachines = db.machineDao().getAllMachinesOnce()
+
+                    val csvString = StringBuilder().apply {
+                        // ヘッダー行（何のデータか判別するためのType列を追加）
+                        append("TYPE,ID,PARENT_ID,NAME,VALUE1,VALUE2,ORDER,BOOL\n")
+
+                        allMachines.forEach { machine ->
+                            // 1. 機種データ
+                            append("MACHINE,${machine.id},0,${machine.name},,,${machine.position},\n")
+
+                            // 2. その機種に紐づく項目（ColumnSetting）を取得
+                            val columns = db.memoDao().getColumnsByMachineDirect(machine.id)
+                            columns.forEach { column ->
+                                append("COLUMN,${column.id},${machine.id},${column.name},,,${column.displayOrder},${column.showTextField}\n")
+
+                                // 3. 項目に紐づく選択肢（SelectionOption）を取得
+                                val options = db.memoDao().getOptionsByColumn(column.id)
+                                options.forEach { option ->
+                                    append("OPTION,${option.id},${column.id},${option.optionName},,,,\n")
+                                }
+                            }
+                        }
+
+                        // 4. 連動ルール（AutoInputRule）をすべて書き出す
+                        val rules = db.memoDao().getAllAutoInputRules()
+                        rules.forEach { rule ->
+                            append("RULE,${rule.id},,${rule.triggerValue},${rule.targetValue},,${rule.triggerColumnId},${rule.isNextRow}\n")
+                            // ※targetColumnIdなどの予備情報は必要に応じて列を追加してください
+                        }
+                    }.toString()
+
+                    context.contentResolver.openOutputStream(targetUri)?.use { stream ->
+                        stream.write(csvString.toByteArray(Charsets.UTF_8))
+                    }
+                    println("詳細バックアップ成功")
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
 
     // ダイアログの状態管理
     var showEditDialog by remember { mutableStateOf(false) }
@@ -269,8 +322,13 @@ fun MachineSelectionScreen(
                             label = "バックアップ(CSV)",
                             fontSize = 18.sp,
                             onClick = {
-                                // ここにCSV出力ロジックを後で書く
                                 menuExpanded = false
+
+                                // 今日の日付を取得 (例: 20260507_1230)
+                                val timeStamp = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.getDefault()).format(java.util.Date())
+                                val fileName = "slomemo_backup_$timeStamp.csv"
+
+                                createCsvLauncher.launch(fileName)
                             },
                             mainText = mainText
                         )

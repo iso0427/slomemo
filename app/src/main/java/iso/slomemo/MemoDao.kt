@@ -104,4 +104,20 @@ interface MemoDao {
 
     @Query("UPDATE memo_records SET isDeleted = 1 WHERE id = :recordId")
     suspend fun softDeleteRecordById(recordId: Int)
+
+    // --- SelectionOption（選択肢）関連 ---
+    @Query("SELECT * FROM SelectionOption WHERE columnId = :columnId")
+    suspend fun getOptionsByColumn(columnId: Int): List<SelectionOption>
+
+
+
+
+
+
+
+
+
+
+
+
 }
