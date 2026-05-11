@@ -118,7 +118,39 @@ interface MemoDao {
     @Insert
     suspend fun insertAutoInputRule(rule: AutoInputRule)
 
+// --- 簡易カウンター（CounterSetting / CounterValue）関連 ---
 
+    // カウンターのボタン項目をすべて取得（並び順通り）
+    @Query("SELECT * FROM counter_settings ORDER BY displayOrder ASC")
+    fun getAllCountersFlow(): Flow<List<CounterSetting>>
+
+    // 特定のカウンターの現在の値を取得
+    @Query("SELECT * FROM counter_values WHERE counterId = :counterId LIMIT 1")
+    suspend fun getCounterValue(counterId: Int): CounterValue?
+
+    // 全カウンターの値をまとめて取得（Flowで監視用）
+    @Query("SELECT * FROM counter_values")
+    fun getAllCounterValuesFlow(): Flow<List<CounterValue>>
+
+    // ボタン項目を追加
+    @Insert
+    suspend fun insertCounter(counter: CounterSetting): Long
+
+    // ボタン項目を更新（名前や並び順の変更用）
+    @Update
+    suspend fun updateCounter(counter: CounterSetting)
+
+    // ボタン項目を削除
+    @Delete
+    suspend fun deleteCounter(counter: CounterSetting)
+
+    // カウンターの数値を保存・更新（REPLACEなので上書き）
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateCounterValue(value: CounterValue)
+
+    // ボタン項目が削除された時に、その数値データも削除する用
+    @Query("DELETE FROM counter_values WHERE counterId = :counterId")
+    suspend fun deleteCounterValueById(counterId: Int)
 
 
 

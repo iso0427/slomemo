@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -154,7 +156,7 @@ class MainActivity : ComponentActivity() {
                                 navController.navigate("memo/$id")
                             })
                         }
-// ② メモ画面（machineId を受け取る）
+                        // ② メモ画面（machineId を受け取る）
                         composable(
                             route = "memo/{machineId}",
                             arguments = listOf(navArgument("machineId") { type = NavType.IntType })
@@ -209,6 +211,23 @@ class MainActivity : ComponentActivity() {
         val viewModel: MainViewModel = viewModel()
         var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
         var machineName by remember { mutableStateOf("読み込み中...") }
+        // 型をしっかり指定して定義
+        val animatableColor = remember { Animatable(initialValue = Color.Transparent) }
+        // --- 修正後：DBからデータを取ってくる方式 ---
+
+        // 1. カウンターのボタン設定（名前など）をDBから取得
+        val counterSettings by db.memoDao().getAllCountersFlow()
+            .collectAsState(initial = emptyList())
+
+        // 2. カウンターの現在の数値をDBから取得
+        val currentCounterValues by db.memoDao().getAllCounterValuesFlow()
+            .collectAsState(initial = emptyList())
+
+        // 3. 入力用の一時変数
+        var newCounterName by remember { mutableStateOf("") }
+
+        // 3. 表示・非表示を切り替えるスイッチ（最初はON）
+        var showSimpleCounter by remember { mutableStateOf(true) }
 
         fun refreshData() {
             scope.launch {
@@ -248,16 +267,18 @@ class MainActivity : ComponentActivity() {
                 .fillMaxSize()
                 .background(backColor) // ★ Color.Black から変更
         ) {
-            // 戻るボタンの制御（既存）
-            BackHandler(enabled = showColumnMenuId != null || showConditionEditDialog || menuExpanded || showInputArea || currentScreen == "settings") {
+            // 戻るボタンの制御
+            BackHandler(enabled = showColumnMenuId != null || showConditionEditDialog || menuExpanded || showInputArea || currentScreen == "settings" || currentScreen == "counter_settings") { // ★一番後ろに条件を追加
                 if (showOptionMenuName != null) {
-                    showOptionMenuName = null // ★ 選択肢メニューを閉じる
+                    showOptionMenuName = null
                 } else if (showColumnMenuId != null) {
                     showColumnMenuId = null
                 } else if (showConditionEditDialog) {
                     showConditionEditDialog = false
                 } else if (menuExpanded) {
                     menuExpanded = false
+                } else if (currentScreen == "counter_settings") { // ★ここを追加
+                    currentScreen = "main" // カウンター設定からメインに戻る
                 } else if (showInputArea) {
                     showInputArea = false
                 } else if (currentScreen == "settings") {
@@ -273,20 +294,26 @@ class MainActivity : ComponentActivity() {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(backColor)
+                            .background(backColor)             // ① ベースの背景色
+                            .background(animatableColor.value) // ② カウント時に光る色を重ねる
                             .padding(horizontal = 16.dp, vertical = 8.dp),
-                        // ★ タイトル、Undo/Redo、メニューを綺麗に並べるために構成を調整
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 1. タイトル
-                        Text(
-                            text = if (currentScreen == "main") machineName else "設定",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = mainText,
-                            modifier = Modifier.weight(1f), // タイトルを左側に寄せる
-                            maxLines = 1,                                   // ★追加
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis // ★追加
-                        )
+                        // タイトルの代わりに透明な「隙間」を入れる
+                        if (currentScreen == "main") {
+                            // メイン画面（一覧）の時は、今まで通り機種名を表示
+                            Text(
+                                text = machineName,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = mainText,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        } else {
+                            // 設定画面（全般・カウンター）の時は、何も表示せず「空間」だけ確保する
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
 
                         // メイン画面の時だけ操作ボタンを表示
                         if (currentScreen == "main") {
@@ -339,6 +366,84 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.offset(x = 12.dp)
                                 ) {
                                     Icon(Icons.Default.Menu, null, tint = mainText)
+                                }
+                            }
+                        }
+                    }
+                },
+                bottomBar = {
+                    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                    // メイン画面かつスイッチがONのときだけ表示
+                    if (currentScreen == "main" && !showInputArea && showSimpleCounter) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth() // 横幅いっぱい
+                                .background(Color(0xFF1E1E1E))
+                                .padding(8.dp)
+                                .navigationBarsPadding(),
+                            // ここから横スクロールを消し、均等配置に変更
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            counterSettings.forEach { setting ->
+                                val counterValue =
+                                    currentCounterValues.find { it.counterId == setting.id }
+                                val count = counterValue?.count ?: 0
+
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .weight(1f) // ★ これで各ボタンが均等に横幅を埋める
+                                        .background(Color(0xFF333333), RoundedCornerShape(8.dp))
+                                        .combinedClickable(
+                                            onClick = {
+                                                // 1. バイブ
+                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+
+                                                // 2. 光らせる
+                                                scope.launch {
+                                                    // パッと白くする
+                                                    animatableColor.snapTo(Color.White)
+                                                    // 0.3秒で透明に戻す
+                                                    animatableColor.animateTo(
+                                                        targetValue = Color.Transparent,
+                                                        animationSpec = tween(300)
+                                                    )
+                                                }
+
+                                                // 3. DB更新
+                                                scope.launch {
+                                                    db.memoDao().updateCounterValue(
+                                                        CounterValue(counterId = setting.id, count = count + 1)
+                                                    )
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if (count > 0) {
+                                                    scope.launch {
+                                                        db.memoDao().updateCounterValue(
+                                                            CounterValue(
+                                                                counterId = setting.id,
+                                                                count = count - 1
+                                                            )
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        .padding(vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = setting.name,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFFBB86FC),
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = count.toString(),
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
                                 }
                             }
                         }
@@ -460,7 +565,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                    } else {
+                    } else if (currentScreen == "settings") {
                         // --- 設定画面 ---
                         Column(
                             modifier = Modifier
@@ -469,8 +574,8 @@ class MainActivity : ComponentActivity() {
                                 .verticalScroll(rememberScrollState())
                         ) {
                             Text(
-                                "全体設定",
-                                style = MaterialTheme.typography.titleMedium,
+                                "項目・選択肢の設定",
+                                style = MaterialTheme.typography.titleLarge,
                                 color = mainText
                             )
                             Row(
@@ -818,68 +923,201 @@ class MainActivity : ComponentActivity() {
                             }  // --- 設定画面の Column 閉じタグ (既存コードの末尾付近) ---
                         } // Columnの終わり
 
-                        // ==========================================
-                        // 1つにまとめたダイアログ（これだけ残す）
-                        // ==========================================
-                        if (showOptionDeleteConfirmDialog) {
-                            // 削除対象のデータを確認
-                            val colId = selectedColumnId
-                            val optToRemove = showOptionMenuName
+                    } else if (currentScreen == "counter_settings") {
+                        // ★ ここが新設する「簡易カウンター専用の設定画面」 ★
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                "簡易カウンターの設定",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = mainText
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
 
-                            if (colId != null && optToRemove != null) {
-                                val col = columns.find { it.id == colId }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showSimpleCounter = !showSimpleCounter
+                                    } // 行全体をタップ可能に
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Switch(
+                                    checked = showSimpleCounter,
+                                    onCheckedChange = { showSimpleCounter = it }
+                                )
+                                Spacer(modifier = Modifier.width(12.dp)) // スイッチと文字の間のスキマ
+                                Text(
+                                    text = "カウンターを表示する",
+                                    color = mainText,
+                                    fontSize = 18.sp
+                                )
+                            }
 
-                                if (col != null) {
-                                    AlertDialog(
-                                        onDismissRequest = {
-                                            showOptionDeleteConfirmDialog = false
-                                        },
-                                        title = {
-                                            Text(
-                                                text = "選択肢の削除",
-                                                color = mainText
-                                            )
-                                        },
-                                        text = {
-                                            Text(
-                                                text = "「$optToRemove」を削除しますか？",
-                                                color = mainText
-                                            )
-                                        },
-                                        containerColor = surfaceColor,
-                                        confirmButton = {
-                                            TextButton(onClick = {
-                                                scope.launch {
-                                                    val opts =
-                                                        col.options.toMutableList()
-                                                    opts.remove(optToRemove)
-                                                    db.memoDao()
-                                                        .updateColumn(col.copy(options = opts))
+                            // --- カウンター項目の管理セクション ---
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text(
+                                "カウンター項目の編集",
+                                color = mainText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                                                    db.memoDao()
-                                                        .deleteRulesByTrigger(
-                                                            col.id,
-                                                            optToRemove
-                                                        )
-
-                                                    refreshData()
-                                                    showOptionDeleteConfirmDialog =
-                                                        false
-                                                    showOptionMenuName = null
-                                                }
-                                            }) {
-                                                Text("削除", color = Color(0xFFF44336))
-                                            }
-                                        },
-                                        dismissButton = {
-                                            TextButton(onClick = {
-                                                showOptionDeleteConfirmDialog = false
-                                            }) {
-                                                Text("キャンセル", color = mainText)
+// 1. 新しい項目を追加する入力欄
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = newCounterName,
+                                    onValueChange = { newCounterName = it },
+                                    label = { Text("ボタン名 (例: ぶどう)", color = Color.Gray) },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = mainText,
+                                        unfocusedTextColor = mainText,
+                                        focusedBorderColor = Color(0xFFBB86FC)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (newCounterName.isNotBlank()) {
+                                            scope.launch {
+                                                // DBに項目を追加
+                                                db.memoDao().insertCounter(
+                                                    CounterSetting(
+                                                        name = newCounterName,
+                                                        displayOrder = counterSettings.size
+                                                    )
+                                                )
+                                                newCounterName = "" // 入力欄を空にする
                                             }
                                         }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(
+                                            0xFFBB86FC
+                                        )
+                                    )
+                                ) {
+                                    Text("追加", color = Color.Black)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+// 2. 登録済みの一覧を表示（削除も可能）
+                            Text(
+                                "現在のボタン一覧 (タップで削除)",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+// 横並びにチップ状で表示
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                counterSettings.forEach { setting ->
+                                    InputChip(
+                                        selected = false,
+                                        onClick = {
+                                            // タップで項目を削除
+                                            scope.launch {
+                                                db.memoDao().deleteCounter(setting)
+                                                db.memoDao()
+                                                    .deleteCounterValueById(setting.id) // 数値データも消す
+                                            }
+                                        },
+                                        label = { Text(setting.name) },
+                                        trailingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "削除",
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        },
+                                        colors = InputChipDefaults.inputChipColors(
+                                            labelColor = mainText,
+                                            containerColor = Color(0xFF333333)
+                                        )
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    // ==========================================
+                    // 1つにまとめたダイアログ（これだけ残す）
+                    // ==========================================
+                    if (showOptionDeleteConfirmDialog) {
+                        // 削除対象のデータを確認
+                        val colId = selectedColumnId
+                        val optToRemove = showOptionMenuName
+
+                        if (colId != null && optToRemove != null) {
+                            val col = columns.find { it.id == colId }
+
+                            if (col != null) {
+                                AlertDialog(
+                                    onDismissRequest = {
+                                        showOptionDeleteConfirmDialog = false
+                                    },
+                                    title = {
+                                        Text(
+                                            text = "選択肢の削除",
+                                            color = mainText
+                                        )
+                                    },
+                                    text = {
+                                        Text(
+                                            text = "「$optToRemove」を削除しますか？",
+                                            color = mainText
+                                        )
+                                    },
+                                    containerColor = surfaceColor,
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            scope.launch {
+                                                val opts =
+                                                    col.options.toMutableList()
+                                                opts.remove(optToRemove)
+                                                db.memoDao()
+                                                    .updateColumn(col.copy(options = opts))
+
+                                                db.memoDao()
+                                                    .deleteRulesByTrigger(
+                                                        col.id,
+                                                        optToRemove
+                                                    )
+
+                                                refreshData()
+                                                showOptionDeleteConfirmDialog =
+                                                    false
+                                                showOptionMenuName = null
+                                            }
+                                        }) {
+                                            Text("削除", color = Color(0xFFF44336))
+                                        }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = {
+                                            showOptionDeleteConfirmDialog = false
+                                        }) {
+                                            Text("キャンセル", color = mainText)
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
@@ -933,6 +1171,32 @@ class MainActivity : ComponentActivity() {
                                     text = "項目・選択肢の設定",
                                     fontSize = 18.sp,
                                     color = mainText
+                                )
+                            }
+                            // --- 簡易カウンターの設定ボタン ---
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        currentScreen = "counter_settings" // ここで新しい画面の名前を指定
+                                        menuExpanded = false               // メニューを閉じる
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Build,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp),
+                                    tint = mainText
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "簡易カウンターの設定",
+                                    fontSize = 18.sp,
+                                    color = mainText,
+                                    maxLines = 1,      // 改行禁止
+                                    softWrap = false   // 縦書き防止
                                 )
                             }
                             // ★ ここに追加：項目3：メモをリセット
@@ -1265,7 +1529,8 @@ class MainActivity : ComponentActivity() {
                                     Spacer(modifier = Modifier.height(12.dp))
 
                                     // ★ ここを修正：本来の選択肢の後ろに "━" を追加する
-                                    val baseOpts = columns.find { it.id == targetColId }?.options ?: emptyList()
+                                    val baseOpts = columns.find { it.id == targetColId }?.options
+                                        ?: emptyList()
                                     val uiOpts = baseOpts + listOf("━") // + の位置を後ろに入れ替え
 
                                     FlowRow(modifier = Modifier.fillMaxWidth()) {
@@ -1773,7 +2038,6 @@ class MainActivity : ComponentActivity() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    //.padding(vertical = 8.dp)
             ) {
                 HistoryRow(
                     db = db,
@@ -1839,7 +2103,8 @@ class MainActivity : ComponentActivity() {
                                         scope.launch {
                                             // 1. 【打ち消し】前の値(oldValue)で発動していた連動をクリアする
                                             if (oldValue.isNotBlank()) {
-                                                val oldRules = db.memoDao().getRulesByTrigger(column.id, oldValue)
+                                                val oldRules = db.memoDao()
+                                                    .getRulesByTrigger(column.id, oldValue)
                                                 oldRules.forEach { rule ->
                                                     // 「同じ行」かつ「連動先が自分以外」なら、一旦空にする
                                                     if (!rule.isNextRow && rule.targetColumnId != column.id) {
@@ -1850,10 +2115,12 @@ class MainActivity : ComponentActivity() {
 
                                             // 2. 【発動】新しい値(newValue)で連動を上書きする
                                             if (newValue.isNotBlank()) {
-                                                val newRules = db.memoDao().getRulesByTrigger(column.id, newValue)
+                                                val newRules = db.memoDao()
+                                                    .getRulesByTrigger(column.id, newValue)
                                                 newRules.forEach { rule ->
                                                     if (!rule.isNextRow && rule.targetColumnId != column.id) {
-                                                        inputValues[rule.targetColumnId] = rule.targetValue
+                                                        inputValues[rule.targetColumnId] =
+                                                            rule.targetValue
                                                     }
                                                 }
                                             }

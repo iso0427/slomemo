@@ -72,3 +72,19 @@ data class AppSetting(
     @PrimaryKey val id: Int = 0,
     val showTime: Boolean = true
 )
+
+// ⑦ 簡易カウンターの項目（ボタン名）を保存する
+@Entity(tableName = "counter_settings")
+data class CounterSetting(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,         // 「ぶどう」などの名前
+    val displayOrder: Int = 0  // 並び順
+)
+
+// ⑧ 各カウンターの現在の数値を保存する
+// ※アプリを閉じても数字が消えないようにするために必要です
+@Entity(tableName = "counter_values")
+data class CounterValue(
+    @PrimaryKey val counterId: Int, // CounterSettingのidと紐付ける
+    val count: Int = 0              // 現在の数値
+)

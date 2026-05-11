@@ -12,9 +12,11 @@ import androidx.room.RoomDatabase
         MemoValue::class,
         AppSetting::class,
         AutoInputRule::class,
-        SelectionOption::class
+        SelectionOption::class,
+        CounterSetting::class, // ★追加
+        CounterValue::class    // ★追加
     ],
-    version = 9
+    version = 10 // ★ 9から10に上げる
 )
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
