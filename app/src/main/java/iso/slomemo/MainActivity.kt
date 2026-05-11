@@ -5,8 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -211,8 +209,7 @@ class MainActivity : ComponentActivity() {
         val viewModel: MainViewModel = viewModel()
         var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
         var machineName by remember { mutableStateOf("読み込み中...") }
-        // 型をしっかり指定して定義
-        val animatableColor = remember { Animatable(initialValue = Color.Transparent) }
+
         // --- 修正後：DBからデータを取ってくる方式 ---
 
         // 1. カウンターのボタン設定（名前など）をDBから取得
@@ -294,8 +291,7 @@ class MainActivity : ComponentActivity() {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(backColor)             // ① ベースの背景色
-                            .background(animatableColor.value) // ② カウント時に光る色を重ねる
+                            .background(backColor) // 元の背景色だけにする
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -398,17 +394,6 @@ class MainActivity : ComponentActivity() {
                                             onClick = {
                                                 // 1. バイブ
                                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-
-                                                // 2. 光らせる
-                                                scope.launch {
-                                                    // パッと白くする
-                                                    animatableColor.snapTo(Color.White)
-                                                    // 0.3秒で透明に戻す
-                                                    animatableColor.animateTo(
-                                                        targetValue = Color.Transparent,
-                                                        animationSpec = tween(300)
-                                                    )
-                                                }
 
                                                 // 3. DB更新
                                                 scope.launch {
@@ -1123,7 +1108,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-
             // --- メニュー専用レイヤー (自作ガードレール) ---
             if (menuExpanded) {
                 Box(
