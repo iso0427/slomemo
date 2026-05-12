@@ -152,7 +152,11 @@ interface MemoDao {
     @Query("DELETE FROM counter_values WHERE counterId = :counterId")
     suspend fun deleteCounterValueById(counterId: Int)
 
+    @Query("SELECT * FROM app_settings WHERE id = 0")
+    suspend fun getAppSetting(): AppSetting?
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveAppSetting(setting: AppSetting)
 
 
 

@@ -16,7 +16,7 @@ import androidx.room.RoomDatabase
         CounterSetting::class, // ★追加
         CounterValue::class    // ★追加
     ],
-    version = 10 // ★ 9から10に上げる
+    version = 11
 )
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

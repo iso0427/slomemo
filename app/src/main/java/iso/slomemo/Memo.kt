@@ -70,15 +70,22 @@ data class AutoInputRule(
 @Entity(tableName = "app_settings")
 data class AppSetting(
     @PrimaryKey val id: Int = 0,
-    val showTime: Boolean = true
+    val showTime: Boolean = true,
+    // ★ カウンター用の設定を追加
+    val showSimpleCounter: Boolean = true,
+    val showFlashEffect: Boolean = true
 )
 
-// ⑦ 簡易カウンターの項目（ボタン名）を保存する
+// ⑦ 簡易カウンターの項目（ボタン名と色）を保存する
 @Entity(tableName = "counter_settings")
 data class CounterSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,         // 「ぶどう」などの名前
-    val displayOrder: Int = 0  // 並び順
+    val displayOrder: Int = 0, // 並び順
+
+    // ★ここを追記：色を数値(Long)で保存します
+    // 初期値として「紫（0xFFBB86FC）」を入れておきます
+    val color: Long = 0xFFBB86FC
 )
 
 // ⑧ 各カウンターの現在の数値を保存する
@@ -88,3 +95,4 @@ data class CounterValue(
     @PrimaryKey val counterId: Int, // CounterSettingのidと紐付ける
     val count: Int = 0              // 現在の数値
 )
+

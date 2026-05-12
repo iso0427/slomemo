@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +34,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +49,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -79,7 +86,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -177,13 +189,14 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun MemoScreen(db: AppDatabase, machineId: Int) { // 名前変更 & 引数追加
 
-        // 2. モードによって切り替わる色の定義（色の司令塔）
-        val backColor = Color.Black            // 画面全体の背景
-        val surfaceColor = Color(0xFF1e1e1e)   // メニューやダイアログの箱
-        val mainText = Color.White             // メインの文字
-        val subText = Color.LightGray          // 補足の文字
-        val dividerColor = Color(0xFF333333)   // 区切り線
+        // --- 1. 色の定義 ---
+        val backColor = Color.Black
+        val surfaceColor = Color(0xFF1e1e1e)
+        val mainText = Color.White
+        val subText = Color.LightGray
+        val dividerColor = Color(0xFF333333)
 
+// --- 2. 基本的な状態管理 ---
         var currentScreen by remember { mutableStateOf("main") }
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
@@ -196,9 +209,21 @@ class MainActivity : ComponentActivity() {
         val inputValues = remember { mutableStateMapOf<Int, String>() }
         var editingRecordId by remember { mutableStateOf<Int?>(null) }
         var valuesMap by remember { mutableStateOf<Map<Int, List<MemoValue>>>(emptyMap()) }
-        val appSetting by db.memoDao().getSettingFlow()
+
+// --- 3. アプリ全体設定 (DB) ---
+// 設定変更をリアルタイムに検知するためのFlow
+        val appSettingFromFlow by db.memoDao().getSettingFlow()
             .collectAsState(initial = AppSetting())
-        val showTime = appSetting?.showTime ?: true
+
+// スイッチの状態（初期値はDBから。なければデフォルト）
+        var showSimpleCounter by remember { mutableStateOf(true) }
+        var showFlashEffect by remember { mutableStateOf(true) }
+        var currentAppSetting by remember { mutableStateOf(AppSetting()) }
+
+// 既存の showTime も appSettingFromFlow から取得するように統一
+        val showTime = appSettingFromFlow?.showTime ?: true
+
+// --- 4. ダイアログ・メニュー制御 ---
         var showConditionEditDialog by remember { mutableStateOf(false) }
         var selectedOptionForRule by remember { mutableStateOf<String?>(null) }
         var selectedColumnIdForRule by remember { mutableStateOf<Int?>(null) }
@@ -210,52 +235,66 @@ class MainActivity : ComponentActivity() {
         var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
         var machineName by remember { mutableStateOf("読み込み中...") }
 
-        // --- 修正後：DBからデータを取ってくる方式 ---
+// --- 5. カウンター設定・演出 ---
+        var selectedHue by remember { mutableStateOf(0f) }
+        var isMonotone by remember { mutableStateOf(false) }
+        var currentColorByLong by remember { mutableStateOf(0xFFBB86FC) }
+        var isFlash by remember { mutableStateOf(false) }
+        var flashColor by remember { mutableStateOf(Color.White) }
 
-        // 1. カウンターのボタン設定（名前など）をDBから取得
+// DBから取得するカウンター項目
         val counterSettings by db.memoDao().getAllCountersFlow()
             .collectAsState(initial = emptyList())
-
-        // 2. カウンターの現在の数値をDBから取得
         val currentCounterValues by db.memoDao().getAllCounterValuesFlow()
             .collectAsState(initial = emptyList())
 
-        // 3. 入力用の一時変数
         var newCounterName by remember { mutableStateOf("") }
+        var showCounterMenuSetting by remember { mutableStateOf<CounterSetting?>(null) }
 
-        // 3. 表示・非表示を切り替えるスイッチ（最初はON）
-        var showSimpleCounter by remember { mutableStateOf(true) }
+// --- 6. データの読み込みと更新 ---
+        LaunchedEffect(Unit) {
+            // 設定の読み込み
+            val savedSetting = db.memoDao().getAppSetting()
+            if (savedSetting != null) {
+                currentAppSetting = savedSetting
+                showSimpleCounter = savedSetting.showSimpleCounter
+                showFlashEffect = savedSetting.showFlashEffect
+            }
+        }
+
+// Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
+        LaunchedEffect(appSettingFromFlow) {
+            appSettingFromFlow?.let {
+                showSimpleCounter = it.showSimpleCounter
+                showFlashEffect = it.showFlashEffect
+                currentAppSetting = it
+            }
+        }
 
         fun refreshData() {
             scope.launch {
                 val machine = db.machineDao().getMachineById(machineId)
-                if (machine != null) {
-                    machineName = machine.name
-                }
-                // 先ほど MemoDao に追加した「機種別取得」メソッドを使う
+                if (machine != null) machineName = machine.name
                 columns = db.memoDao().getColumnsByMachineDirect(machineId)
                 records = db.memoDao().getRecordsByMachine(machineId)
                 valuesMap = db.memoDao().getAllValues().groupBy { it.recordId }
             }
         }
 
-        val columnWeights = remember(columns, valuesMap, valuesMap.hashCode()) {
+// カラムの重み計算
+        val columnWeights = remember(columns, valuesMap) {
             val maxScores = mutableMapOf<Int, Float>()
-
             valuesMap.values.flatten().forEach { memoValue ->
                 val score = calculateVisualWidth(memoValue.value)
                 val currentMax = maxScores[memoValue.columnId] ?: 0f
-                if (score > currentMax) {
-                    maxScores[memoValue.columnId] = score
-                }
+                if (score > currentMax) maxScores[memoValue.columnId] = score
             }
-
             columns.associate { col ->
                 val headerScore = calculateVisualWidth(col.name)
                 val contentMaxScore = maxScores[col.id] ?: 0f
                 col.id to maxOf(headerScore, contentMaxScore).coerceAtLeast(2.0f)
             }
-        } // ← remember の閉じカッコ
+        }
 
         LaunchedEffect(Unit) { refreshData() }
 
@@ -286,12 +325,13 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
-                containerColor = backColor, // ★ Color.White から変更
+                containerColor = backColor,
                 topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(backColor) // 元の背景色だけにする
+                            // ★ ここを修正：isFlash が true ならボタンの色、false なら backColor
+                            .background(if (isFlash) flashColor.copy(alpha = 0.5f) else backColor)
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -371,6 +411,8 @@ class MainActivity : ComponentActivity() {
                     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                     // メイン画面かつスイッチがONのときだけ表示
                     if (currentScreen == "main" && !showInputArea && showSimpleCounter) {
+                        val counterValues =
+                            currentCounterValues.associate { it.counterId to it.count }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth() // 横幅いっぱい
@@ -381,24 +423,44 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             counterSettings.forEach { setting ->
-                                val counterValue =
-                                    currentCounterValues.find { it.counterId == setting.id }
-                                val count = counterValue?.count ?: 0
+                                // 各ボタンの現在のカウント値を取得（なければ0）
+                                val count = counterValues[setting.id] ?: 0
+
+                                // DBに保存されている色
+                                val buttonColor = Color(setting.color)
 
                                 Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
-                                        .weight(1f) // ★ これで各ボタンが均等に横幅を埋める
-                                        .background(Color(0xFF333333), RoundedCornerShape(8.dp))
+                                        .weight(1f)
+                                        .padding(4.dp)
+                                        // ★ ここでグラデーションを設定
+                                        .background(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(
+                                                    buttonColor,                         // 上：指定した色（明るい）
+                                                    buttonColor.copy(alpha = 0.6f)       // 下：少し暗く（影の役割）
+                                                )
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        // borderを削除することで「縁なし」に
                                         .combinedClickable(
                                             onClick = {
-                                                // 1. バイブ
-                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-
-                                                // 3. DB更新
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                if (showFlashEffect) {
+                                                    scope.launch {
+                                                        flashColor = buttonColor
+                                                        isFlash = true
+                                                        delay(0)
+                                                        isFlash = false
+                                                    }
+                                                }
                                                 scope.launch {
                                                     db.memoDao().updateCounterValue(
-                                                        CounterValue(counterId = setting.id, count = count + 1)
+                                                        CounterValue(
+                                                            counterId = setting.id,
+                                                            count = count + 1
+                                                        )
                                                     )
                                                 }
                                             },
@@ -415,19 +477,21 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         )
-                                        .padding(vertical = 8.dp)
+                                        .padding(vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
                                         text = setting.name,
-                                        fontSize = 10.sp,
-                                        color = Color(0xFFBB86FC),
+                                        color = Color(0xFF111111),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
                                         maxLines = 1
                                     )
                                     Text(
                                         text = count.toString(),
-                                        fontSize = 22.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color(0xFF111111),
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.ExtraBold
                                     )
                                 }
                             }
@@ -921,22 +985,31 @@ class MainActivity : ComponentActivity() {
                                 style = MaterialTheme.typography.titleLarge,
                                 color = mainText
                             )
+
                             Spacer(modifier = Modifier.height(24.dp))
 
+                            // --- ① カウンターを表示するスイッチ ---
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    // 先に padding を書いてから clickable を書く（判定を内側に閉じ込める）
+                                    .padding(vertical = 4.dp)
                                     .clickable {
                                         showSimpleCounter = !showSimpleCounter
-                                    } // 行全体をタップ可能に
-                                    .padding(vertical = 12.dp),
+                                        scope.launch {
+                                            db.memoDao().saveAppSetting(
+                                                currentAppSetting.copy(showSimpleCounter = showSimpleCounter)
+                                            )
+                                        }
+                                    }
+                                    .padding(vertical = 8.dp), // 合計 12dp に調整
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Switch(
                                     checked = showSimpleCounter,
-                                    onCheckedChange = { showSimpleCounter = it }
+                                    onCheckedChange = null // 二重反応を防ぐため null 推奨
                                 )
-                                Spacer(modifier = Modifier.width(12.dp)) // スイッチと文字の間のスキマ
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "カウンターを表示する",
                                     color = mainText,
@@ -944,107 +1017,284 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            // --- カウンター項目の管理セクション ---
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text(
-                                "カウンター項目の編集",
-                                color = mainText,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-
-// 1. 新しい項目を追加する入力欄
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
+// --- ② 下のスイッチ群をまとめる Column ---
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer {
+                                        val sat = if (showSimpleCounter) 1f else 0f
+                                        val matrix = androidx.compose.ui.graphics.ColorMatrix()
+                                            .apply { setToSaturation(sat) }
+                                        colorFilter =
+                                            androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+                                                matrix
+                                            )
+                                    }
+                                    .alpha(if (showSimpleCounter) 1f else 0.4f)
+                                // ↓ pointerInput を少し下にずらすか、Row単位で制御する方が安全です
                             ) {
-                                OutlinedTextField(
-                                    value = newCounterName,
-                                    onValueChange = { newCounterName = it },
-                                    label = { Text("ボタン名 (例: ぶどう)", color = Color.Gray) },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true,
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = mainText,
-                                        unfocusedTextColor = mainText,
-                                        focusedBorderColor = Color(0xFFBB86FC)
-                                    )
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        if (newCounterName.isNotBlank()) {
+                                // 1. フラッシュ設定のスイッチ
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clickable(enabled = showSimpleCounter) { // 無効時はクリックさせない
+                                            showFlashEffect = !showFlashEffect
                                             scope.launch {
-                                                // DBに項目を追加
-                                                db.memoDao().insertCounter(
-                                                    CounterSetting(
-                                                        name = newCounterName,
-                                                        displayOrder = counterSettings.size
-                                                    )
+                                                db.memoDao().saveAppSetting(
+                                                    currentAppSetting.copy(showFlashEffect = showFlashEffect)
                                                 )
-                                                newCounterName = "" // 入力欄を空にする
                                             }
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(
-                                            0xFFBB86FC
-                                        )
-                                    )
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("追加", color = Color.Black)
+                                    Switch(
+                                        checked = showFlashEffect,
+                                        onCheckedChange = null,
+                                        enabled = showSimpleCounter
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "タップ時にフラッシュさせる",
+                                        color = mainText,
+                                        fontSize = 18.sp
+                                    )
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                // --- カウンター項目の管理セクション ---
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text(
+                                    "カウンター項目の編集",
+                                    color = mainText,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
 
-// 2. 登録済みの一覧を表示（削除も可能）
-                            Text(
-                                "現在のボタン一覧 (タップで削除)",
-                                color = Color.Gray,
-                                fontSize = 12.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-// 横並びにチップ状で表示
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                counterSettings.forEach { setting ->
-                                    InputChip(
-                                        selected = false,
-                                        onClick = {
-                                            // タップで項目を削除
-                                            scope.launch {
-                                                db.memoDao().deleteCounter(setting)
-                                                db.memoDao()
-                                                    .deleteCounterValueById(setting.id) // 数値データも消す
-                                            }
-                                        },
-                                        label = { Text(setting.name) },
-                                        trailingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "削除",
-                                                modifier = Modifier.size(16.dp)
+                                // --- カウンター項目の管理セクション ---
+                                // 1. 新しい項目を追加する入力欄（ここから Row を Column に書き換えます）
+                                Column(
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedTextField(
+                                        value = newCounterName,
+                                        onValueChange = { newCounterName = it },
+                                        label = {
+                                            Text(
+                                                "ボタン名 (例: ぶどう)",
+                                                color = Color.Gray
                                             )
                                         },
-                                        colors = InputChipDefaults.inputChipColors(
-                                            labelColor = mainText,
-                                            containerColor = Color(0xFF333333)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = mainText,
+                                            unfocusedTextColor = mainText,
+                                            focusedBorderColor = Color(0xFFBB86FC)
                                         )
                                     )
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // カラーパレット
+                                    Text("ボタンの色", color = mainText, fontSize = 14.sp)
+
+                                    // 原色選択
+                                    val baseHues = listOf(
+                                        0f,
+                                        30f,
+                                        60f,
+                                        90f,
+                                        120f,
+                                        150f,
+                                        180f,
+                                        210f,
+                                        240f,
+                                        270f,
+                                        300f,
+                                        330f
+                                    )
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.padding(vertical = 12.dp)
+                                    ) {
+                                        // --- 白黒グラデーションボタン ---
+                                        item {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(
+                                                        brush = Brush.linearGradient(
+                                                            listOf(
+                                                                Color.White,
+                                                                Color.Gray,
+                                                                Color.Black
+                                                            )
+                                                        ),
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    )
+                                                    .border(
+                                                        width = if (isMonotone) 3.dp else 0.dp,
+                                                        color = Color.White,
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    )
+                                                    .clickable {
+                                                        isMonotone = true // 白黒モードON
+                                                    }
+                                            )
+                                        }
+
+                                        // --- 通常の色のボタン ---
+                                        items(baseHues) { hue ->
+                                            val isSelected =
+                                                !isMonotone && selectedHue == hue // 「白黒モードでない」かつ「色が一致」
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(
+                                                        Color.hsl(hue, 0.8f, 0.5f),
+                                                        RoundedCornerShape(4.dp)
+                                                    )
+                                                    .border(
+                                                        width = if (isSelected) 3.dp else 0.dp,
+                                                        color = Color.White,
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    )
+                                                    .clickable {
+                                                        isMonotone = false // 白黒モードを解除！
+                                                        selectedHue = hue
+                                                    }
+                                            )
+                                        }
+                                    }
+
+                                    // 濃淡選択（グリッド）
+                                    val lightnessLevels =
+                                        listOf(0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f)
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Fixed(4), // 4列にして押しやすく
+                                        modifier = Modifier.height(160.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(lightnessLevels) { level ->
+                                            // isMonotone が true のときは彩度(saturation)を 0 にして白黒にする
+                                            val colorVariant = if (isMonotone) {
+                                                Color.hsl(0f, 0f, level)
+                                            } else {
+                                                Color.hsl(selectedHue, 0.7f, level)
+                                            }
+
+                                            val colorLong = colorVariant.toArgb().toLong()
+                                            val isSelected = currentColorByLong == colorLong
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .aspectRatio(1.5f)
+                                                    .background(
+                                                        colorVariant,
+                                                        RoundedCornerShape(4.dp)
+                                                    )
+                                                    .border(
+                                                        width = if (isSelected) 3.dp else 0.dp,
+                                                        color = Color.White,
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    )
+                                                    .clickable {
+                                                        currentColorByLong = colorLong
+                                                    }
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // 追加ボタン（Columnの中なので横幅いっぱいに）
+                                    Button(
+                                        onClick = {
+                                            if (newCounterName.isNotBlank()) {
+                                                scope.launch {
+                                                    db.memoDao().insertCounter(
+                                                        CounterSetting(
+                                                            name = newCounterName,
+                                                            displayOrder = counterSettings.size,
+                                                            color = currentColorByLong
+                                                        )
+                                                    )
+                                                    newCounterName = ""
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(
+                                                0xFFBB86FC
+                                            )
+                                        )
+                                    ) {
+                                        Text(
+                                            "この色で追加",
+                                            color = Color.Black,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // 2. 登録済みの一覧を表示（削除も可能）
+                                Text(
+                                    "現在のボタン一覧 (タップで削除)",
+                                    color = mainText,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // 2. 登録済みの一覧を表示（削除も可能）
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    counterSettings.forEach { setting ->
+                                        InputChip(
+                                            selected = false,
+                                            onClick = {
+                                                // ★ 直接削除せず、メニューを開くように変更
+                                                showCounterMenuSetting = setting
+                                            },
+                                            label = { Text(setting.name, color = Color.Black) },
+                                            // ✕ボタン（trailingIcon）はあってもなくても良いですが、
+                                            // メニューを開くことがわかるように設定
+                                            trailingIcon = {
+                                                Icon(
+                                                    Icons.Default.Edit,
+                                                    null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = Color.Black
+                                                )
+                                            },
+
+                                            colors = InputChipDefaults.inputChipColors(
+                                                // ★ ここでDBに保存した色（setting.color）を背景色に指定します
+                                                containerColor = Color(setting.color),
+                                                // 選択されていない時のラベル色なども必要に応じて
+                                                labelColor = Color.Black
+                                            ),
+                                            // 枠線が不要なら border を null にするか、色を合わせる
+                                            border = InputChipDefaults.inputChipBorder(
+                                                borderColor = Color(setting.color),
+                                                enabled = true,
+                                                selected = false
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // ==========================================
-                    // 1つにまとめたダイアログ（これだけ残す）
-                    // ==========================================
                     if (showOptionDeleteConfirmDialog) {
                         // 削除対象のデータを確認
                         val colId = selectedColumnId
@@ -1108,6 +1358,166 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+
+            // --- カウンター操作メニュー (カウンター設定用) ---
+            if (showCounterMenuSetting != null) {
+                androidx.activity.compose.BackHandler {
+                    showCounterMenuSetting = null
+                }
+                val setting = showCounterMenuSetting!!
+                // counterSettings内での現在のインデックスを取得（並び替え判定用）
+                val currentIndex = counterSettings.indexOf(setting)
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White.copy(alpha = 0.2f)) // 元のコードと同じ白透過
+                        .clickable { showCounterMenuSetting = null },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        shadowElevation = 8.dp,
+                        color = Color(0xFF252525), // ダイアログの背景色
+                        modifier = Modifier
+                            .width(180.dp) // ★ 参照元と全く同じサイズ
+                            .clickable(enabled = false) { }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // 現在のボタンの色プレビュー（アイコンの代わり）
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp) // アイコンに近いサイズ
+                                    .background(Color(setting.color), RoundedCornerShape(4.dp))
+                                    .border(
+                                        1.dp,
+                                        Color.White.copy(alpha = 0.3f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                            )
+
+                            Text(
+                                text = "「${setting.name}」",
+                                fontSize = 18.sp, // ★ 参照元のサイズ維持
+                                fontWeight = FontWeight.Bold,
+                                color = mainText,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
+                            )
+
+                            // 移動ボタンの配色定義（文字色は常に黒）
+                            val canMoveColors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFBBBBBB), // 移動可
+                                contentColor = Color.Black          // 文字：黒
+                            )
+                            val cannotMoveColors = ButtonDefaults.buttonColors(
+                                disabledContainerColor = Color(0xFF333333), // 移動不可
+                                disabledContentColor = Color.Black          // 文字：黒
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // 左へ移動ボタン
+                                Button(
+                                    onClick = {
+                                        // TODO: ここに入れ替えロジックを実装予定
+                                    },
+                                    enabled = currentIndex > 0,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(60.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = if (currentIndex > 0) canMoveColors else cannotMoveColors
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.ArrowBack, null, tint = Color.Black)
+                                        Text("左へ", fontSize = 16.sp, color = Color.Black)
+                                    }
+                                }
+
+                                // 右へ移動ボタン
+                                Button(
+                                    onClick = {
+                                        // TODO: ここに入れ替えロジックを実装予定
+                                    },
+                                    enabled = currentIndex < counterSettings.size - 1,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(60.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = if (currentIndex < counterSettings.size - 1) canMoveColors else cannotMoveColors
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.ArrowForward, null, tint = Color.Black)
+                                        Text("右へ", fontSize = 16.sp, color = Color.Black)
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // --- 下段ボタン ---
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // 戻るボタン（条件編集の枠を利用して見た目を再現）
+                                Button(
+                                    onClick = { showCounterMenuSetting = null },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(60.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF6750A4), // 紫
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.Build, null, tint = Color.White)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text("戻る", color = Color.White, fontSize = 16.sp)
+                                    }
+                                }
+
+                                // 削除ボタン
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            db.memoDao().deleteCounter(setting)
+                                            db.memoDao().deleteCounterValueById(setting.id)
+                                            showCounterMenuSetting = null
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(60.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFB3261E), // 赤
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.Delete, null, tint = Color.White)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text("削除", color = Color.White, fontSize = 16.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // --- メニュー専用レイヤー (自作ガードレール) ---
             if (menuExpanded) {
                 Box(
