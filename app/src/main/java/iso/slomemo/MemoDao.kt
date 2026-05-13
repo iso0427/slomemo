@@ -158,9 +158,12 @@ interface MemoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAppSetting(setting: AppSetting)
 
+    // カラム名は counterId と count なので、それに合わせます
+    @Query("UPDATE counter_values SET count = count + :diff WHERE counterId = :counterId")
+    suspend fun adjustCounterValue(counterId: Int, diff: Int)
 
-
-
+    @Query("SELECT count FROM counter_values WHERE counterId = :counterId")
+    fun getCounterCountFlow(counterId: Int): Flow<Int?>
 
 
 }

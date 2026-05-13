@@ -73,7 +73,8 @@ data class AppSetting(
     val showTime: Boolean = true,
     // ★ カウンター用の設定を追加
     val showSimpleCounter: Boolean = true,
-    val showFlashEffect: Boolean = true
+    val showFlashEffect: Boolean = true,
+    val showCounterName: Boolean = true
 )
 
 // ⑦ 簡易カウンターの項目（ボタン名と色）を保存する

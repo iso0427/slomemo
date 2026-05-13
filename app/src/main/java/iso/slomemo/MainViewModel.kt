@@ -43,7 +43,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // 1. MemoAction の定義を「値」も持てるように変更
+    // 1. MemoAction の定義を拡張
     sealed class MemoAction {
         // リセット用（既存）
         data class Reset(
@@ -51,12 +51,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val backupValues: List<MemoValue>
         ) : MemoAction()
 
-        // ★ 追加：編集（Update）用
+        // 編集（Update）用（既存）
         data class Update(
-            val oldRecord: MemoRecord,      // 編集前の行
-            val oldValues: List<MemoValue>, // 編集前の値
-            val newRecord: MemoRecord,      // 編集後の行
-            val newValues: List<MemoValue>  // 編集後の値
+            val oldRecord: MemoRecord,
+            val oldValues: List<MemoValue>,
+            val newRecord: MemoRecord,
+            val newValues: List<MemoValue>
+        ) : MemoAction()
+
+        // ★ 追加：カウンター操作用
+        data class CounterUpdate(
+            val counterId: Int,
+            val isIncrement: Boolean // 増やした操作なら true、減らした操作なら false
         ) : MemoAction()
     }
 
@@ -112,14 +118,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     lastAction.backupRecords.forEach { dao.insertRecord(it) }
                     lastAction.backupValues.forEach { dao.insertValue(it) }
                 }
-                // ★ 追加：編集の Undo
                 is MemoAction.Update -> {
                     redoStack.push(lastAction)
-                    // 「編集前」の状態で上書きする
                     dao.insertRecord(lastAction.oldRecord)
-                    // 一度紐付いている値を消してから古い値を入れ直す
                     dao.deleteValuesByRecordId(lastAction.oldRecord.id)
                     lastAction.oldValues.forEach { dao.insertValue(it) }
+                }
+                // ★ここを追加：カウンターを元に戻す処理
+                is MemoAction.CounterUpdate -> {
+                    redoStack.push(lastAction)
+                    // 元に戻すので、増やしたなら -1、減らしたなら +1 する
+                    val undoDiff = if (lastAction.isIncrement) -1 else 1
+                    dao.adjustCounterValue(lastAction.counterId, undoDiff)
                 }
             }
             updateStackStates()
@@ -137,13 +147,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     dao.deleteAllMemoValues()
                     dao.deleteAllRecords()
                 }
-                // ★ 追加：編集の Redo
                 is MemoAction.Update -> {
                     undoStack.push(nextAction)
-                    // 「編集後」の状態で再度上書きする
                     dao.insertRecord(nextAction.newRecord)
                     dao.deleteValuesByRecordId(nextAction.newRecord.id)
                     nextAction.newValues.forEach { dao.insertValue(it) }
+                }
+                // ★ここを追加：カウンターをやり直す処理
+                is MemoAction.CounterUpdate -> {
+                    undoStack.push(nextAction)
+                    // やり直しなので、もともとの操作と同じ数値を送る
+                    val redoDiff = if (nextAction.isIncrement) 1 else -1
+                    dao.adjustCounterValue(nextAction.counterId, redoDiff)
                 }
             }
             updateStackStates()
@@ -174,6 +189,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             values.forEach { dao.insertValue(it) }
 
             // 5. ボタンの状態を更新
+            updateStackStates()
+        }
+    }
+    fun updateCounterWithHistory(counterId: Int, isIncrement: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val diff = if (isIncrement) 1 else -1
+
+            // 1. まず、今の値がDBにあるか確認する
+            val current = dao.getCounterValue(counterId)
+
+            if (current == null) {
+                // 2-A. データがなければ、新規作成して保存する（初期値を 1 または 0 に）
+                val newValue = if (isIncrement) 1 else 0
+                dao.updateCounterValue(CounterValue(counterId = counterId, count = newValue))
+            } else {
+                // 2-B. すでにデータがあれば、既存の adjustCounterValue で増減させる
+                dao.adjustCounterValue(counterId, diff)
+            }
+
+            // Undo/Redoなどの既存処理
+            undoStack.push(MemoAction.CounterUpdate(counterId, isIncrement))
+            redoStack.clear()
             updateStackStates()
         }
     }
