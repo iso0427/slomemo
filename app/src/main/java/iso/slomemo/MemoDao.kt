@@ -165,5 +165,12 @@ interface MemoDao {
     @Query("SELECT count FROM counter_values WHERE counterId = :counterId")
     fun getCounterCountFlow(counterId: Int): Flow<Int?>
 
+    @Update
+    suspend fun updateCounters(counters: List<CounterSetting>)
+
+    @Query("SELECT * FROM counter_settings ORDER BY displayOrder ASC")
+    fun getAllCounterSettingsFlow(): Flow<List<CounterSetting>>
+
+
 
 }

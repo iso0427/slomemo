@@ -77,6 +77,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -426,7 +427,8 @@ class MainActivity : ComponentActivity() {
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .padding(4.dp)
+
+                                        .height(currentAppSetting.counterHeight.dp)
                                         .background(
                                             brush = Brush.verticalGradient(
                                                 colors = listOf(
@@ -461,7 +463,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         )
-                                        .padding(vertical = 12.dp), // ★ 名前を消した分、上下の余白を少し増やしてバランス調整
+                                        .padding(vertical = 0.dp), // ★ 名前を消した分、上下の余白を少し増やしてバランス調整
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center // ★ 垂直方向も中央に
                                 ) {
@@ -470,7 +472,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         text = (count ?: 0).toString(),
                                         color = Color(0xFF111111),
-                                        fontSize = 28.sp, // ★ 名前がないので少しサイズアップしてもいいかも！
+                                        fontSize = currentAppSetting.counterFontSize.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     )
                                 }
@@ -1041,6 +1043,120 @@ class MainActivity : ComponentActivity() {
                                         fontSize = 18.sp
                                     )
                                 }
+                                // --- 「タップ時にフラッシュさせる」の Row の直後に挿入 ---
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                Text(
+                                    text = "ボタンの高さ (dp)",
+                                    color = mainText,
+                                    fontSize = 14.sp
+                                )
+
+                                val heightOptions = listOf(30, 45, 60, 75, 90)
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    heightOptions.forEach { hValue ->
+                                        val isSelected = currentAppSetting.counterHeight == hValue
+
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp) // 選択ボタン自体の高さ
+                                                .background(
+                                                    color = if (isSelected) Color(0xFFBB86FC) else Color(
+                                                        0xFF333333
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .clickable(enabled = showSimpleCounter) {
+                                                    scope.launch {
+                                                        // 新しい高さを決定
+                                                        val newHeight = hValue
+                                                        // 文字サイズが新しい高さを超えていたら、高さと同じ値まで強制的に下げる
+                                                        val newFontSize = if (currentAppSetting.counterFontSize > newHeight) {
+                                                            newHeight
+                                                        } else {
+                                                            currentAppSetting.counterFontSize
+                                                        }
+
+                                                        db.memoDao().saveAppSetting(
+                                                            currentAppSetting.copy(
+                                                                counterHeight = newHeight,
+                                                                counterFontSize = newFontSize
+                                                            )
+                                                        )
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = hValue.toString(),
+                                                color = if (isSelected) Color.Black else Color.White,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = "文字サイズ (sp)",
+                                    color = mainText,
+                                    fontSize = 14.sp
+                                )
+
+                                // 高さと同じ 30, 45, 60, 75, 90 の5段階
+                                val fontSizeOptions = listOf(30, 45, 60, 75, 90)
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    fontSizeOptions.forEach { fValue ->
+                                        // ★ 現在の「高さ」以下の数値だけを選べるようにする
+                                        val isEnabled = fValue <= currentAppSetting.counterHeight
+                                        val isSelected = currentAppSetting.counterFontSize == fValue
+
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .background(
+                                                    // 無効な時はグレーアウトさせる
+                                                    color = when {
+                                                        isSelected -> Color(0xFFBB86FC)
+                                                        isEnabled -> Color(0xFF333333)
+                                                        else -> Color(0xFF1A1A1A)
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .clickable(enabled = showSimpleCounter && isEnabled) {
+                                                    scope.launch {
+                                                        db.memoDao().saveAppSetting(
+                                                            currentAppSetting.copy(counterFontSize = fValue)
+                                                        )
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = fValue.toString(),
+                                                color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+                                }
 
                                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1179,7 +1295,7 @@ class MainActivity : ComponentActivity() {
 
                             // 2. 登録済みの一覧を表示（削除も可能）
                             Text(
-                                "現在のボタン一覧 (タップで削除)",
+                                "現在のボタン一覧",
                                 color = mainText,
                                 fontSize = 14.sp
                             )
@@ -1192,37 +1308,39 @@ class MainActivity : ComponentActivity() {
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 counterSettings.forEach { setting ->
-                                    InputChip(
-                                        selected = false,
-                                        onClick = {
-                                            // ★ 直接削除せず、メニューを開くように変更
-                                            showCounterMenuSetting = setting
-                                        },
-                                        label = { Text(setting.name, color = Color.Black) },
-                                        // ✕ボタン（trailingIcon）はあってもなくても良いですが、
-                                        // メニューを開くことがわかるように設定
-                                        trailingIcon = {
-                                            Icon(
-                                                Icons.Default.Edit,
-                                                null,
-                                                modifier = Modifier.size(16.dp),
-                                                tint = Color.Black
-                                            )
-                                        },
 
-                                        colors = InputChipDefaults.inputChipColors(
-                                            // ★ ここでDBに保存した色（setting.color）を背景色に指定します
-                                            containerColor = Color(setting.color),
-                                            // 選択されていない時のラベル色なども必要に応じて
-                                            labelColor = Color.Black
-                                        ),
-                                        // 枠線が不要なら border を null にするか、色を合わせる
-                                        border = InputChipDefaults.inputChipBorder(
-                                            borderColor = Color(setting.color),
-                                            enabled = true,
-                                            selected = false
+                                    key(setting.id) {
+                                        InputChip(
+                                            selected = false,
+                                            onClick = {
+                                                showCounterMenuSetting = setting
+                                            },
+                                            label = { Text(setting.name, color = Color.Black) },
+                                            // ✕ボタン（trailingIcon）はあってもなくても良いですが、
+                                            // メニューを開くことがわかるように設定
+                                            trailingIcon = {
+                                                Icon(
+                                                    Icons.Default.Edit,
+                                                    null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = Color.Black
+                                                )
+                                            },
+
+                                            colors = InputChipDefaults.inputChipColors(
+                                                // ★ ここでDBに保存した色（setting.color）を背景色に指定します
+                                                containerColor = Color(setting.color),
+                                                // 選択されていない時のラベル色なども必要に応じて
+                                                labelColor = Color.Black
+                                            ),
+                                            // 枠線が不要なら border を null にするか、色を合わせる
+                                            border = InputChipDefaults.inputChipBorder(
+                                                borderColor = Color(setting.color),
+                                                enabled = true,
+                                                selected = false
+                                            )
                                         )
-                                    )
+                                    }
                                 }
                             }
                         }
@@ -1299,7 +1417,7 @@ class MainActivity : ComponentActivity() {
                 }
                 val setting = showCounterMenuSetting!!
                 // counterSettings内での現在のインデックスを取得（並び替え判定用）
-                val currentIndex = counterSettings.indexOf(setting)
+                val currentIndex = counterSettings.indexOfFirst { it.id == setting.id }
 
                 Box(
                     modifier = Modifier
@@ -1352,7 +1470,31 @@ class MainActivity : ComponentActivity() {
                                 // 左へ移動ボタン
                                 Button(
                                     onClick = {
-                                        // TODO: ここに入れ替えロジックを実装予定
+                                        val list = counterSettings.toMutableList()
+                                        val idx = list.indexOfFirst { it.id == setting.id }
+
+                                        if (idx > 0) {
+                                            // 1. 「自分」と「左隣の相手」を特定する
+                                            val current = list[idx]      // 今の自分
+                                            val target = list[idx - 1]   // 左隣の相手
+
+                                            // 2. お互いの displayOrder (並び順の数字) を「入れ替えた」データを作る
+                                            // copy を使って、番号だけをシャッフルした新しいオブジェクトを生成します
+                                            val newCurrent =
+                                                current.copy(displayOrder = target.displayOrder)
+                                            val newTarget =
+                                                target.copy(displayOrder = current.displayOrder)
+
+                                            // 3. DBへ保存（2人とも更新するのがコツ！）
+                                            scope.launch {
+                                                db.memoDao()
+                                                    .updateCounter(newCurrent) // 自分の新しい番号を保存
+                                                db.memoDao()
+                                                    .updateCounter(newTarget)  // 相手の新しい番号を保存
+
+                                                showCounterMenuSetting = null // メニューを閉じる
+                                            }
+                                        }
                                     },
                                     enabled = currentIndex > 0,
                                     modifier = Modifier
@@ -1371,7 +1513,29 @@ class MainActivity : ComponentActivity() {
                                 // 右へ移動ボタン
                                 Button(
                                     onClick = {
-                                        // TODO: ここに入れ替えロジックを実装予定
+                                        val list = counterSettings.toMutableList()
+                                        val idx = list.indexOfFirst { it.id == setting.id }
+
+                                        // 右（idx < list.size - 1）に要素があるかチェック
+                                        if (idx >= 0 && idx < list.size - 1) {
+                                            // 1. 「自分」と「右隣の相手」を特定する
+                                            val current = list[idx]      // 今の自分
+                                            val target = list[idx + 1]   // 右隣の相手
+
+                                            // 2. お互いの displayOrder (並び順の数字) を入れ替えたデータを作る
+                                            val newCurrent =
+                                                current.copy(displayOrder = target.displayOrder)
+                                            val newTarget =
+                                                target.copy(displayOrder = current.displayOrder)
+
+                                            // 3. DBへ保存（2つとも更新）
+                                            scope.launch {
+                                                db.memoDao().updateCounter(newCurrent)
+                                                db.memoDao().updateCounter(newTarget)
+
+                                                showCounterMenuSetting = null // メニューを閉じて反映
+                                            }
+                                        }
                                     },
                                     enabled = currentIndex < counterSettings.size - 1,
                                     modifier = Modifier
