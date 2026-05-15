@@ -1005,12 +1005,8 @@ class MainActivity : ComponentActivity() {
                                     .fillMaxWidth()
                                     .graphicsLayer {
                                         val sat = if (showSimpleCounter) 1f else 0f
-                                        val matrix = androidx.compose.ui.graphics.ColorMatrix()
-                                            .apply { setToSaturation(sat) }
-                                        colorFilter =
-                                            androidx.compose.ui.graphics.ColorFilter.colorMatrix(
-                                                matrix
-                                            )
+                                        val matrix = androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(sat) }
+                                        colorFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(matrix)
                                     }
                                     .alpha(if (showSimpleCounter) 1f else 0.4f)
                                 // ↓ pointerInput を少し下にずらすか、Row単位で制御する方が安全です
@@ -1047,7 +1043,7 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(24.dp))
 
                                 Text(
-                                    text = "ボタンの高さ (dp)",
+                                    text = "ボタンの高さ",
                                     color = mainText,
                                     fontSize = 14.sp
                                 )
@@ -1095,9 +1091,16 @@ class MainActivity : ComponentActivity() {
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = hValue.toString(),
+                                                text = when(hValue) {
+                                                    30 -> "1"
+                                                    45 -> "2"
+                                                    60 -> "3"
+                                                    75 -> "4"
+                                                    90 -> "5"
+                                                    else -> ""
+                                                },
                                                 color = if (isSelected) Color.Black else Color.White,
-                                                fontSize = 14.sp,
+                                                fontSize = 24.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                             )
                                         }
@@ -1107,7 +1110,7 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Text(
-                                    text = "文字サイズ (sp)",
+                                    text = "文字サイズ",
                                     color = mainText,
                                     fontSize = 14.sp
                                 )
@@ -1149,9 +1152,16 @@ class MainActivity : ComponentActivity() {
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = fValue.toString(),
+                                                text = when(fValue) {
+                                                    30 -> "1"
+                                                    45 -> "2"
+                                                    60 -> "3"
+                                                    75 -> "4"
+                                                    90 -> "5"
+                                                    else -> ""
+                                                },
                                                 color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
-                                                fontSize = 14.sp,
+                                                fontSize = 24.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                             )
                                         }
