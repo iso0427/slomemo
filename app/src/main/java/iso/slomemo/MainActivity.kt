@@ -3007,65 +3007,50 @@ fun InputFormContent(
                                     )
                                 }
 
-                        if (editingRecordId != null) {
-                            // 編集時：時刻を維持したままアップデート
-                            viewModel.updateMemoWithHistory(
-                                MemoRecord(
-                                    id = currentRid,
-                                    machineId = machineId,
-                                    timestamp = currentTimestamp
-                                ), // ★時刻を維持！
-                                newValues
-                            )
-                        } else {
-                            // 新規時：そのまま保存
-                            newValues.forEach { db.memoDao().insertValue(it) }
-                        }
+                        // ここで「履歴つき保存」を実行します。
+                        // これ1つで、新規登録も編集も「Undoの箱」にデータが入るようになります。
+                        viewModel.updateMemoWithHistory(
+                            MemoRecord(
+                                id = currentRid,
+                                machineId = machineId,
+                                timestamp = currentTimestamp
+                            ),
+                            newValues
+                        )
 
                         // --- 3. 連動チェック（AutoInputRule） ---
-                        // 編集・新規どちらの場合も、入力された値をもとに連動を走らせる
                         inputValues.forEach { (cid, txt) ->
                             val rules = db.memoDao().getRulesByTrigger(cid, txt)
                             rules.forEach { rule ->
                                 if (rule.isNextRow) {
-                                    val allRecords =
-                                        db.memoDao().getRecordsByMachine(machineId)
-                                    val currentIndex =
-                                        allRecords.indexOfFirst { it.id == currentRid }
-                                    val nextRecord =
-                                        if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
-                                            allRecords[currentIndex + 1]
-                                        } else null
+                                    val allRecords = db.memoDao().getRecordsByMachine(machineId)
+                                    val currentIndex = allRecords.indexOfFirst { it.id == currentRid }
+                                    val nextRecord = if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
+                                        allRecords[currentIndex + 1]
+                                    } else null
 
                                     if (nextRecord != null) {
-                                        db.memoDao().insertValue(
-                                            MemoValue(
-                                                recordId = nextRecord.id,
-                                                columnId = rule.targetColumnId,
-                                                value = rule.targetValue
-                                            )
+                                        // 【既存の行に値を入れる場合】これも履歴付きで保存
+                                        viewModel.updateMemoWithHistory(
+                                            nextRecord,
+                                            listOf(MemoValue(recordId = nextRecord.id, columnId = rule.targetColumnId, value = rule.targetValue))
                                         )
                                     } else {
-                                        val newNextRid = db.memoDao().insertRecord(
-                                            MemoRecord(machineId = machineId)
-                                        )
-                                        db.memoDao().insertValue(
-                                            MemoValue(
-                                                recordId = newNextRid.toInt(),
-                                                columnId = rule.targetColumnId,
-                                                value = rule.targetValue
-                                            )
-                                        )
+                                        // 【新しい行を作る場合】★ここが重要！
+                                        // insertRecordを直接呼ばず、一旦IDなしのRecordを作ってから履歴付き保存に投げる
+                                        val newRecord = MemoRecord(machineId = machineId)
+                                        val newValue = MemoValue(recordId = 0, columnId = rule.targetColumnId, value = rule.targetValue)
+
+                                        // これで「連動で作られた行」もUndoの対象になります
+                                        viewModel.updateMemoWithHistory(newRecord, listOf(newValue))
                                     }
                                 } else {
                                     if (cid != rule.targetColumnId) {
-                                        db.memoDao().insertValue(
-                                            MemoValue(
-                                                recordId = currentRid,
-                                                columnId = rule.targetColumnId,
-                                                value = rule.targetValue
-                                            )
-                                        )
+                                        // 【同じ行の別カラムに値を入れる場合】
+                                        val sameRowRecord = MemoRecord(id = currentRid, machineId = machineId, timestamp = currentTimestamp)
+                                        val sameRowValue = MemoValue(recordId = currentRid, columnId = rule.targetColumnId, value = rule.targetValue)
+
+                                        viewModel.updateMemoWithHistory(sameRowRecord, listOf(sameRowValue))
                                     }
                                 }
                             }

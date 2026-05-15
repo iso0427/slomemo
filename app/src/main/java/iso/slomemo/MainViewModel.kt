@@ -21,14 +21,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     var showTimeSetting = mutableStateOf(true)
 
-    // --- ここからやり直し用の「空」の機能 ---
-
-    // 履歴の定義（一旦、最小限に）
+    // --- Undo/Redo 履歴の定義 ---
     sealed class MemoAction {
-        // カウンターのIDと、増やしたのか減らしたのかを覚えるルール
-        data class CounterUpdate(
-            val counterId: Int,
-            val isIncrement: Boolean
+        // カウンター
+        data class CounterUpdate(val counterId: Int, val isIncrement: Boolean) : MemoAction()
+        data class CounterReset(val backupValues: List<CounterValue>) : MemoAction()
+
+        // メモの保存・更新
+        data class Update(
+            val oldRecord: MemoRecord?,
+            val oldValues: List<MemoValue>,
+            val newRecord: MemoRecord,
+            val newValues: List<MemoValue>
+        ) : MemoAction()
+
+        // メモの全削除
+        data class ResetMemos(
+            val backupRecords: List<MemoRecord>,
+            val backupValues: List<MemoValue>
         ) : MemoAction()
     }
 
@@ -43,80 +53,144 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         canRedo.value = redoStack.isNotEmpty()
     }
 
+    // --- Undo (元に戻す) ---
     fun undo() {
         viewModelScope.launch(Dispatchers.IO) {
-            // 箱が空っぽなら何もしない
             if (undoStack.isEmpty()) return@launch
 
-            // ① 箱から「一番新しい記憶」を取り出す
             val lastAction = undoStack.pop()
-
-            // ② 「やり直し(Redo)」のために、別の箱へ移動しておく
             redoStack.push(lastAction)
 
-            // ③ 取り出した記憶の内容に合わせて、逆の操作をする
             when (lastAction) {
                 is MemoAction.CounterUpdate -> {
-                    // 「増やした」記憶なら「1減らす」、「減らした」記憶なら「1増やす」
                     val undoDiff = if (lastAction.isIncrement) -1 else 1
                     dao.adjustCounterValue(lastAction.counterId, undoDiff)
                 }
+                is MemoAction.CounterReset -> {
+                    lastAction.backupValues.forEach { dao.updateCounterValue(it) }
+                }
+                is MemoAction.Update -> {
+                    if (lastAction.oldRecord == null) {
+                        dao.deleteValuesByRecordId(lastAction.newRecord.id)
+                        dao.deleteRecordById(lastAction.newRecord.id)
+                    } else {
+                        dao.insertRecord(lastAction.oldRecord)
+                        dao.deleteValuesByRecordId(lastAction.oldRecord.id)
+                        lastAction.oldValues.forEach { dao.insertValue(it) }
+                    }
+                }
+                is MemoAction.ResetMemos -> {
+                    lastAction.backupRecords.forEach { dao.insertRecord(it) }
+                    lastAction.backupValues.forEach { dao.insertValue(it) }
+                }
             }
-
-            // ④ ボタンの明るさを最新の状態にする
             updateStackStates()
         }
     }
-    fun redo() {}
 
-    // ★ 他のファイルでエラーになっている関数を「空」で用意します
-    // これで赤文字が消えるはずです
+    // --- Redo (やり直し) ---
+    fun redo() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (redoStack.isEmpty()) return@launch
+
+            val nextAction = redoStack.pop()
+            undoStack.push(nextAction)
+
+            when (nextAction) {
+                is MemoAction.CounterUpdate -> {
+                    val redoDiff = if (nextAction.isIncrement) 1 else -1
+                    dao.adjustCounterValue(nextAction.counterId, redoDiff)
+                }
+                is MemoAction.CounterReset -> {
+                    nextAction.backupValues.forEach { dao.updateCounterValue(it.copy(count = 0)) }
+                }
+                is MemoAction.Update -> {
+                    dao.insertRecord(nextAction.newRecord)
+                    dao.deleteValuesByRecordId(nextAction.newRecord.id)
+                    nextAction.newValues.forEach { dao.insertValue(it) }
+                }
+                is MemoAction.ResetMemos -> {
+                    nextAction.backupRecords.forEach { record ->
+                        dao.deleteValuesByRecordId(record.id)
+                        dao.deleteRecordById(record.id)
+                    }
+                }
+            }
+            updateStackStates()
+        }
+    }
+
+    // --- 各種操作 (履歴保存つき) ---
 
     fun updateMemoWithHistory(record: MemoRecord, values: List<MemoValue>) {
         viewModelScope.launch(Dispatchers.IO) {
-            // 今は履歴を残さず、普通に保存するだけ
+            // 1. 保存する「前」の状態をバックアップ（編集時のみデータがある）
+            val oldRecord = dao.getRecordById(record.id)
+            val oldValues = if (oldRecord != null) dao.getValuesForRecord(record.id) else emptyList()
+
+            // 2. 履歴の箱（Stack）に入れる
+            // すでに画面側で作られた「正しいID」が入った record をそのまま使います
+            undoStack.push(MemoAction.Update(oldRecord, oldValues, record, values))
+            redoStack.clear()
+
+            // 3. 実際の保存（上書き・追記）
             dao.insertRecord(record)
             values.forEach { dao.insertValue(it) }
+
+            // 4. ボタンを白く光らせる
+            viewModelScope.launch(Dispatchers.Main) {
+                updateStackStates()
+            }
         }
     }
 
     fun resetAllMemosWithHistory(machineId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            // 今は履歴を残さず、普通に消すだけ
             val currentRecords = dao.getRecordsByMachine(machineId)
-            currentRecords.forEach { record ->
-                dao.deleteValuesByRecordId(record.id)
-                dao.deleteRecordById(record.id)
+            val currentValues = mutableListOf<MemoValue>()
+            currentRecords.forEach {
+                currentValues.addAll(dao.getValuesForRecord(it.id))
+            }
+
+            if (currentRecords.isNotEmpty()) {
+                undoStack.push(MemoAction.ResetMemos(currentRecords, currentValues))
+                redoStack.clear()
+
+                currentRecords.forEach { record ->
+                    dao.deleteValuesByRecordId(record.id)
+                    dao.deleteRecordById(record.id)
+                }
+                updateStackStates()
             }
         }
     }
 
     fun updateCounterWithHistory(counterId: Int, isIncrement: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            // 実際に数字を増減させる
-            val diff = if (isIncrement) 1 else -1
-            dao.adjustCounterValue(counterId, diff)
+            val current = dao.getCounterValue(counterId)
+            if (current == null) {
+                dao.updateCounterValue(CounterValue(counterId = counterId, count = if (isIncrement) 1 else 0))
+            } else {
+                dao.adjustCounterValue(counterId, if (isIncrement) 1 else -1)
+            }
 
-            // ★ここを追加：箱に今の操作を覚えさせる
             undoStack.push(MemoAction.CounterUpdate(counterId, isIncrement))
-            redoStack.clear() // 新しい操作をしたのでやり直し（Redo）はクリア
-
-            // ★ここを追加：ボタンを明るくする
+            redoStack.clear()
             updateStackStates()
         }
     }
 
     fun resetAllCountersWithHistory() {
         viewModelScope.launch(Dispatchers.IO) {
-            // 今は履歴を残さず、普通に0にするだけ
             val currentValues = dao.getAllCounterValues()
-            currentValues.forEach { value ->
-                dao.updateCounterValue(value.copy(count = 0))
+            if (currentValues.isNotEmpty()) {
+                undoStack.push(MemoAction.CounterReset(currentValues))
+                redoStack.clear()
+                currentValues.forEach { dao.updateCounterValue(it.copy(count = 0)) }
+                updateStackStates()
             }
         }
     }
-
-    // --- ここまで ---
 
     init {
         loadSettings()
