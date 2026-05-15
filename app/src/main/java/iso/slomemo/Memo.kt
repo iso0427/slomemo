@@ -71,7 +71,7 @@ data class AutoInputRule(
 data class AppSetting(
     @PrimaryKey val id: Int = 0,
     val showTime: Boolean = true,
-    // ★ カウンター用の設定を追加
+    val useMaxBrightness: Boolean = false,
     val showSimpleCounter: Boolean = true,
     val showFlashEffect: Boolean = true,
     val showCounterName: Boolean = true,

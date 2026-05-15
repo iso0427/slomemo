@@ -171,6 +171,12 @@ interface MemoDao {
     @Query("SELECT * FROM counter_settings ORDER BY displayOrder ASC")
     fun getAllCounterSettingsFlow(): Flow<List<CounterSetting>>
 
+    @Query("SELECT * FROM counter_values")
+    suspend fun getAllCounterValues(): List<CounterValue>
+
+
+
+
 
 
 }

@@ -26,7 +26,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     var showTimeSetting = mutableStateOf(true)
 
-
     init {
         loadSettings()
     }
@@ -64,6 +63,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val counterId: Int,
             val isIncrement: Boolean // 増やした操作なら true、減らした操作なら false
         ) : MemoAction()
+
+        data class CounterReset(
+            val backupValues: List<CounterValue>
+        ) : MemoAction()
+
     }
 
     private val undoStack = Stack<MemoAction>()
@@ -118,6 +122,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     lastAction.backupRecords.forEach { dao.insertRecord(it) }
                     lastAction.backupValues.forEach { dao.insertValue(it) }
                 }
+
                 is MemoAction.Update -> {
                     redoStack.push(lastAction)
                     dao.insertRecord(lastAction.oldRecord)
@@ -130,6 +135,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // 元に戻すので、増やしたなら -1、減らしたなら +1 する
                     val undoDiff = if (lastAction.isIncrement) -1 else 1
                     dao.adjustCounterValue(lastAction.counterId, undoDiff)
+                }
+                is MemoAction.CounterReset -> {
+                    redoStack.push(lastAction)
+                    lastAction.backupValues.forEach { dao.updateCounterValue(it) }
                 }
             }
             updateStackStates()
@@ -147,6 +156,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     dao.deleteAllMemoValues()
                     dao.deleteAllRecords()
                 }
+
                 is MemoAction.Update -> {
                     undoStack.push(nextAction)
                     dao.insertRecord(nextAction.newRecord)
@@ -159,6 +169,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // やり直しなので、もともとの操作と同じ数値を送る
                     val redoDiff = if (nextAction.isIncrement) 1 else -1
                     dao.adjustCounterValue(nextAction.counterId, redoDiff)
+                }
+                is MemoAction.CounterReset -> {
+                    undoStack.push(nextAction)
+                    // やり直し（Redo）なので、全ての値を 0 に書き換える
+                    nextAction.backupValues.forEach { value ->
+                        dao.updateCounterValue(value.copy(count = 0))
+                    }
                 }
             }
             updateStackStates()
@@ -192,6 +209,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             updateStackStates()
         }
     }
+
     fun updateCounterWithHistory(counterId: Int, isIncrement: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             val diff = if (isIncrement) 1 else -1
@@ -212,6 +230,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             undoStack.push(MemoAction.CounterUpdate(counterId, isIncrement))
             redoStack.clear()
             updateStackStates()
+        }
+    }
+
+    fun resetAllCountersWithHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. 現在の全カウンターの値をバックアップ
+            val currentValues = dao.getAllCounterValues()
+
+            if (currentValues.isNotEmpty()) {
+                // 2. 履歴に積む（CounterResetアクション）
+                undoStack.push(MemoAction.CounterReset(currentValues))
+                redoStack.clear()
+
+                // 3. 全てのカウンターを 0 に更新する
+                currentValues.forEach { value ->
+                    dao.updateCounterValue(value.copy(count = 0))
+                }
+
+                updateStackStates()
+            }
         }
     }
 }
