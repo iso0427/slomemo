@@ -192,7 +192,7 @@ class MainActivity : ComponentActivity() {
         ExperimentalLayoutApi::class
     )
     @Composable
-    fun MemoScreen(db: AppDatabase, machineId: Int) { // 名前変更 & 引数追加
+    fun MemoScreen(db: AppDatabase, machineId: Int) {
 
         // --- 1. 色の定義 ---
         val backColor = Color.Black
@@ -369,10 +369,16 @@ class MainActivity : ComponentActivity() {
                             // Undoボタン（元に戻す）
                             IconButton(
                                 onClick = {
-                                    // 指へのフィードバック
+                                    // 1. 振動と実行
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    // 実行（Flowにより自動で数字が変わるので、これだけでOK）
                                     viewModel.undo()
+
+                                    // 2. ★ここを修正：delayの「前」にも一回リフレッシュを入れる
+                                    scope.launch {
+                                        refreshData() // すぐに一度画面を更新
+                                        kotlinx.coroutines.delay(100)
+                                        refreshData() // DB反映を待って念押しでもう一度
+                                    }
                                 },
                                 enabled = viewModel.canUndo.value
                             ) {
@@ -388,14 +394,25 @@ class MainActivity : ComponentActivity() {
                             // Redoボタン（やり直し）
                             IconButton(
                                 onClick = {
+                                    // 指へのフィードバック
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    // 実行
                                     viewModel.redo()
+
+                                    // 画面のリストを読み直す
+                                    scope.launch {
+                                        refreshData()
+                                        kotlinx.coroutines.delay(100)
+                                        refreshData()
+                                    }
                                 },
+                                // ここを viewModel.canRedo.value に変更
                                 enabled = viewModel.canRedo.value
                             ) {
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_redo),
+                                    painter = painterResource(id = R.drawable.ic_redo), // Redo用のアイコンリソース
                                     contentDescription = "やり直し",
+                                    // 有効なら mainText、無効なら半透明（0.3f）
                                     tint = if (viewModel.canRedo.value) mainText else mainText.copy(
                                         alpha = 0.3f
                                     )
