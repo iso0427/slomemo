@@ -168,13 +168,16 @@ interface MemoDao {
     @Update
     suspend fun updateCounters(counters: List<CounterSetting>)
 
-    @Query("SELECT * FROM counter_settings ORDER BY displayOrder ASC")
-    fun getAllCounterSettingsFlow(): Flow<List<CounterSetting>>
-
     @Query("SELECT * FROM counter_values")
     suspend fun getAllCounterValues(): List<CounterValue>
 
+    // ① 機種ごとのカウンターボタンを取得するFlow
+    @Query("SELECT * FROM counter_settings WHERE machineId = :machineId ORDER BY displayOrder ASC")
+    fun getCountersByMachineFlow(machineId: Int): Flow<List<CounterSetting>>
 
+    // ② 機種ごとのカウンターの「数字」だけを取得するFlow
+    @Query("SELECT cv.* FROM counter_values cv INNER JOIN counter_settings cs ON cv.counterId = cs.id WHERE cs.machineId = :machineId")
+    fun getCounterValuesByMachineFlow(machineId: Int): Flow<List<CounterValue>>
 
 
 

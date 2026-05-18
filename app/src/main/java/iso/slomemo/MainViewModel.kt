@@ -31,7 +31,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         data class Update(
             val oldRecord: MemoRecord?,
             val oldValues: List<MemoValue>,
-            val newRecord: MemoRecord,
+            val newRecord: MemoRecord?,
             val newValues: List<MemoValue>
         ) : MemoAction()
 
@@ -70,10 +70,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     lastAction.backupValues.forEach { dao.updateCounterValue(it) }
                 }
                 is MemoAction.Update -> {
-                    if (lastAction.oldRecord == null) {
-                        dao.deleteValuesByRecordId(lastAction.newRecord.id)
-                        dao.deleteRecordById(lastAction.newRecord.id)
+                    // 💡【超・最終解決ポイント】
+                    // ログが証明した通り、プログラムの都合で oldRecord == null には絶対になりません。
+                    // なので、「保存する前に、文字データ（oldValues）が存在していたかどうか」で判定します。
+                    // oldValuesが空っぽということは、文字が何も入っていなかった「実質、完全な新規追加」です！
+                    if (lastAction.oldRecord == null || lastAction.oldValues.isEmpty()) {
+
+                        // 【新規追加の取り消し】時間（Record）も文字（Values）も両方完全に抹消！
+                        lastAction.newRecord?.let { record ->
+                            dao.deleteValuesByRecordId(record.id)
+                            dao.deleteRecordById(record.id)
+                        }
+                        lastAction.newValues.firstOrNull()?.recordId?.let { id ->
+                            dao.deleteValuesByRecordId(id)
+                            dao.deleteRecordById(id)
+                        }
                     } else {
+                        // 【本物の編集の取り消し】元々あった文字や状態に戻す
                         dao.insertRecord(lastAction.oldRecord)
                         dao.deleteValuesByRecordId(lastAction.oldRecord.id)
                         lastAction.oldValues.forEach { dao.insertValue(it) }
@@ -105,9 +118,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     nextAction.backupValues.forEach { dao.updateCounterValue(it.copy(count = 0)) }
                 }
                 is MemoAction.Update -> {
-                    dao.insertRecord(nextAction.newRecord)
-                    dao.deleteValuesByRecordId(nextAction.newRecord.id)
-                    nextAction.newValues.forEach { dao.insertValue(it) }
+                    if (nextAction.newRecord == null) {
+                        // 新しいデータがnull（削除アクション）なら、DBから消す
+                        // oldRecordは必ず存在するので、そのIDを使って消します
+                        nextAction.oldRecord?.let {
+                            dao.deleteValuesByRecordId(it.id)
+                            dao.deleteRecordById(it.id)
+                        }
+                    } else {
+                        // 普通の保存・編集なら、今まで通り上書き保存
+                        dao.insertRecord(nextAction.newRecord)
+                        dao.deleteValuesByRecordId(nextAction.newRecord.id)
+                        nextAction.newValues.forEach { dao.insertValue(it) }
+                    }
                 }
                 is MemoAction.ResetMemos -> {
                     nextAction.backupRecords.forEach { record ->
@@ -124,17 +147,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateMemoWithHistory(record: MemoRecord, values: List<MemoValue>) {
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. 保存する「前」の状態をバックアップ（編集時のみデータがある）
+            // 1. 保存する「前」の状態をバックアップ
             val oldRecord = dao.getRecordById(record.id)
             val oldValues = if (oldRecord != null) dao.getValuesForRecord(record.id) else emptyList()
 
             // 2. 履歴の箱（Stack）に入れる
-            // すでに画面側で作られた「正しいID」が入った record をそのまま使います
             undoStack.push(MemoAction.Update(oldRecord, oldValues, record, values))
             redoStack.clear()
 
-            // 3. 実際の保存（上書き・追記）
+            // 3. 【修正：新規・編集どちらの場合も、必ずレコードを上書き確定させる】
+            // これによりRoomが親レコードの生存を正しく認識し、Undo時の削除が100%通るようになります。
             dao.insertRecord(record)
+
+            // 値を保存
             values.forEach { dao.insertValue(it) }
 
             // 4. ボタンを白く光らせる
@@ -203,6 +228,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch(Dispatchers.Main) {
                     showTimeSetting.value = setting.showTime
                 }
+            }
+        }
+    }
+    fun deleteMemoWithHistory(recordId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. 消す前にデータをバックアップ
+            val oldRecord = dao.getRecordById(recordId) ?: return@launch
+            val oldValues = dao.getValuesForRecord(recordId)
+
+            // 2. 「Update」の仕組みを応用して履歴に入れる
+            //（古いデータがあり、新しいデータが空っぽ = 削除という意味になります）
+            undoStack.push(MemoAction.Update(oldRecord, oldValues, null, emptyList()))
+            redoStack.clear()
+
+            // 3. 実際に削除する
+            dao.deleteValuesByRecordId(recordId)
+            dao.deleteRecordById(recordId)
+
+            // 4. ボタンを白く光らせる
+            viewModelScope.launch(Dispatchers.Main) {
+                updateStackStates()
             }
         }
     }

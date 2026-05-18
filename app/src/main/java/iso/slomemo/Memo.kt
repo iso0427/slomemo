@@ -83,11 +83,9 @@ data class AppSetting(
 @Entity(tableName = "counter_settings")
 data class CounterSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val machineId: Int,        // 💡★ここを追加！これで機種と紐付けます
     val name: String,         // 「ぶどう」などの名前
     val displayOrder: Int = 0, // 並び順
-
-    // ★ここを追記：色を数値(Long)で保存します
-    // 初期値として「紫（0xFFBB86FC）」を入れておきます
     val color: Long = 0xFFBB86FC
 )
 

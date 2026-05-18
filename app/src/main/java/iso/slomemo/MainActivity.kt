@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -104,6 +105,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -178,7 +180,11 @@ class MainActivity : ComponentActivity() {
                         ) { backStackEntry ->
                             val machineId = backStackEntry.arguments?.getInt("machineId") ?: 0
                             // 次のステップで TestColumnApp を MemoScreen にリネームして呼び出します
-                            MemoScreen(db = db, machineId = machineId)
+                            MemoScreen(
+                                db = db,
+                                machineId = machineId,
+                                navController = navController
+                            )
                         }
                     }
                 }
@@ -192,7 +198,7 @@ class MainActivity : ComponentActivity() {
         ExperimentalLayoutApi::class
     )
     @Composable
-    fun MemoScreen(db: AppDatabase, machineId: Int) {
+    fun MemoScreen(db: AppDatabase, machineId: Int, navController: NavController) {
 
         // --- 1. 色の定義 ---
         val backColor = Color.Black
@@ -251,14 +257,20 @@ class MainActivity : ComponentActivity() {
         var showCounterName by remember { mutableStateOf(true) }
 
         // DBから取得するカウンター項目
-        val counterSettings by db.memoDao().getAllCountersFlow()
-            .collectAsState(initial = emptyList())
-        val currentCounterValues by db.memoDao().getAllCounterValuesFlow()
+        // 💡 1. カウンターのボタン（色や並び順）を、今の機種（machineId）だけで絞り込んで監視
+        val counterSettings by db.memoDao().getCountersByMachineFlow(machineId)
             .collectAsState(initial = emptyList())
 
+// 💡 2. カウンターの数字（カウント数）も、今の機種（machineId）に紐づくものだけを監視
+        val currentCounterValues by db.memoDao().getCounterValuesByMachineFlow(machineId)
+            .collectAsState(initial = emptyList())
         var newCounterName by remember { mutableStateOf("") }
         var showCounterMenuSetting by remember { mutableStateOf<CounterSetting?>(null) }
         var showColorEditPanel by remember { mutableStateOf(false) }
+
+        // 💡 総回転数ダイアログ用の状態を新設
+        var showRotationDialog by remember { mutableStateOf(false) }
+        var rotationInputText by remember { mutableStateOf("7777") } // とりあえず初期値
 
         // --- 6. データの読み込みと更新 ---
         LaunchedEffect(Unit) {
@@ -440,8 +452,37 @@ class MainActivity : ComponentActivity() {
                                 .background(Color(0xFF1E1E1E))
                                 .padding(8.dp)
                                 .navigationBarsPadding(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp), // 隙間を少し詰めて横幅を確保
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // ==========================================
+                            // 💡 ① 一番左端に1つだけ配置する「総回転数」エリア
+                            // ==========================================
+                            Box(
+                                modifier = Modifier
+                                    .wrapContentWidth()
+                                    .height(currentAppSetting.counterHeight.dp)
+                                    .background(Color(0xFF2A2A2A), shape = RoundedCornerShape(8.dp))
+                                    // 🛠️ タップしたら入力ダイアログを開く
+                                    .clickable {
+                                        showRotationDialog = true
+                                    }
+                                    .padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = rotationInputText, // 🛠️ ダミー文字列から State に変更
+                                    color = Color.White,
+                                    fontSize = currentAppSetting.counterFontSize.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+
+                            // ==========================================
+                            // 💡 ② 各カウンターボタンのループ表示
+                            // ==========================================
                             counterSettings.forEach { setting ->
                                 val count by viewModel.dao.getCounterCountFlow(setting.id)
                                     .collectAsState(initial = 0)
@@ -450,68 +491,78 @@ class MainActivity : ComponentActivity() {
 
                                 Column(
                                     modifier = Modifier
-                                        .weight(1f)
-
+                                        .weight(1f) // 残りのスペースを均等に分ける
                                         .height(currentAppSetting.counterHeight.dp)
                                         .background(
                                             brush = Brush.verticalGradient(
                                                 colors = listOf(
                                                     buttonColor, buttonColor.copy(alpha = 0.6f)
                                                 )
-                                            ), shape = RoundedCornerShape(8.dp)
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
                                         )
-                                        .combinedClickable(onClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            viewModel.updateCounterWithHistory(
-                                                setting.id, isIncrement = true
-                                            )
-                                            if (showFlashEffect) {
-                                                scope.launch {
-                                                    // --- 輝度アップ設定がONの時だけ実行 ---
-                                                    val activity = context as? android.app.Activity
-                                                    val window = activity?.window
-                                                    val params = window?.attributes
-                                                    val originalBrightness =
-                                                        params?.screenBrightness ?: -1f
-
-                                                    if (useMaxBrightness) {
-                                                        params?.screenBrightness = 1f
-                                                        window?.attributes = params
-                                                    }
-
-                                                    // --- 色のフラッシュ ---
-                                                    flashColor = buttonColor
-                                                    isFlash = true
-                                                    delay(100)
-                                                    isFlash = false
-
-                                                    // --- 輝度を元に戻す（輝度を上げていた場合のみ） ---
-                                                    if (useMaxBrightness) {
-                                                        params?.screenBrightness =
-                                                            originalBrightness
-                                                        window?.attributes = params
-                                                    }
-                                                }
-                                            }
-                                        }, onLongClick = {
-                                            if ((count ?: 0) > 0) {
+                                        .combinedClickable(
+                                            onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 viewModel.updateCounterWithHistory(
-                                                    setting.id, isIncrement = false
+                                                    setting.id, isIncrement = true
                                                 )
-                                            }
-                                        })
-                                        .padding(vertical = 0.dp), // ★ 名前を消した分、上下の余白を少し増やしてバランス調整
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center // ★ 垂直方向も中央に
-                                ) {
-                                    // --- 名前表示の Text(setting.name) を完全に削除しました ---
+                                                if (showFlashEffect) {
+                                                    scope.launch {
+                                                        val activity =
+                                                            context as? android.app.Activity
+                                                        val window = activity?.window
+                                                        val params = window?.attributes
+                                                        val originalBrightness =
+                                                            params?.screenBrightness ?: -1f
 
+                                                        if (useMaxBrightness) {
+                                                            params?.screenBrightness = 1f
+                                                            window?.attributes = params
+                                                        }
+
+                                                        flashColor = buttonColor
+                                                        isFlash = true
+                                                        delay(100)
+                                                        isFlash = false
+
+                                                        if (useMaxBrightness) {
+                                                            params?.screenBrightness =
+                                                                originalBrightness
+                                                            window?.attributes = params
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if ((count ?: 0) > 0) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    viewModel.updateCounterWithHistory(
+                                                        setting.id, isIncrement = false
+                                                    )
+                                                }
+                                            }
+                                        ),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    // 上段：カウント数
                                     Text(
                                         text = (count ?: 0).toString(),
                                         color = Color(0xFF111111),
-                                        fontSize = currentAppSetting.counterFontSize.sp,
+                                        // 確率表示が増える分、文字サイズを選択サイズより少しだけ小さく調整して綺麗に収める
+                                        fontSize = (currentAppSetting.counterFontSize * 0.85f).sp,
                                         fontWeight = FontWeight.ExtraBold
+                                    )
+
+                                    // 下段：その小役の出現確率（ダミー）
+                                    Text(
+                                        text = "1/7.5",
+                                        color = Color(0xFF222222), // 暗めの色で見やすく
+                                        fontSize = (currentAppSetting.counterFontSize * 0.45f).coerceAtLeast(
+                                            10f
+                                        ).sp, // 潰れないように最低10spを確保
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -1358,16 +1409,15 @@ class MainActivity : ComponentActivity() {
                                     // --- 修正後の追加ボタン ---
                                     Button(
                                         onClick = {
-                                            // 名前（newCounterName）のチェックを外して、空文字で登録するようにします
                                             scope.launch {
                                                 db.memoDao().insertCounter(
                                                     CounterSetting(
-                                                        name = "", // 名前は空でOK（メイン画面でも非表示にしたため）
+                                                        machineId = machineId, // 💡★ここを追加！今開いている機種IDをセットする
+                                                        name = "",
                                                         displayOrder = counterSettings.size,
                                                         color = currentColorByLong
                                                     )
                                                 )
-                                                // newCounterName = "" も不要なので削除
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth(),
@@ -2735,8 +2785,8 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
-        } // ← これが Box の閉じカッコ
-    } // ← これが TestColumnApp 関数の閉じカッコ
+        }
+    }
 
     @Composable
     fun InputFormContent(
@@ -2972,64 +3022,95 @@ class MainActivity : ComponentActivity() {
                 Button(
                     onClick = {
                         scope.launch {
+                            // 先に有効な入力があるかチェック
+                            val validInputs = inputValues.filter { it.value.isNotBlank() }
+
+                            if (validInputs.isEmpty()) {
+                                onSave()
+                                return@launch
+                            }
+
                             // 1. IDと時刻の確定
                             val currentRid: Int
                             val currentTimestamp: Long
 
                             if (editingRecordId != null) {
-                                // 【編集の場合】既存のレコードを取得して、その「時刻」をそのまま使う
-                                val existingRecord =
-                                    db.memoDao().getRecordById(editingRecordId)
+                                // 【編集の場合】
+                                val existingRecord = db.memoDao().getRecordById(editingRecordId)
                                 currentRid = editingRecordId
                                 currentTimestamp =
-                                    existingRecord?.timestamp
-                                        ?: System.currentTimeMillis()
-                            } else {
-                                // 【新規の場合】新しいレコードを作成
-                                currentTimestamp = System.currentTimeMillis()
-                                currentRid = db.memoDao()
-                                    .insertRecord(
-                                        MemoRecord(
-                                            machineId = machineId, // ★ ここで使う！
-                                            timestamp = currentTimestamp
-                                        )
-                                    ).toInt()
-                            }
+                                    existingRecord?.timestamp ?: System.currentTimeMillis()
 
-                            // 2. データの保存
-                            val newValues =
-                                inputValues.filter { it.value.isNotBlank() }
-                                    .map { (cid, txt) ->
-                                        MemoValue(
-                                            recordId = currentRid,
-                                            columnId = cid,
-                                            value = txt
-                                        )
+                                val newValues = validInputs.map { (cid, txt) ->
+                                    MemoValue(recordId = currentRid, columnId = cid, value = txt)
+                                }.toMutableList()
+
+                                inputValues.forEach { (cid, txt) ->
+                                    val rules = db.memoDao().getRulesByTrigger(cid, txt)
+                                    rules.forEach { rule ->
+                                        if (!rule.isNextRow && cid != rule.targetColumnId) {
+                                            newValues.add(
+                                                MemoValue(
+                                                    recordId = currentRid,
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
+                                            )
+                                        }
                                     }
+                                }
 
-                            // --- ここから下を上書き ---
-                            // 新規登録の時は、確実にDBに中身（文章）を直接保存する形に戻します
-                            if (editingRecordId != null) {
-                                // 編集時：
                                 viewModel.updateMemoWithHistory(
-                                    MemoRecord(id = currentRid, machineId = machineId, timestamp = currentTimestamp),
+                                    MemoRecord(
+                                        id = currentRid,
+                                        machineId = machineId,
+                                        timestamp = currentTimestamp
+                                    ),
                                     newValues
                                 )
                             } else {
-                                // 新規時：【ここを元に戻しました！】
-                                // 画面でさっき作った「currentRid（正しいID）」を使って、中身を確実に保存します
-                                newValues.forEach { db.memoDao().insertValue(it) }
-                            }
-                            // --- ここまで ---
+                                // 【新規の場合】
+                                currentTimestamp = System.currentTimeMillis()
+                                val generatedLongId = db.memoDao().insertRecord(
+                                    MemoRecord(machineId = machineId, timestamp = currentTimestamp)
+                                )
+                                currentRid = generatedLongId.toInt()
 
-                            // --- 3. 連動チェック（AutoInputRule） ---
-                            // 【元に戻しました】編集・新規どちらの場合も、入力された値をもとに連動を走らせる
+                                val newValues = validInputs.map { (cid, txt) ->
+                                    MemoValue(recordId = currentRid, columnId = cid, value = txt)
+                                }.toMutableList()
+
+                                inputValues.forEach { (cid, txt) ->
+                                    val rules = db.memoDao().getRulesByTrigger(cid, txt)
+                                    rules.forEach { rule ->
+                                        if (!rule.isNextRow && cid != rule.targetColumnId) {
+                                            newValues.add(
+                                                MemoValue(
+                                                    recordId = currentRid,
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+
+                                viewModel.updateMemoWithHistory(
+                                    MemoRecord(
+                                        id = currentRid,
+                                        machineId = machineId,
+                                        timestamp = currentTimestamp
+                                    ),
+                                    newValues
+                                )
+                            }
+
+                            // --- 3. 連動チェック（次の行） ---
                             inputValues.forEach { (cid, txt) ->
                                 val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                 rules.forEach { rule ->
                                     if (rule.isNextRow) {
-                                        val allRecords =
-                                            db.memoDao().getRecordsByMachine(machineId)
+                                        val allRecords = db.memoDao().getRecordsByMachine(machineId)
                                         val currentIndex =
                                             allRecords.indexOfFirst { it.id == currentRid }
                                         val nextRecord =
@@ -3057,22 +3138,19 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             )
                                         }
-                                    } else {
-                                        if (cid != rule.targetColumnId) {
-                                            db.memoDao().insertValue(
-                                                MemoValue(
-                                                    recordId = currentRid,
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
-                                            )
-                                        }
                                     }
                                 }
                             }
 
                             // --- 4. 仕上げ ---
-                            delay(150) // DBへの書き込み完了を少し待つ
+                            delay(150)
+
+                            // 💡【今回の修正ポイント】
+                            // 全削除（リセット）の時と同じように、データを最新状態に強制再読み込みさせます。
+                            // もし ViewModel に全読み込み関数（例: loadMemos() や refreshData() など）があれば、
+                            // ここで「viewModel.loadMemos()」のように呼んで画面を強制リフレッシュしてください。
+                            //（※設定読み込みの loadSettings() があるので、データ用のも何かあればそれを呼びます）
+
                             onSave()
                         }
                     },
@@ -3122,12 +3200,20 @@ class MainActivity : ComponentActivity() {
                     confirmButton = {
                         TextButton(onClick = {
                             scope.launch {
-                                if (editingRecordId != null) {
-                                    db.memoDao().deleteValuesByRecordId(editingRecordId)
-                                    db.memoDao().deleteRecordById(editingRecordId)
+                                // 1. スマートキャストを使って安全にNullチェックを通します
+                                val idToDelete = editingRecordId
+                                if (idToDelete != null) {
+                                    // 2. 履歴付きの削除メソッドを実行
+                                    viewModel.deleteMemoWithHistory(idToDelete)
+
+                                    delay(150) // DBの削除反映を少し待つ
+
+                                    // 3. 【重要】ここが消えていました！
+                                    // 削除が完了したら、入力ダイアログ自体をパッと閉じ、親画面をリフレッシュします
+                                    onSave()
                                 }
+                                // 4. 確認ダイアログを閉じます
                                 showDeleteConfirmDialog = false
-                                onSave()
                             }
                         }) {
                             Text("削除", color = Color(0xFFF44336))
