@@ -1132,7 +1132,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
-                                            text = "タップ時にフラッシュさせる",
+                                            text = "タップ時にヘッダーをフラッシュさせる",
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
@@ -1171,7 +1171,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         text = "ボタンの高さ",
                                         color = mainText,
-                                        fontSize = 14.sp
+                                        fontSize = 18.sp
                                     )
 
                                     val heightOptions = listOf(30, 45, 60, 75, 90)
@@ -1240,7 +1240,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         text = "文字サイズ",
                                         color = mainText,
-                                        fontSize = 14.sp
+                                        fontSize = 18.sp
                                     )
 
                                     // 高さと同じ 30, 45, 60, 75, 90 の5段階
@@ -1306,7 +1306,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         text = "回転数の文字サイズ",
                                         color = mainText,
-                                        fontSize = 14.sp
+                                        fontSize = 18.sp
                                     )
 
 // カウンターと同じく5段階（高さ設定以下になるように制限をかける）
