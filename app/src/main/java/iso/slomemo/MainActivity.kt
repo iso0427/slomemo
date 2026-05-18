@@ -456,24 +456,29 @@ class MainActivity : ComponentActivity() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // ==========================================
-                            // 💡 ① 一番左端に1つだけ配置する「総回転数」エリア
+                            // 💡 ① 一番左端に1つだけ配置する「総回転数」エリア（メイン画面側）
                             // ==========================================
                             Box(
                                 modifier = Modifier
                                     .wrapContentWidth()
                                     .height(currentAppSetting.counterHeight.dp)
                                     .background(Color(0xFF2A2A2A), shape = RoundedCornerShape(8.dp))
-                                    // 🛠️ タップしたら入力ダイアログを開く
-                                    .clickable {
-                                        showRotationDialog = true
-                                    }
+                                    .combinedClickable(
+                                        onClick = { /* 誤爆防止 */ },
+                                        onLongClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            showRotationDialog = true
+                                        }
+                                    )
                                     .padding(horizontal = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = rotationInputText, // 🛠️ ダミー文字列から State に変更
+                                    text = rotationInputText,
                                     color = Color.White,
-                                    fontSize = currentAppSetting.counterFontSize.sp,
+                                    // 🛠️ currentAppSetting.counterFontSize.sp から変更！
+                                    // これで回転数エリアだけ独自の文字サイズが適用されます
+                                    fontSize = currentAppSetting.rotationFontSize.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     maxLines = 1,
                                     softWrap = false
@@ -1280,6 +1285,71 @@ class MainActivity : ComponentActivity() {
                                             ) {
                                                 Text(
                                                     text = when (fValue) {
+                                                        30 -> "1"
+                                                        45 -> "2"
+                                                        60 -> "3"
+                                                        75 -> "4"
+                                                        90 -> "5"
+                                                        else -> ""
+                                                    },
+                                                    color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
+                                                    fontSize = 24.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // --- さっき見せていただいた「文字サイズ」設定Rowの直後に挿入してください ---
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Text(
+                                        text = "回転数の文字サイズ",
+                                        color = mainText,
+                                        fontSize = 14.sp
+                                    )
+
+// カウンターと同じく5段階（高さ設定以下になるように制限をかける）
+                                    val rotationFontSizeOptions = listOf(30, 45, 60, 75, 90)
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rotationFontSizeOptions.forEach { rValue ->
+                                            // 🛠️ カウンターボタンの「高さ」以下の数値だけを選べるように制御
+                                            val isEnabled =
+                                                rValue <= currentAppSetting.counterHeight
+                                            val isSelected =
+                                                currentAppSetting.rotationFontSize == rValue
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(44.dp)
+                                                    .background(
+                                                        color = when {
+                                                            isSelected -> Color(0xFFBB86FC)
+                                                            isEnabled -> Color(0xFF333333)
+                                                            else -> Color(0xFF1A1A1A)
+                                                        },
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    )
+                                                    .clickable(enabled = showSimpleCounter && isEnabled) {
+                                                        scope.launch {
+                                                            db.memoDao().saveAppSetting(
+                                                                currentAppSetting.copy(
+                                                                    rotationFontSize = rValue // 🛠️ 回転数用のサイズを保存
+                                                                )
+                                                            )
+                                                        }
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = when (rValue) {
                                                         30 -> "1"
                                                         45 -> "2"
                                                         60 -> "3"
@@ -2785,6 +2855,52 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+        // ==========================================
+        // 💡 総回転数入力ダイアログ
+        // ==========================================
+        if (showRotationDialog) {
+            AlertDialog(
+                onDismissRequest = { showRotationDialog = false },
+                title = { Text("総回転数の入力", color = Color.White) },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = rotationInputText,
+                            onValueChange = { newValue ->
+                                // 🛠️ 最大4桁かつ数字のみ入力可能にする制限
+                                if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
+                                    rotationInputText = newValue
+                                }
+                            },
+                            label = { Text("回転数 (最大4桁)") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedContainerColor = Color(0xFF222222),
+                                unfocusedContainerColor = Color(0xFF222222)
+                            )
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showRotationDialog = false
+                            // 💡 ここで後ほど、確率の再計算やDBへの保存処理を行います！
+                        }
+                    ) {
+                        Text("確定", color = Color(0xFFBB86FC), fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRotationDialog = false }) {
+                        Text("キャンセル", color = Color.LightGray)
+                    }
+                },
+                containerColor = Color(0xFF1E1E1E)
+            )
         }
     }
 
