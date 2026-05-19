@@ -71,13 +71,14 @@ data class AutoInputRule(
 data class AppSetting(
     @PrimaryKey val id: Int = 0,
     val showTime: Boolean = true,
-    val useMaxBrightness: Boolean = false,
+    val useMaxBrightness: Boolean = true,
     val showSimpleCounter: Boolean = true,
     val showFlashEffect: Boolean = true,
     val showCounterName: Boolean = true,
     val counterHeight: Int = 60,
     val counterFontSize: Int = 45,
-    val rotationFontSize: Int = 45
+    val rotationFontSize: Int = 45,
+    val showTotalRotation: Boolean = true
 )
 
 // ⑦ 簡易カウンターの項目（ボタン名と色）を保存する

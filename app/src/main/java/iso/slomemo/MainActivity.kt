@@ -458,32 +458,36 @@ class MainActivity : ComponentActivity() {
                             // ==========================================
                             // 💡 ① 一番左端に1つだけ配置する「総回転数」エリア（メイン画面側）
                             // ==========================================
-                            Box(
-                                modifier = Modifier
-                                    .wrapContentWidth()
-                                    .height(currentAppSetting.counterHeight.dp)
-                                    .background(Color(0xFF2A2A2A), shape = RoundedCornerShape(8.dp))
-                                    .combinedClickable(
-                                        onClick = { /* 誤爆防止 */ },
-                                        onLongClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            showRotationDialog = true
-                                        }
+                            // 🟢 【これをついか！】ONのときだけ総回転数エリアを表示する
+                            if (currentAppSetting.showTotalRotation) {
+                                Box(
+                                    modifier = Modifier
+                                        .wrapContentWidth()
+                                        .height(currentAppSetting.counterHeight.dp)
+                                        .background(
+                                            Color(0xFF2A2A2A),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .combinedClickable(
+                                            onClick = { /* 誤爆防止 */ },
+                                            onLongClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                showRotationDialog = true
+                                            }
+                                        )
+                                        .padding(horizontal = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = rotationInputText,
+                                        color = Color.White,
+                                        fontSize = currentAppSetting.rotationFontSize.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
-                                    .padding(horizontal = 6.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = rotationInputText,
-                                    color = Color.White,
-                                    // 🛠️ currentAppSetting.counterFontSize.sp から変更！
-                                    // これで回転数エリアだけ独自の文字サイズが適用されます
-                                    fontSize = currentAppSetting.rotationFontSize.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
+                                }
+                            } // 🟢 【これをついか！】ここでif文を閉じる
 
                             // ==========================================
                             // 💡 ② 各カウンターボタンのループ表示
@@ -561,14 +565,14 @@ class MainActivity : ComponentActivity() {
                                     )
 
                                     // 下段：その小役の出現確率（ダミー）
-                                    Text(
-                                        text = "1/7.5",
-                                        color = Color(0xFF222222), // 暗めの色で見やすく
-                                        fontSize = (currentAppSetting.counterFontSize * 0.45f).coerceAtLeast(
-                                            10f
-                                        ).sp, // 潰れないように最低10spを確保
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    //Text(
+                                    //    text = "1/7.5",
+                                    //    color = Color(0xFF222222), // 暗めの色で見やすく
+                                    //    fontSize = (currentAppSetting.counterFontSize * 0.45f).coerceAtLeast(
+                                    //        10f
+                                    //    ).sp, // 潰れないように最低10spを確保
+                                    //    fontWeight = FontWeight.Bold
+                                    //)
                                 }
                             }
                         }
@@ -1042,7 +1046,8 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Text(
                                         text = "「${col.name}」を削除",
-                                        style = MaterialTheme.typography.titleMedium
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontSize = 18.sp
                                     )
                                 }
                             }  // --- 設定画面の Column 閉じタグ (既存コードの末尾付近) ---
@@ -1132,7 +1137,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
-                                            text = "タップ時にヘッダーをフラッシュさせる",
+                                            text = "タップ時にヘッダーをフラッシュ",
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
@@ -1160,7 +1165,35 @@ class MainActivity : ComponentActivity() {
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
-                                            text = "タップ時に画面を明るくする",
+                                            text = "タップ時に画面をフラッシュ",
+                                            color = mainText,
+                                            fontSize = 18.sp
+                                        )
+                                    }
+                                    // --- ③ 総回転数を表示するスイッチ ---
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                            .clickable(enabled = showSimpleCounter) {
+                                                val nextValue = !currentAppSetting.showTotalRotation
+                                                scope.launch {
+                                                    db.memoDao().saveAppSetting(
+                                                        currentAppSetting.copy(showTotalRotation = nextValue)
+                                                    )
+                                                }
+                                            }
+                                            .padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Switch(
+                                            checked = currentAppSetting.showTotalRotation,
+                                            onCheckedChange = null,
+                                            enabled = showSimpleCounter
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = "総回転数を表示する",
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
@@ -1189,7 +1222,7 @@ class MainActivity : ComponentActivity() {
                                             Box(
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .height(44.dp) // 選択ボタン自体の高さ
+                                                    .height(32.dp) // 選択ボタン自体の高さ
                                                     .background(
                                                         color = if (isSelected) Color(0xFFBB86FC) else Color(
                                                             0xFF333333
@@ -1238,7 +1271,7 @@ class MainActivity : ComponentActivity() {
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     Text(
-                                        text = "文字サイズ",
+                                        text = "カウンター文字サイズ",
                                         color = mainText,
                                         fontSize = 18.sp
                                     )
@@ -1262,7 +1295,7 @@ class MainActivity : ComponentActivity() {
                                             Box(
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .height(44.dp)
+                                                    .height(32.dp)
                                                     .background(
                                                         // 無効な時はグレーアウトさせる
                                                         color = when {
@@ -1304,12 +1337,12 @@ class MainActivity : ComponentActivity() {
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     Text(
-                                        text = "回転数の文字サイズ",
+                                        text = "回転数文字サイズ",
                                         color = mainText,
                                         fontSize = 18.sp
                                     )
 
-// カウンターと同じく5段階（高さ設定以下になるように制限をかける）
+                                    // カウンターと同じく5段階（高さ設定以下になるように制限をかける）
                                     val rotationFontSizeOptions = listOf(30, 45, 60, 75, 90)
 
                                     Row(
@@ -1328,7 +1361,7 @@ class MainActivity : ComponentActivity() {
                                             Box(
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .height(44.dp)
+                                                    .height(32.dp)
                                                     .background(
                                                         color = when {
                                                             isSelected -> Color(0xFFBB86FC)
@@ -1371,7 +1404,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         "ボタンの色を選択して追加",
                                         color = mainText,
-                                        fontSize = 14.sp
+                                        fontSize = 18.sp
                                     )
 
                                     // 原色選択 (LazyRow)
@@ -1396,7 +1429,7 @@ class MainActivity : ComponentActivity() {
                                         item {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(40.dp)
+                                                    .size(32.dp)
                                                     .background(
                                                         brush = Brush.linearGradient(
                                                             listOf(
@@ -1419,7 +1452,7 @@ class MainActivity : ComponentActivity() {
                                             val isSelected = !isMonotone && selectedHue == hue
                                             Box(
                                                 modifier = Modifier
-                                                    .size(40.dp)
+                                                    .size(32.dp)
                                                     .background(
                                                         Color.hsl(hue, 0.8f, 0.5f),
                                                         RoundedCornerShape(4.dp)
@@ -1439,11 +1472,22 @@ class MainActivity : ComponentActivity() {
                                     // 濃淡選択（グリッド）
                                     val lightnessLevels =
                                         listOf(0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f)
+
+                                    // 🛠️ ここで高さを一括管理（お好みの高さに変えてみてください）
+                                    val paletteHeight = 90 // 例：全体の高さを130にする
+                                    val spacing = 8         // マス同士の隙間
+
+                                    // 🛠️ 後ろに「- 4」などを追加して、ボタンの高さを少しだけ低くします
+                                    // (80 - 8) / 2 = 36 から、さらに4減らして「32dp」にするイメージです
+                                    val itemHeight = ((paletteHeight - spacing) / 2) - 4
                                     LazyVerticalGrid(
                                         columns = GridCells.Fixed(4), // 4列にして押しやすく
-                                        modifier = Modifier.height(160.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+
+                                        // 🛠️ 自動計算の変数を割り当て
+                                        modifier = Modifier.height(paletteHeight.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(spacing.dp),
+                                        verticalArrangement = Arrangement.spacedBy(spacing.dp),
+                                        userScrollEnabled = false
                                     ) {
                                         items(lightnessLevels) { level ->
                                             // isMonotone が true のときは彩度(saturation)を 0 にして白黒にする
@@ -1458,7 +1502,9 @@ class MainActivity : ComponentActivity() {
 
                                             Box(
                                                 modifier = Modifier
-                                                    .aspectRatio(1.5f)
+                                                    .fillMaxWidth()
+                                                    // 🛠️ 固定の「55.dp」から、自動計算された「itemHeight.dp」に変更！
+                                                    .height(itemHeight.dp)
                                                     .background(
                                                         colorVariant, RoundedCornerShape(4.dp)
                                                     )
@@ -1474,7 +1520,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    //Spacer(modifier = Modifier.height(16.dp))
 
                                     // --- 修正後の追加ボタン ---
                                     Button(
@@ -1498,7 +1544,8 @@ class MainActivity : ComponentActivity() {
                                         Text(
                                             "この色で追加",
                                             color = Color.Black,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp
                                         )
                                     }
 
@@ -1509,32 +1556,29 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         "現在のボタン一覧",
                                         color = mainText,
-                                        fontSize = 14.sp
+                                        fontSize = 18.sp
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
 
-                                    // 2. 登録済みの一覧を表示（削除も可能）
+                                    // ==========================================================
+                                    // 🟢 ① 上段：横並び（FlowRow）のチップ一覧
+                                    // ==========================================================
                                     FlowRow(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         counterSettings.forEach { setting ->
-
-                                            key(setting.id) {
+                                            key("row_${setting.id}") { // keyが衝突しないように識別子を付与
                                                 InputChip(
                                                     selected = false,
-                                                    onClick = {
-                                                        showCounterMenuSetting = setting
-                                                    },
+                                                    onClick = { showCounterMenuSetting = setting },
                                                     label = {
                                                         Text(
                                                             setting.name,
                                                             color = Color.Black
                                                         )
                                                     },
-                                                    // ✕ボタン（trailingIcon）はあってもなくても良いですが、
-                                                    // メニューを開くことがわかるように設定
                                                     trailingIcon = {
                                                         Icon(
                                                             Icons.Default.Edit,
@@ -1543,20 +1587,79 @@ class MainActivity : ComponentActivity() {
                                                             tint = Color.Black
                                                         )
                                                     },
-
                                                     colors = InputChipDefaults.inputChipColors(
-                                                        // ★ ここでDBに保存した色（setting.color）を背景色に指定します
                                                         containerColor = Color(setting.color),
-                                                        // 選択されていない時のラベル色なども必要に応じて
                                                         labelColor = Color.Black
                                                     ),
-                                                    // 枠線が不要なら border を null にするか、色を合わせる
                                                     border = InputChipDefaults.inputChipBorder(
                                                         borderColor = Color(setting.color),
                                                         enabled = true,
                                                         selected = false
                                                     )
                                                 )
+                                            }
+                                        }
+                                    }
+
+                                    // 🟢 【シンプルに追加】見出しとしての役割を兼ねたテキスト
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Text(
+                                        "カウント処理一覧",
+                                        color = mainText,
+                                        fontSize = 18.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Spacer(modifier = Modifier.height(16.dp)) // 上下の一覧の間の広めの隙間
+
+                                    // ==========================================
+                                    // ② 下段：縦並び（Column）のチップ＋処理説明一覧
+                                    // ==========================================
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        counterSettings.forEach { setting ->
+                                            key("col_${setting.id}") {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    InputChip(
+                                                        // 🟢 modifier でチップのサイズを明示的に指定します
+                                                        modifier = Modifier
+                                                            .width(44.dp)   // 💡 お好みの横幅に調整してください
+                                                            .height(32.dp),  // 💡 お好みの高さに調整してください
+                                                        selected = false,
+                                                        onClick = { /* タップ無効 */ },
+                                                        label = {
+                                                            Text(
+                                                                setting.name,
+                                                                color = Color.Black,
+                                                                maxLines = 1 // 枠からはみ出さないようにガード
+                                                            )
+                                                        },
+                                                        trailingIcon = null,
+                                                        colors = InputChipDefaults.inputChipColors(
+                                                            containerColor = Color(setting.color),
+                                                            labelColor = Color.Black
+                                                        ),
+                                                        border = InputChipDefaults.inputChipBorder(
+                                                            borderColor = Color(setting.color),
+                                                            enabled = true,
+                                                            selected = false
+                                                        )
+                                                    )
+
+                                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                                    Text(
+                                                        text = "ここに処理内容を表示する予定",
+                                                        color = mainText,
+                                                        fontSize = 14.sp
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1721,7 +1824,7 @@ class MainActivity : ComponentActivity() {
                                                 db.memoDao()
                                                     .updateCounter(newTarget)  // 相手の新しい番号を保存
 
-                                                showCounterMenuSetting = null // メニューを閉じる
+                                                //showCounterMenuSetting = null // メニューを閉じる
                                             }
                                         }
                                     },
@@ -1762,7 +1865,7 @@ class MainActivity : ComponentActivity() {
                                                 db.memoDao().updateCounter(newCurrent)
                                                 db.memoDao().updateCounter(newTarget)
 
-                                                showCounterMenuSetting = null // メニューを閉じて反映
+                                                //showCounterMenuSetting = null // メニューを閉じて反映
                                             }
                                         }
                                     },
@@ -1868,7 +1971,7 @@ class MainActivity : ComponentActivity() {
                                 Text(
                                     "新しい色を選択",
                                     color = Color.White,
-                                    fontSize = 14.sp,
+                                    fontSize = 18.sp,
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 )
 
@@ -1994,6 +2097,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         "この色に変更する",
                                         color = Color.Black,
+                                        fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -2004,7 +2108,7 @@ class MainActivity : ComponentActivity() {
                                         .fillMaxWidth()
                                         .padding(top = 16.dp)
                                 ) {
-                                    Text("閉じる")
+                                    Text("閉じる", fontSize = 18.sp)
                                 }
                             }
                         }
