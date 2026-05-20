@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,7 +50,6 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
@@ -67,6 +65,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -76,6 +75,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -267,6 +267,7 @@ class MainActivity : ComponentActivity() {
         var newCounterName by remember { mutableStateOf("") }
         var showCounterMenuSetting by remember { mutableStateOf<CounterSetting?>(null) }
         var showColorEditPanel by remember { mutableStateOf(false) }
+        var showAddCounterDialog by remember { mutableStateOf(false) }
 
         // 💡 総回転数ダイアログ用の状態を新設
         var showRotationDialog by remember { mutableStateOf(false) }
@@ -1337,7 +1338,7 @@ class MainActivity : ComponentActivity() {
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     Text(
-                                        text = "回転数文字サイズ",
+                                        text = "総回転数文字サイズ",
                                         color = mainText,
                                         fontSize = 18.sp
                                     )
@@ -1400,155 +1401,29 @@ class MainActivity : ComponentActivity() {
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    // カラーパレットの選択セクションは維持
                                     Text(
-                                        "ボタンの色を選択して追加",
+                                        "カウントボタンの追加",
                                         color = mainText,
                                         fontSize = 18.sp
                                     )
+                                    Spacer(modifier = Modifier.height(8.dp))
 
-                                    // 原色選択 (LazyRow)
-                                    val baseHues = listOf(
-                                        0f,
-                                        30f,
-                                        60f,
-                                        90f,
-                                        120f,
-                                        150f,
-                                        180f,
-                                        210f,
-                                        240f,
-                                        270f,
-                                        300f,
-                                        330f
-                                    )
-                                    LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.padding(vertical = 12.dp)
-                                    ) {
-                                        item {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(32.dp)
-                                                    .background(
-                                                        brush = Brush.linearGradient(
-                                                            listOf(
-                                                                Color.White,
-                                                                Color.Gray,
-                                                                Color.Black
-                                                            )
-                                                        ),
-                                                        shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .border(
-                                                        width = if (isMonotone) 3.dp else 0.dp,
-                                                        color = Color.White,
-                                                        shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .clickable { isMonotone = true }
-                                            )
-                                        }
-                                        items(baseHues) { hue ->
-                                            val isSelected = !isMonotone && selectedHue == hue
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(32.dp)
-                                                    .background(
-                                                        Color.hsl(hue, 0.8f, 0.5f),
-                                                        RoundedCornerShape(4.dp)
-                                                    )
-                                                    .border(
-                                                        width = if (isSelected) 3.dp else 0.dp,
-                                                        color = Color.White,
-                                                        shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .clickable {
-                                                        isMonotone = false; selectedHue = hue
-                                                    }
-                                            )
-                                        }
-                                    }
-
-                                    // 濃淡選択（グリッド）
-                                    val lightnessLevels =
-                                        listOf(0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f)
-
-                                    // 🛠️ ここで高さを一括管理（お好みの高さに変えてみてください）
-                                    val paletteHeight = 90 // 例：全体の高さを130にする
-                                    val spacing = 8         // マス同士の隙間
-
-                                    // 🛠️ 後ろに「- 4」などを追加して、ボタンの高さを少しだけ低くします
-                                    // (80 - 8) / 2 = 36 から、さらに4減らして「32dp」にするイメージです
-                                    val itemHeight = ((paletteHeight - spacing) / 2) - 4
-                                    LazyVerticalGrid(
-                                        columns = GridCells.Fixed(4), // 4列にして押しやすく
-
-                                        // 🛠️ 自動計算の変数を割り当て
-                                        modifier = Modifier.height(paletteHeight.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(spacing.dp),
-                                        verticalArrangement = Arrangement.spacedBy(spacing.dp),
-                                        userScrollEnabled = false
-                                    ) {
-                                        items(lightnessLevels) { level ->
-                                            // isMonotone が true のときは彩度(saturation)を 0 にして白黒にする
-                                            val colorVariant = if (isMonotone) {
-                                                Color.hsl(0f, 0f, level)
-                                            } else {
-                                                Color.hsl(selectedHue, 0.7f, level)
-                                            }
-
-                                            val colorLong = colorVariant.toArgb().toLong()
-                                            val isSelected = currentColorByLong == colorLong
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    // 🛠️ 固定の「55.dp」から、自動計算された「itemHeight.dp」に変更！
-                                                    .height(itemHeight.dp)
-                                                    .background(
-                                                        colorVariant, RoundedCornerShape(4.dp)
-                                                    )
-                                                    .border(
-                                                        width = if (isSelected) 3.dp else 0.dp,
-                                                        color = Color.White,
-                                                        shape = RoundedCornerShape(4.dp)
-                                                    )
-                                                    .clickable {
-                                                        currentColorByLong = colorLong
-                                                    }
-                                            )
-                                        }
-                                    }
-
-                                    //Spacer(modifier = Modifier.height(16.dp))
-
-                                    // --- 修正後の追加ボタン ---
                                     Button(
-                                        onClick = {
-                                            scope.launch {
-                                                db.memoDao().insertCounter(
-                                                    CounterSetting(
-                                                        machineId = machineId, // 💡★ここを追加！今開いている機種IDをセットする
-                                                        name = "",
-                                                        displayOrder = counterSettings.size,
-                                                        color = currentColorByLong
-                                                    )
-                                                )
-                                            }
-                                        },
+                                        onClick = { showAddCounterDialog = true }, // タップで新規ダイアログを開く
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFFBB86FC)
+                                            containerColor = Color(
+                                                0xFFBB86FC
+                                            )
                                         )
                                     ) {
                                         Text(
-                                            "この色で追加",
+                                            "色を選んで追加する",
                                             color = Color.Black,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
-
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -1568,35 +1443,38 @@ class MainActivity : ComponentActivity() {
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        counterSettings.forEach { setting ->
-                                            key("row_${setting.id}") { // keyが衝突しないように識別子を付与
-                                                InputChip(
-                                                    selected = false,
-                                                    onClick = { showCounterMenuSetting = setting },
-                                                    label = {
-                                                        Text(
-                                                            setting.name,
-                                                            color = Color.Black
+                                        // 🟢 forEach から forEachIndexed に変更して、index（0から始まる順番）を取得
+                                        counterSettings.forEachIndexed { index, setting ->
+                                            key("row_${setting.id}") {
+
+                                                // 🟢 インデックス（0, 1, 2...）をアルファベット（A, B, C...）に変換
+                                                val letterName = ('A' + index).toString()
+
+                                                CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+                                                    InputChip(
+                                                        selected = false,
+                                                        onClick = { showCounterMenuSetting = setting },
+                                                        label = {
+                                                            // 🟢 setting.name の代わりに、自動計算したアルファベットを表示
+                                                            Text(
+                                                                letterName,
+                                                                color = Color.Black
+                                                            )
+                                                        },
+                                                        modifier = Modifier
+                                                            .width(44.dp)
+                                                            .height(32.dp),
+                                                        colors = InputChipDefaults.inputChipColors(
+                                                            containerColor = Color(setting.color),
+                                                            labelColor = Color.Black
+                                                        ),
+                                                        border = InputChipDefaults.inputChipBorder(
+                                                            borderColor = Color(setting.color),
+                                                            enabled = true,
+                                                            selected = false
                                                         )
-                                                    },
-                                                    trailingIcon = {
-                                                        Icon(
-                                                            Icons.Default.Edit,
-                                                            null,
-                                                            modifier = Modifier.size(16.dp),
-                                                            tint = Color.Black
-                                                        )
-                                                    },
-                                                    colors = InputChipDefaults.inputChipColors(
-                                                        containerColor = Color(setting.color),
-                                                        labelColor = Color.Black
-                                                    ),
-                                                    border = InputChipDefaults.inputChipBorder(
-                                                        borderColor = Color(setting.color),
-                                                        enabled = true,
-                                                        selected = false
                                                     )
-                                                )
+                                                }
                                             }
                                         }
                                     }
@@ -1609,7 +1487,7 @@ class MainActivity : ComponentActivity() {
                                         color = mainText,
                                         fontSize = 18.sp
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    //Spacer(modifier = Modifier.height(8.dp))
 
                                     Spacer(modifier = Modifier.height(16.dp)) // 上下の一覧の間の広めの隙間
 
@@ -1949,21 +1827,26 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                // --- 色編集パネル (色変更ボタンを押した時に表示) ---
+                // --- 色編集パネル (画面中央にダイアログとして表示) ---
                 if (showColorEditPanel) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.5f)) // 背景を少し暗く
                             .clickable { showColorEditPanel = false }, // 外側タップで閉じる
-                        contentAlignment = Alignment.BottomCenter // 下から出す
+
+                        // 🟢 変更：下詰め（BottomCenter）から中央（Center）配置に変更！
+                        contentAlignment = Alignment.Center
                     ) {
                         Surface(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
+                                // 🟢 変更：横幅いっぱいに広げず、左右に少しマージンを持たせる
+                                .fillMaxWidth(0.9f)
+                                // 🟢 変更：下部バーのパディング（navigationBarsPadding）を解除
                                 .clickable(enabled = false) { },
-                            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+
+                            // 🟢 変更：四隅すべてを均等に角丸にする（16.dp）
+                            shape = RoundedCornerShape(16.dp),
                             color = Color(0xFF252525)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -1997,7 +1880,7 @@ class MainActivity : ComponentActivity() {
                                     item {
                                         Box(
                                             modifier = Modifier
-                                                .size(40.dp)
+                                                .size(32.dp)
                                                 .background(
                                                     brush = Brush.linearGradient(
                                                         listOf(
@@ -2020,7 +1903,7 @@ class MainActivity : ComponentActivity() {
                                         val isSelected = !isMonotone && selectedHue == hue
                                         Box(
                                             modifier = Modifier
-                                                .size(40.dp)
+                                                .size(32.dp)
                                                 .background(
                                                     Color.hsl(hue, 0.8f, 0.5f),
                                                     RoundedCornerShape(4.dp)
@@ -2038,34 +1921,37 @@ class MainActivity : ComponentActivity() {
                                 // 2. 濃淡選択 (グリッド)
                                 val lightnessLevels =
                                     listOf(0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f)
+                                val paletteHeight = 90
+                                val spacing = 8
+                                val itemHeight = ((paletteHeight - spacing) / 2) - 4
+
                                 LazyVerticalGrid(
                                     columns = GridCells.Fixed(4),
-                                    modifier = Modifier.height(160.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    modifier = Modifier.height(paletteHeight.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(spacing.dp),
+                                    verticalArrangement = Arrangement.spacedBy(spacing.dp),
+                                    userScrollEnabled = false
                                 ) {
                                     items(lightnessLevels) { level ->
-                                        val colorVariant =
-                                            if (isMonotone) Color.hsl(0f, 0f, level) else Color.hsl(
-                                                selectedHue,
-                                                0.7f,
-                                                level
-                                            )
+                                        val colorVariant = if (isMonotone) {
+                                            Color.hsl(0f, 0f, level)
+                                        } else {
+                                            Color.hsl(selectedHue, 0.7f, level)
+                                        }
                                         val colorLong = colorVariant.toArgb().toLong()
                                         val isSelected = currentColorByLong == colorLong
 
                                         Box(
                                             modifier = Modifier
-                                                .aspectRatio(1.5f)
+                                                .fillMaxWidth()
+                                                .height(itemHeight.dp)
                                                 .background(colorVariant, RoundedCornerShape(4.dp))
                                                 .border(
                                                     width = if (isSelected) 3.dp else 0.dp,
                                                     color = Color.White,
                                                     shape = RoundedCornerShape(4.dp)
                                                 )
-                                                .clickable {
-                                                    currentColorByLong = colorLong
-                                                }
+                                                .clickable { currentColorByLong = colorLong }
                                         )
                                     }
                                 }
@@ -2076,14 +1962,10 @@ class MainActivity : ComponentActivity() {
                                 Button(
                                     onClick = {
                                         scope.launch {
-                                            // 現在開いている setting (showCounterMenuSetting) の色だけを差し替えて保存
                                             val updatedSetting =
                                                 setting.copy(color = currentColorByLong)
                                             db.memoDao().updateCounter(updatedSetting)
-
-                                            // パネルを閉じる
                                             showColorEditPanel = false
-                                            // メニュー側の表示（プレビュー）も更新するために代入
                                             showCounterMenuSetting = updatedSetting
                                         }
                                     },
@@ -2110,6 +1992,174 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Text("閉じる", fontSize = 18.sp)
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+            if (showAddCounterDialog) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable { showAddCounterDialog = false }, // 外側タップで閉じる
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .clickable(enabled = false) { }, // ダイアログ内タップで閉じない
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF252525)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                "追加するボタンの色を選択",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+
+                            // 1. 原色選択 (LazyRow)
+                            val baseHues = listOf(
+                                0f,
+                                30f,
+                                60f,
+                                90f,
+                                120f,
+                                150f,
+                                180f,
+                                210f,
+                                240f,
+                                270f,
+                                300f,
+                                330f
+                            )
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            ) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .background(
+                                                brush = Brush.linearGradient(
+                                                    listOf(
+                                                        Color.White,
+                                                        Color.Gray,
+                                                        Color.Black
+                                                    )
+                                                ),
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .border(
+                                                width = if (isMonotone) 3.dp else 0.dp,
+                                                color = Color.White,
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .clickable { isMonotone = true }
+                                    )
+                                }
+                                items(baseHues) { hue ->
+                                    val isSelected = !isMonotone && selectedHue == hue
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .background(
+                                                Color.hsl(hue, 0.8f, 0.5f),
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .border(
+                                                width = if (isSelected) 3.dp else 0.dp,
+                                                color = Color.White,
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .clickable { isMonotone = false; selectedHue = hue }
+                                    )
+                                }
+                            }
+
+                            // 2. 濃淡選択 (グリッド)
+                            val lightnessLevels =
+                                listOf(0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f)
+                            val paletteHeight = 90
+                            val spacing = 8
+                            val itemHeight = ((paletteHeight - spacing) / 2) - 4
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(4),
+                                modifier = Modifier.height(paletteHeight.dp),
+                                horizontalArrangement = Arrangement.spacedBy(spacing.dp),
+                                verticalArrangement = Arrangement.spacedBy(spacing.dp),
+                                userScrollEnabled = false
+                            ) {
+                                items(lightnessLevels) { level ->
+                                    val colorVariant = if (isMonotone) {
+                                        Color.hsl(0f, 0f, level)
+                                    } else {
+                                        Color.hsl(selectedHue, 0.7f, level)
+                                    }
+                                    val colorLong = colorVariant.toArgb().toLong()
+                                    val isSelected = currentColorByLong == colorLong
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(itemHeight.dp)
+                                            .background(colorVariant, RoundedCornerShape(4.dp))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 0.dp,
+                                                color = Color.White,
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
+                                            .clickable { currentColorByLong = colorLong }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // 3. 【新規追加】確定ボタン
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        // 🟢 元々の追加ロジックをそのまま適用
+                                        db.memoDao().insertCounter(
+                                            CounterSetting(
+                                                machineId = machineId,
+                                                name = "",
+                                                displayOrder = counterSettings.size,
+                                                color = currentColorByLong
+                                            )
+                                        )
+
+                                        // 追加が終わったらダイアログを閉じる
+                                        showAddCounterDialog = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(
+                                        0xFFBB86FC
+                                    )
+                                )
+                            ) {
+                                Text(
+                                    "この色で追加する",
+                                    color = Color.Black,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
+                                onClick = { showAddCounterDialog = false },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp)
+                            ) {
+                                Text("閉じる", fontSize = 18.sp)
                             }
                         }
                     }
