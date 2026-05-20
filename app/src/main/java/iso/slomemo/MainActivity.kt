@@ -1455,15 +1455,23 @@ class MainActivity : ComponentActivity() {
                                                         selected = false,
                                                         onClick = { showCounterMenuSetting = setting },
                                                         label = {
-                                                            // 🟢 setting.name の代わりに、自動計算したアルファベットを表示
-                                                            Text(
-                                                                letterName,
-                                                                color = Color.Black
-                                                            )
+                                                            // 🟢 Boxを使って、チップの内側いっぱいに広げて完全に中央に配置する
+                                                            Box(
+                                                                modifier = Modifier.fillMaxSize(),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Text(
+                                                                    letterName,
+                                                                    color = Color.Black,
+                                                                    fontSize = 18.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                            }
                                                         },
                                                         modifier = Modifier
                                                             .width(44.dp)
                                                             .height(32.dp),
+                                                        // ❌ contentPadding = PaddingValues(0.dp) の行は削除してください
                                                         colors = InputChipDefaults.inputChipColors(
                                                             containerColor = Color(setting.color),
                                                             labelColor = Color.Black
@@ -1498,37 +1506,51 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        counterSettings.forEach { setting ->
+                                        counterSettings.forEachIndexed { index, setting -> // 🟢 indexed に変更
                                             key("col_${setting.id}") {
+
+                                                // 🟢 インデックス（0, 1, 2...）をアルファベット（A, B, C...）に変換
+                                                val letterName = ('A' + index).toString()
+
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    InputChip(
-                                                        // 🟢 modifier でチップのサイズを明示的に指定します
-                                                        modifier = Modifier
-                                                            .width(44.dp)   // 💡 お好みの横幅に調整してください
-                                                            .height(32.dp),  // 💡 お好みの高さに調整してください
-                                                        selected = false,
-                                                        onClick = { /* タップ無効 */ },
-                                                        label = {
-                                                            Text(
-                                                                setting.name,
-                                                                color = Color.Black,
-                                                                maxLines = 1 // 枠からはみ出さないようにガード
+                                                    // 🟢 最小サイズ制限を無効化
+                                                    CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+                                                        InputChip(
+                                                            modifier = Modifier
+                                                                .width(44.dp)
+                                                                .height(32.dp),
+                                                            selected = false,
+                                                            onClick = { /* タップ無効 */ },
+                                                            label = {
+                                                                // 🟢 Boxを使って、チップの内側いっぱいに広げて完全に中央に配置する
+                                                                Box(
+                                                                    modifier = Modifier.fillMaxSize(),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Text(
+                                                                        letterName, // 🟢 アルファベットを表示
+                                                                        color = Color.Black,
+                                                                        fontSize = 18.sp, // 🟢 18.sp
+                                                                        fontWeight = FontWeight.Bold, // 🟢 太字
+                                                                        maxLines = 1
+                                                                    )
+                                                                }
+                                                            },
+                                                            trailingIcon = null,
+                                                            colors = InputChipDefaults.inputChipColors(
+                                                                containerColor = Color(setting.color),
+                                                                labelColor = Color.Black
+                                                            ),
+                                                            border = InputChipDefaults.inputChipBorder(
+                                                                borderColor = Color(setting.color),
+                                                                enabled = true,
+                                                                selected = false
                                                             )
-                                                        },
-                                                        trailingIcon = null,
-                                                        colors = InputChipDefaults.inputChipColors(
-                                                            containerColor = Color(setting.color),
-                                                            labelColor = Color.Black
-                                                        ),
-                                                        border = InputChipDefaults.inputChipBorder(
-                                                            borderColor = Color(setting.color),
-                                                            enabled = true,
-                                                            selected = false
                                                         )
-                                                    )
+                                                    }
 
                                                     Spacer(modifier = Modifier.width(12.dp))
 
