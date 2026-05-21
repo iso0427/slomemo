@@ -81,14 +81,24 @@ data class AppSetting(
     val showTotalRotation: Boolean = true
 )
 
-// ⑦ 簡易カウンターの項目（ボタン名と色）を保存する
+// ⑦ 簡易カウンターの項目（ボタン名と色、自動計算ルール）を保存する
 @Entity(tableName = "counter_settings")
 data class CounterSetting(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val machineId: Int,        // 💡★ここを追加！これで機種と紐付けます
+    val machineId: Int,        // 機種と紐付け
     val name: String,         // 「ぶどう」などの名前
     val displayOrder: Int = 0, // 並び順
-    val color: Long = 0xFFBB86FC
+    val color: Long = 0xFFBB86FC,
+
+    // 🟢 【自動計算用に追加】
+    // 1. 計算方法：0 = なし, 1 = 分数（1/X表示）, 2 = パーセント（%表示）
+    val calcType: Int = 0,
+
+    // 2. 計算相手のタイプ：0 = 総回転数、1 = 他のカウントボタン
+    val targetType: Int = 0,
+
+    // 3. 計算相手のID：targetTypeが「他のカウントボタン(1)」のとき、そのボタンの CounterSetting.id を入れる
+    val targetCounterId: Int? = null
 )
 
 // ⑧ 各カウンターの現在の数値を保存する

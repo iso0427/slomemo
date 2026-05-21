@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -69,6 +69,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -96,7 +97,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -248,7 +248,7 @@ class MainActivity : ComponentActivity() {
         var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
         var machineName by remember { mutableStateOf("読み込み中...") }
 
-// --- 5. カウンター設定・演出 ---
+        // --- 5. カウンター設定・演出 ---
         var selectedHue by remember { mutableStateOf(0f) }
         var isMonotone by remember { mutableStateOf(false) }
         var currentColorByLong by remember { mutableStateOf(0xFFBB86FC) }
@@ -261,7 +261,7 @@ class MainActivity : ComponentActivity() {
         val counterSettings by db.memoDao().getCountersByMachineFlow(machineId)
             .collectAsState(initial = emptyList())
 
-// 💡 2. カウンターの数字（カウント数）も、今の機種（machineId）に紐づくものだけを監視
+        // 💡 2. カウンターの数字（カウント数）も、今の機種（machineId）に紐づくものだけを監視
         val currentCounterValues by db.memoDao().getCounterValuesByMachineFlow(machineId)
             .collectAsState(initial = emptyList())
         var newCounterName by remember { mutableStateOf("") }
@@ -272,6 +272,12 @@ class MainActivity : ComponentActivity() {
         // 💡 総回転数ダイアログ用の状態を新設
         var showRotationDialog by remember { mutableStateOf(false) }
         var rotationInputText by remember { mutableStateOf("7777") } // とりあえず初期値
+
+        // 🟢 【新規追加】自動計算設定ダイアログ用の状態
+        var showCalcSettingDialog by remember { mutableStateOf<CounterSetting?>(null) }
+        var selectedCalcType by remember { mutableStateOf(0) }
+        var selectedTargetType by remember { mutableStateOf(0) }
+        var selectedTargetCounterId by remember { mutableStateOf<Int?>(null) }
 
         // --- 6. データの読み込みと更新 ---
         LaunchedEffect(Unit) {
@@ -285,7 +291,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-// Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
+        // Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
         LaunchedEffect(appSettingFromFlow) {
             appSettingFromFlow?.let {
                 showSimpleCounter = it.showSimpleCounter
@@ -304,7 +310,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-// カラムの重み計算
+        // カラムの重み計算
         val columnWeights = remember(columns, valuesMap) {
             val maxScores = mutableMapOf<Int, Float>()
             valuesMap.values.flatten().forEach { memoValue ->
@@ -1199,6 +1205,84 @@ class MainActivity : ComponentActivity() {
                                             fontSize = 18.sp
                                         )
                                     }
+
+                                    if (showCalcSettingDialog != null) {
+                                        val currentSetting = showCalcSettingDialog!!
+                                        val otherCounters = counterSettings.filter { it.id != currentSetting.id }
+                                        val currentIdx = counterSettings.indexOfFirst { it.id == currentSetting.id }
+                                        val currentLetter = if (currentIdx >= 0) ('A' + currentIdx).toString() else ""
+
+                                        // 🟢 Dialog コンポーネントで包むことで、自動的に最前面・中央に配置されます
+                                        androidx.compose.ui.window.Dialog(
+                                            onDismissRequest = { showCalcSettingDialog = null } // 外側をタップしたり戻るキーで閉じる
+                                        ) {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .wrapContentHeight(),
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = Color(0xFF252525) // ダイアログの背景色
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .padding(20.dp) // 少し余裕を持たせる
+                                                ) {
+                                                    Text(
+                                                        text = "ボタン [ $currentLetter ] の出現率設定",
+                                                        color = Color.White,
+                                                        fontSize = 20.sp, // 少し大きく
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(bottom = 20.dp)
+                                                    )
+
+                                                    Text("■ 計算方法", color = Color.LightGray, fontSize = 14.sp)
+
+                                                    // --- 計算方法の選択肢 ---
+                                                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                                        val calcOptions = listOf("なし" to 0, "分数 (1/X)" to 1, "パーセント (%)" to 2)
+                                                        calcOptions.forEach { (label, value) ->
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .clickable { selectedCalcType = value }
+                                                                    .padding(vertical = 4.dp)
+                                                            ) {
+                                                                RadioButton(
+                                                                    selected = (selectedCalcType == value),
+                                                                    onClick = { selectedCalcType = value }
+                                                                )
+                                                                Text(label, color = mainText, fontSize = 16.sp)
+                                                            }
+                                                        }
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(24.dp))
+
+                                                    // --- アクションボタン ---
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.End
+                                                    ) {
+                                                        TextButton(onClick = { showCalcSettingDialog = null }) {
+                                                            Text("キャンセル", color = Color.LightGray)
+                                                        }
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Button(
+                                                            onClick = {
+                                                                // ここで確定（保存処理は後ほど実装）
+                                                                showCalcSettingDialog = null
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBB86FC))
+                                                        ) {
+                                                            Text("適用", color = Color.Black)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     // --- 「タップ時にフラッシュさせる」の Row の直後に挿入 ---
                                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -1523,7 +1607,12 @@ class MainActivity : ComponentActivity() {
                                                                 .width(44.dp)
                                                                 .height(32.dp),
                                                             selected = false,
-                                                            onClick = { /* タップ無効 */ },
+                                                            onClick = {
+                                                                showCalcSettingDialog = setting
+                                                                selectedCalcType = setting.calcType
+                                                                selectedTargetType = setting.targetType
+                                                                selectedTargetCounterId = setting.targetCounterId
+                                                            },
                                                             label = {
                                                                 // 🟢 Boxを使って、チップの内側いっぱいに広げて完全に中央に配置する
                                                                 Box(
@@ -1563,16 +1652,6 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                }
-                                if (!showSimpleCounter) {
-                                    Box(
-                                        modifier = Modifier
-                                            .matchParentSize() // 上の Column と全く同じサイズになる
-                                            .pointerInput(Unit) {
-                                                detectTapGestures { /* タップを吸収 */ }
-                                            }
-                                            .clickable(enabled = false) { }
-                                    )
                                 }
                             }
                         }
