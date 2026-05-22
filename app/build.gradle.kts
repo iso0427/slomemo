@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     id("org.jetbrains.kotlin.android")   // ← これ追加
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.compose)
 }
 
 // --- ファイルから秘密情報を読み込む設定 ---
@@ -59,10 +60,6 @@ android {
     buildFeatures {
         compose = true
     }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
-    }
 }
 
 kotlin {
@@ -85,9 +82,9 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    implementation("androidx.room:room-runtime:2.6.0")
-    ksp("androidx.room:room-compiler:2.6.0")
-    implementation("androidx.room:room-ktx:2.6.0")
+    implementation("androidx.room:room-runtime:2.7.2")
+    ksp("androidx.room:room-compiler:2.7.2")
+    implementation("androidx.room:room-ktx:2.7.2")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
     implementation("androidx.compose.material:material-icons-extended")
