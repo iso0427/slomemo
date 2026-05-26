@@ -1387,7 +1387,7 @@ class MainActivity : ComponentActivity() {
                                             fontSize = 18.sp
                                         )
 
-                                        val rotationFontSizeOptions = listOf(15, 30, 45, 60, 75)
+                                        val rotationFontSizeOptions = listOf(10, 20, 30, 40, 50)
 
                                         Row(
                                             modifier = Modifier
@@ -1426,11 +1426,11 @@ class MainActivity : ComponentActivity() {
                                                 ) {
                                                     Text(
                                                         text = when (rValue) {
-                                                            15 -> "1"
-                                                            30 -> "2"
-                                                            45 -> "3"
-                                                            60 -> "4"
-                                                            75 -> "5"
+                                                            10 -> "1"
+                                                            20 -> "2"
+                                                            30 -> "3"
+                                                            40 -> "4"
+                                                            50 -> "5"
                                                             else -> ""
                                                         },
                                                         color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
@@ -1447,7 +1447,7 @@ class MainActivity : ComponentActivity() {
                                             fontSize = 18.sp
                                         )
 
-                                        val fontSizeOptions = listOf(15, 30, 45, 60, 75)
+                                        val fontSizeOptions = listOf(10, 20, 30, 40, 50)
 
                                         Row(
                                             modifier = Modifier
@@ -1486,11 +1486,11 @@ class MainActivity : ComponentActivity() {
                                                 ) {
                                                     Text(
                                                         text = when (fValue) {
-                                                            15 -> "1"
-                                                            30 -> "2"
-                                                            45 -> "3"
-                                                            60 -> "4"
-                                                            75 -> "5"
+                                                            10 -> "1"
+                                                            20 -> "2"
+                                                            30 -> "3"
+                                                            40 -> "4"
+                                                            50 -> "5"
                                                             else -> ""
                                                         },
                                                         color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
@@ -1507,7 +1507,7 @@ class MainActivity : ComponentActivity() {
                                             fontSize = 18.sp
                                         )
 
-                                        val rateFontSizeOptions = listOf(30, 45, 60, 75, 90)
+                                        val rateFontSizeOptions = listOf(10, 30, 50, 70, 90)
 
                                         Row(
                                             modifier = Modifier
@@ -1546,10 +1546,10 @@ class MainActivity : ComponentActivity() {
                                                 ) {
                                                     Text(
                                                         text = when (rFValue) {
-                                                            30 -> "1"
-                                                            45 -> "2"
-                                                            60 -> "3"
-                                                            75 -> "4"
+                                                            10 -> "1"
+                                                            30 -> "2"
+                                                            50 -> "3"
+                                                            70 -> "4"
                                                             90 -> "5"
                                                             else -> ""
                                                         },
@@ -1561,11 +1561,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(8.dp))
-
-
-
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(20.dp))
 
                                         Text(
                                             "カウントボタンの追加",
@@ -1591,7 +1587,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(20.dp))
 
                                         Text(
                                             "現在のボタン一覧(タップで入れ替え・色変更・削除)",
@@ -1649,7 +1645,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(20.dp))
 
                                         Text(
                                             "カウント処理一覧(タップで計算処理編集)",
