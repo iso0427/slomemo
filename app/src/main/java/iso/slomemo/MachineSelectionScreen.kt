@@ -96,7 +96,7 @@ fun MachineSelectionScreen(
                     val allMachines = db.machineDao().getAllMachinesOnce()
 
                     val csvString = StringBuilder().apply {
-                        // ヘッダー行（何のデータか判別するためのType列を追加）
+                        // ヘッダー行
                         append("TYPE,ID,PARENT_ID,NAME,VALUE1,VALUE2,ORDER,BOOL\n")
 
                         allMachines.forEach { machine ->
@@ -115,12 +115,20 @@ fun MachineSelectionScreen(
                                     append("OPTION,${option.id},${column.id},${option.optionName},,,,\n")
                                 }
                             }
+
+                            // 🟢 【修正版】4. その機種に紐づくカウンター設定（CounterSetting）を取得して書き出す
+                            // machine.id が Long型の場合を考慮して、.toInt() で型を合わせています
+                            val counterSettings =
+                                db.memoDao().getCounterSettingsByMachineDirect(machine.id.toInt())
+                            counterSettings.forEach { setting ->
+                                // COUNTER_SETTING, ID, 機種ID, 名前, 色(Hex値), 計算タイプ, 計算対象タイプ, 計算対象カウンターID
+                                append("COUNTER_SETTING,${setting.id},${machine.id},${setting.name},${setting.color},${setting.calcType},${setting.targetType},${setting.targetCounterId ?: ""}\n")
+                            }
                         }
 
-                        // バックアップ側の RULE ループ（4. 連動ルール）
+                        // バックアップ側の RULE ループ（5. 連動ルール）
                         val rules = db.memoDao().getAllAutoInputRules()
                         rules.forEach { rule ->
-                            // 5列目に targetColumnId、6列目に triggerColumnId を入れる
                             append("RULE,${rule.id},,${rule.triggerValue},${rule.targetValue},${rule.targetColumnId},${rule.triggerColumnId},${rule.isNextRow}\n")
                         }
                     }.toString()
@@ -136,7 +144,6 @@ fun MachineSelectionScreen(
         }
     }
 
-    // ファイルを選択して読み込むためのランチャー
     val importCsvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -152,6 +159,11 @@ fun MachineSelectionScreen(
                         db.machineDao().deleteAllMachines()
                         db.memoDao().deleteAllRecords()
                         db.memoDao().deleteAllMemoValues()
+
+                        // 🟢 【追加】カウンター設定と現在のカウント値も一旦すべてリセット
+                        db.memoDao().deleteAllCounterSettings() // ※この関数の有無は後述
+                        db.memoDao().deleteAllCounterValues()   // ※この関数の有無は後述
+
                         // ルールも一旦リセットする場合
                         db.memoDao().getAllAutoInputRules().forEach {
                             db.memoDao().deleteRulesByTriggerColumn(it.triggerColumnId)
@@ -160,6 +172,11 @@ fun MachineSelectionScreen(
                         // IDの紐付け直し用マップ
                         val machineIdMap = mutableMapOf<Int, Int>() // 旧ID -> 新ID
                         val columnIdMap = mutableMapOf<Int, Int>()  // 旧ID -> 新ID
+                        // 🟢 【追加】カウンターの旧ID -> 新IDのマッピング（計算相手の特定用）
+                        val counterIdMap = mutableMapOf<Int, Int>()
+
+                        // 復元後に「他のボタンを計算対象にしている設定」をまとめて更新するためのリスト
+                        val pendingTargets = mutableListOf<Pair<Int, Int>>() // 新カウンターID -> 旧ターゲットカウンターID
 
                         // 2. 解析開始
                         lines.drop(1).forEach { line ->
@@ -174,14 +191,17 @@ fun MachineSelectionScreen(
                             when (type) {
                                 "MACHINE" -> {
                                     val newId = db.machineDao().insertMachine(
-                                        Machine(name = name, position = tokens[6].toIntOrNull() ?: 0)
+                                        Machine(
+                                            name = name,
+                                            position = tokens[6].toIntOrNull() ?: 0
+                                        )
                                     ).toInt()
                                     machineIdMap[oldId] = newId
                                 }
+
                                 "COLUMN" -> {
                                     val newMachineId = machineIdMap[parentId] ?: return@forEach
 
-                                    // 保存時に「|」で区切った選択肢リストを分解して戻す
                                     val optionsList = tokens[4].replace("\"", "").let {
                                         if (it.isEmpty()) emptyList<String>() else it.split("|")
                                     }
@@ -190,16 +210,16 @@ fun MachineSelectionScreen(
                                         ColumnSetting(
                                             machineId = newMachineId,
                                             name = name,
-                                            options = optionsList, // ★ここで選択肢リストが復元される
+                                            options = optionsList,
                                             displayOrder = tokens[6].toIntOrNull() ?: 0,
                                             showTextField = tokens[7].toBoolean()
                                         )
                                     ).toInt()
                                     columnIdMap[oldId] = newId
                                 }
+
                                 "OPTION" -> {
                                     val newColumnId = columnIdMap[parentId] ?: return@forEach
-                                    // SelectionOptionテーブル（連動用）も一応復元しておく
                                     db.memoDao().insertSelectionOption(
                                         SelectionOption(
                                             columnId = newColumnId,
@@ -207,13 +227,42 @@ fun MachineSelectionScreen(
                                         )
                                     )
                                 }
+
+                                // 🟢 【追加】CSVからカウンター設定を読み込んでデータベースに保存
+                                "COUNTER_SETTING" -> {
+                                    val newMachineId = machineIdMap[parentId] ?: return@forEach
+                                    val oldTargetCounterId = tokens[7].toIntOrNull()
+
+                                    // まずはターゲットIDを空（null）の状態でインサートして新しいIDを発行してもらう
+                                    val newCounterId = db.memoDao().insertCounterSettingReturnId(
+                                        CounterSetting(
+                                            machineId = newMachineId,
+                                            name = name,
+                                            color = tokens[4].toLongOrNull() ?: 0xFFBB86FC,
+                                            calcType = tokens[5].toIntOrNull() ?: 0,
+                                            targetType = tokens[6].toIntOrNull() ?: 0,
+                                            targetCounterId = null // 後から紐付け直す
+                                        )
+                                    ).toInt()
+
+                                    // マップに登録
+                                    counterIdMap[oldId] = newCounterId
+
+                                    // もし計算相手が「他のボタン」だったら、後で紐付け直すためにリストにメモ
+                                    if (tokens[6].toIntOrNull() == 1 && oldTargetCounterId != null) {
+                                        pendingTargets.add(Pair(newCounterId, oldTargetCounterId))
+                                    }
+
+                                    // 履歴（値）はリセット状態にするので、初期値 0 でテーブルを作る
+                                    db.memoDao().insertCounterValue(CounterValue(counterId = newCounterId, count = 0))
+                                }
+
                                 "RULE" -> {
-                                    // triggerColumnId(tokens[6]) と targetColumnId(tokens[5]と仮定) を新IDに変換
                                     val oldTriggerId = tokens[6].toIntOrNull() ?: 0
                                     val oldTargetId = tokens[5].toIntOrNull() ?: 0
 
                                     val newTriggerId = columnIdMap[oldTriggerId] ?: return@forEach
-                                    val newTargetId = columnIdMap[oldTargetId] ?: 0 // targetIdが不明でも0で通す
+                                    val newTargetId = columnIdMap[oldTargetId] ?: 0
 
                                     db.memoDao().insertAutoInputRule(
                                         AutoInputRule(
@@ -227,12 +276,27 @@ fun MachineSelectionScreen(
                                 }
                             }
                         }
+
+                        // 🟢 【追加】すべてのカウンターを入れ終わった後、計算対象のIDを新しいIDに紐付け直す
+                        pendingTargets.forEach { (newCounterId, oldTargetId) ->
+                            val newTargetId = counterIdMap[oldTargetId]
+                            if (newTargetId != null) {
+                                db.memoDao().updateCounterTargetId(newCounterId, newTargetId)
+                            }
+                        }
                     }
-                    // 成功を知らせるトーストを出すと分かりやすい
-                    android.widget.Toast.makeText(context, "データを復元しました", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(
+                        context,
+                        "データを復元しました",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    android.widget.Toast.makeText(context, "インポートに失敗しました", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(
+                        context,
+                        "インポートに失敗しました",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -428,7 +492,10 @@ fun MachineSelectionScreen(
                                 menuExpanded = false
 
                                 // 今日の日付を取得 (例: 20260507_1230)
-                                val timeStamp = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.getDefault()).format(java.util.Date())
+                                val timeStamp = java.text.SimpleDateFormat(
+                                    "yyyyMMdd_HHmm",
+                                    java.util.Locale.getDefault()
+                                ).format(java.util.Date())
                                 val fileName = "slomemo_backup_$timeStamp.csv"
 
                                 createCsvLauncher.launch(fileName)
@@ -923,6 +990,7 @@ suspend fun importFromCsv(lines: List<String>, db: AppDatabase) {
                 ).toInt()
                 machineIdMap[oldId] = newId
             }
+
             "COLUMN" -> {
                 val newMachineId = machineIdMap[parentId] ?: return@forEach
                 val newId = db.memoDao().insertColumnWithIdReturn( // InsertでLongを返すようにDaoを調整
@@ -935,11 +1003,13 @@ suspend fun importFromCsv(lines: List<String>, db: AppDatabase) {
                 ).toInt()
                 columnIdMap[oldId] = newId
             }
+
             "OPTION" -> {
                 val newColumnId = columnIdMap[parentId] ?: return@forEach
                 // SelectionOptionテーブルへ保存
                 // db.memoDao().insertOption(...) を使う
             }
+
             "RULE" -> {
                 // AutoInputRuleの復元ロジック
             }

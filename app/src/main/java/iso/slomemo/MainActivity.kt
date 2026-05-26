@@ -97,6 +97,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -113,6 +115,11 @@ import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+// 🟢 どこにも囲まれていない「外側」のここにポツンと貼り付けます！
+val SevenSegmentFontFamily = FontFamily(
+    Font(R.font.dseg7classic_bold, FontWeight.Normal)
+)
 
 class MainActivity : ComponentActivity() {
 
@@ -290,9 +297,13 @@ class MainActivity : ComponentActivity() {
                 showFlashEffect = savedSetting.showFlashEffect
                 showCounterName = savedSetting.showCounterName
             }
+
+            // 🟢 【追加】共通設定からではなく、この機種の総回転数をDBから読み込む
+            val savedRotation = db.memoDao().getRotationValue(machineId)
+            rotationInputText = savedRotation?.rotationText ?: "0000"
         }
 
-        // Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
+// Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
         LaunchedEffect(appSettingFromFlow) {
             appSettingFromFlow?.let {
                 showSimpleCounter = it.showSimpleCounter
@@ -457,7 +468,8 @@ class MainActivity : ComponentActivity() {
 
                         // 🟢 【他のボタン計算用】全カウンターの最新カウント状態を一括で Map にして監視する
                         val allCountsMap = counterSettings.associate { setting ->
-                            setting.id to viewModel.dao.getCounterCountFlow(setting.id).collectAsState(initial = 0).value
+                            setting.id to viewModel.dao.getCounterCountFlow(setting.id)
+                                .collectAsState(initial = 0).value
                         }
 
                         Row(
@@ -495,7 +507,8 @@ class MainActivity : ComponentActivity() {
                                         text = rotationInputText,
                                         color = Color.White,
                                         fontSize = currentAppSetting.rotationFontSize.sp,
-                                        fontWeight = FontWeight.ExtraBold,
+                                        fontWeight = FontWeight.Normal, // 7セグフォント（ボールド版）に合わせてNormalに
+                                        fontFamily = SevenSegmentFontFamily, // 🟢 【追加】7セグフォントを適用
                                         maxLines = 1,
                                         softWrap = false
                                     )
@@ -510,34 +523,38 @@ class MainActivity : ComponentActivity() {
                                 val count = allCountsMap[setting.id] ?: 0
                                 val buttonColor = Color(setting.color)
 
-                                // 🟢 【追加】リアルタイム確率テキストの計算ロジック
-                                val rateText = remember(count, rotationInputText, allCountsMap, setting) {
-                                    if (count == 0 || setting.calcType == 0) return@remember ""
+                                // 🟢 【ここから差し替わったコード】
+                                val rateTextPair =
+                                    remember(count, rotationInputText, allCountsMap, setting) {
+                                        if (count == 0 || setting.calcType == 0) return@remember null
 
-                                    // 1. 分母（対象）の数値を割り出す
-                                    val targetValue = if (setting.targetType == 0) {
-                                        rotationInputText.toIntOrNull() ?: 0 // 総回転数
-                                    } else {
-                                        allCountsMap[setting.targetCounterId] ?: 0 // 他の指定されたボタンのカウント数
+                                        // 1. 分母（対象）の数値を割り出す
+                                        val targetValue = if (setting.targetType == 0) {
+                                            rotationInputText.toIntOrNull() ?: 0 // 総回転数
+                                        } else {
+                                            allCountsMap[setting.targetCounterId]
+                                                ?: 0 // 他の指定されたボタンのカウント数
+                                        }
+
+                                        if (targetValue <= 0) return@remember Pair("-.-", "")
+
+                                        // 2. 設定された計算方法（分数 or %）でフォーマット
+                                        when (setting.calcType) {
+                                            1 -> { // 分数 (1/X) -> 上段「1/」 下段「50.0」
+                                                val result = targetValue.toDouble() / count
+                                                Pair("1/", String.format("%.1f", result))
+                                            }
+
+                                            2 -> { // パーセント (%) -> 上段「33.3」 下段「%」
+                                                val result = (count.toDouble() / targetValue) * 100
+                                                Pair(String.format("%.1f", result), "%")
+                                            }
+
+                                            else -> null
+                                        }
                                     }
 
-                                    if (targetValue <= 0) return@remember "-.-"
-
-                                    // 2. 設定された計算方法（分数 or %）でフォーマット
-                                    when (setting.calcType) {
-                                        1 -> { // 分数 (1/X)
-                                            val result = targetValue.toDouble() / count
-                                            "1/${String.format("%.1f", result)}"
-                                        }
-                                        2 -> { // パーセント (%)
-                                            val result = (count.toDouble() / targetValue) * 100
-                                            "${String.format("%.2f", result)}%"
-                                        }
-                                        else -> ""
-                                    }
-                                }
-
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .weight(1f) // 残りのスペースを均等に分ける
                                         .height(currentAppSetting.counterHeight.dp)
@@ -590,29 +607,50 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                             }
-                                        ),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
+                                        )
+                                        .padding(horizontal = 6.dp), // ボタンの内側に少しだけ左右の余白を確保
+                                    verticalAlignment = Alignment.CenterVertically, // 上下の中心を揃える
+                                    horizontalArrangement = Arrangement.Center      // 左右の中心に集める
                                 ) {
-                                    // 上段：カウント数
+                                    // 🟢 左側：計算された確率テキスト（上下に改行して表示）
+                                    if (rateTextPair != null) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                            modifier = Modifier.padding(end = 6.dp) // カウント数との間のすき間
+                                        ) {
+                                            // 上段（「1/」 または 「33.3」）
+                                            Text(
+                                                text = rateTextPair.first,
+                                                color = Color(0xFF222222),
+                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(
+                                                    10f
+                                                ).sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                            // 下段（「50.0」 または 「%」）
+                                            Text(
+                                                text = rateTextPair.second,
+                                                color = Color(0xFF222222),
+                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(
+                                                    10f
+                                                ).sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+
+                                    // 🟢 右側：カウント数
                                     Text(
                                         text = count.toString(),
                                         color = Color(0xFF111111),
-                                        // 確率表示が増える分、文字サイズを選択サイズより少しだけ小さく調整して綺麗に収める
-                                        fontSize = (currentAppSetting.counterFontSize * 0.85f).sp,
-                                        fontWeight = FontWeight.ExtraBold
+                                        fontSize = (currentAppSetting.counterFontSize * 1.0f).sp,
+                                        // 7セグフォントがレギュラー（Normal）なので、文字潰れを防ぐため変更
+                                        fontWeight = FontWeight.Normal,
+                                        fontFamily = SevenSegmentFontFamily // 🟢 7セグフォントを適用！
                                     )
-
-                                    // 🟢 下段：計算された確率テキストを表示（設定ありの時だけ枠を確保して出す）
-                                    if (rateText.isNotEmpty()) {
-                                        Text(
-                                            text = rateText,
-                                            color = Color(0xFF222222), // 暗めの色で見やすく
-                                            fontSize = (currentAppSetting.counterFontSize * 0.45f).coerceAtLeast(10f).sp, // 潰れないように最低10spを確保
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -1168,64 +1206,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                             .alpha(if (showSimpleCounter) 1f else 0.4f)
                                     ) {
-                                        // 1. フラッシュ設定のスイッチ
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp)
-                                                .clickable(enabled = showSimpleCounter) {
-                                                    showFlashEffect = !showFlashEffect
-                                                    scope.launch {
-                                                        db.memoDao().saveAppSetting(
-                                                            currentAppSetting.copy(showFlashEffect = showFlashEffect)
-                                                        )
-                                                    }
-                                                }
-                                                .padding(vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Switch(
-                                                checked = showFlashEffect,
-                                                onCheckedChange = null,
-                                                enabled = showSimpleCounter
-                                            )
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text(
-                                                text = "タップ時にヘッダーをフラッシュ",
-                                                color = mainText,
-                                                fontSize = 18.sp
-                                            )
-                                        }
-                                        // --- ② 画面輝度も上げるスイッチ ---
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp)
-                                                .clickable(enabled = showSimpleCounter) {
-                                                    val nextValue =
-                                                        !currentAppSetting.useMaxBrightness
-                                                    scope.launch {
-                                                        db.memoDao().saveAppSetting(
-                                                            currentAppSetting.copy(useMaxBrightness = nextValue)
-                                                        )
-                                                    }
-                                                }
-                                                .padding(vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Switch(
-                                                checked = currentAppSetting.useMaxBrightness,
-                                                onCheckedChange = null,
-                                                enabled = showSimpleCounter
-                                            )
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text(
-                                                text = "タップ時に画面をフラッシュ",
-                                                color = mainText,
-                                                fontSize = 18.sp
-                                            )
-                                        }
-                                        // --- ③ 総回転数を表示するスイッチ ---
+                                        // ---①  総回転数を表示するスイッチ ---
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -1254,6 +1235,63 @@ class MainActivity : ComponentActivity() {
                                                 fontSize = 18.sp
                                             )
                                         }
+                                        // ② フラッシュ設定のスイッチ
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp)
+                                                .clickable(enabled = showSimpleCounter) {
+                                                    showFlashEffect = !showFlashEffect
+                                                    scope.launch {
+                                                        db.memoDao().saveAppSetting(
+                                                            currentAppSetting.copy(showFlashEffect = showFlashEffect)
+                                                        )
+                                                    }
+                                                }
+                                                .padding(vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Switch(
+                                                checked = showFlashEffect,
+                                                onCheckedChange = null,
+                                                enabled = showSimpleCounter
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Text(
+                                                text = "タップ時にヘッダーをフラッシュ",
+                                                color = mainText,
+                                                fontSize = 18.sp
+                                            )
+                                        }
+                                        // --- ③ 画面輝度を上げるスイッチ ---
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp)
+                                                .clickable(enabled = showSimpleCounter) {
+                                                    val nextValue =
+                                                        !currentAppSetting.useMaxBrightness
+                                                    scope.launch {
+                                                        db.memoDao().saveAppSetting(
+                                                            currentAppSetting.copy(useMaxBrightness = nextValue)
+                                                        )
+                                                    }
+                                                }
+                                                .padding(vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Switch(
+                                                checked = currentAppSetting.useMaxBrightness,
+                                                onCheckedChange = null,
+                                                enabled = showSimpleCounter
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Text(
+                                                text = "タップ時に画面をフラッシュ",
+                                                color = mainText,
+                                                fontSize = 18.sp
+                                            )
+                                        }
 
                                         Spacer(modifier = Modifier.height(24.dp))
 
@@ -1268,7 +1306,7 @@ class MainActivity : ComponentActivity() {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 12.dp),
+                                                .padding(top = 2.dp, bottom = 12.dp),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             heightOptions.forEach { hValue ->
@@ -1288,6 +1326,8 @@ class MainActivity : ComponentActivity() {
                                                         .clickable(enabled = showSimpleCounter) {
                                                             scope.launch {
                                                                 val newHeight = hValue
+
+                                                                // 🟢 カウンター文字サイズの判定
                                                                 val newFontSize =
                                                                     if (currentAppSetting.counterFontSize > newHeight) {
                                                                         newHeight
@@ -1295,10 +1335,29 @@ class MainActivity : ComponentActivity() {
                                                                         currentAppSetting.counterFontSize
                                                                     }
 
+                                                                // 🟢 総回転数文字サイズの判定を追加
+                                                                val newRotationFontSize =
+                                                                    if (currentAppSetting.rotationFontSize > newHeight) {
+                                                                        newHeight
+                                                                    } else {
+                                                                        currentAppSetting.rotationFontSize
+                                                                    }
+
+                                                                // 🟢 確率表示文字サイズの判定を追加
+                                                                val newRateFontSize =
+                                                                    if (currentAppSetting.rateFontSize > newHeight) {
+                                                                        newHeight
+                                                                    } else {
+                                                                        currentAppSetting.rateFontSize
+                                                                    }
+
+                                                                // すべてのサイズを安全な値に調整して一括保存
                                                                 db.memoDao().saveAppSetting(
                                                                     currentAppSetting.copy(
                                                                         counterHeight = newHeight,
-                                                                        counterFontSize = newFontSize
+                                                                        counterFontSize = newFontSize,
+                                                                        rotationFontSize = newRotationFontSize,
+                                                                        rateFontSize = newRateFontSize
                                                                     )
                                                                 )
                                                             }
@@ -1322,82 +1381,18 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(8.dp))
-
-                                        Text(
-                                            text = "カウンター文字サイズ",
-                                            color = mainText,
-                                            fontSize = 18.sp
-                                        )
-
-                                        val fontSizeOptions = listOf(30, 45, 60, 75, 90)
-
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 12.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            fontSizeOptions.forEach { fValue ->
-                                                val isEnabled =
-                                                    fValue <= currentAppSetting.counterHeight
-                                                val isSelected =
-                                                    currentAppSetting.counterFontSize == fValue
-
-                                                Box(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(32.dp)
-                                                        .background(
-                                                            color = when {
-                                                                isSelected -> Color(0xFFBB86FC)
-                                                                isEnabled -> Color(0xFF333333)
-                                                                else -> Color(0xFF1A1A1A)
-                                                            },
-                                                            shape = RoundedCornerShape(8.dp)
-                                                        )
-                                                        .clickable(enabled = showSimpleCounter && isEnabled) {
-                                                            scope.launch {
-                                                                db.memoDao().saveAppSetting(
-                                                                    currentAppSetting.copy(
-                                                                        counterFontSize = fValue
-                                                                    )
-                                                                )
-                                                            }
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = when (fValue) {
-                                                            30 -> "1"
-                                                            45 -> "2"
-                                                            60 -> "3"
-                                                            75 -> "4"
-                                                            90 -> "5"
-                                                            else -> ""
-                                                        },
-                                                        color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
-                                                        fontSize = 24.sp,
-                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-
                                         Text(
                                             text = "総回転数文字サイズ",
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
 
-                                        val rotationFontSizeOptions = listOf(30, 45, 60, 75, 90)
+                                        val rotationFontSizeOptions = listOf(15, 30, 45, 60, 75)
 
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 12.dp),
+                                                .padding(top = 2.dp, bottom = 12.dp),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             rotationFontSizeOptions.forEach { rValue ->
@@ -1431,6 +1426,126 @@ class MainActivity : ComponentActivity() {
                                                 ) {
                                                     Text(
                                                         text = when (rValue) {
+                                                            15 -> "1"
+                                                            30 -> "2"
+                                                            45 -> "3"
+                                                            60 -> "4"
+                                                            75 -> "5"
+                                                            else -> ""
+                                                        },
+                                                        color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
+                                                        fontSize = 24.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Text(
+                                            text = "カウンター文字サイズ",
+                                            color = mainText,
+                                            fontSize = 18.sp
+                                        )
+
+                                        val fontSizeOptions = listOf(15, 30, 45, 60, 75)
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 2.dp, bottom = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            fontSizeOptions.forEach { fValue ->
+                                                val isEnabled =
+                                                    fValue <= currentAppSetting.counterHeight
+                                                val isSelected =
+                                                    currentAppSetting.counterFontSize == fValue
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(32.dp)
+                                                        .background(
+                                                            color = when {
+                                                                isSelected -> Color(0xFFBB86FC)
+                                                                isEnabled -> Color(0xFF333333)
+                                                                else -> Color(0xFF1A1A1A)
+                                                            },
+                                                            shape = RoundedCornerShape(8.dp)
+                                                        )
+                                                        .clickable(enabled = showSimpleCounter && isEnabled) {
+                                                            scope.launch {
+                                                                db.memoDao().saveAppSetting(
+                                                                    currentAppSetting.copy(
+                                                                        counterFontSize = fValue
+                                                                    )
+                                                                )
+                                                            }
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = when (fValue) {
+                                                            15 -> "1"
+                                                            30 -> "2"
+                                                            45 -> "3"
+                                                            60 -> "4"
+                                                            75 -> "5"
+                                                            else -> ""
+                                                        },
+                                                        color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
+                                                        fontSize = 24.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Text(
+                                            text = "確率表示文字サイズ",
+                                            color = mainText,
+                                            fontSize = 18.sp
+                                        )
+
+                                        val rateFontSizeOptions = listOf(30, 45, 60, 75, 90)
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 2.dp, bottom = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            rateFontSizeOptions.forEach { rFValue ->
+                                                val isEnabled =
+                                                    rFValue <= currentAppSetting.counterHeight
+                                                val isSelected =
+                                                    currentAppSetting.rateFontSize == rFValue
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(32.dp)
+                                                        .background(
+                                                            color = when {
+                                                                isSelected -> Color(0xFFBB86FC)
+                                                                isEnabled -> Color(0xFF333333)
+                                                                else -> Color(0xFF1A1A1A)
+                                                            },
+                                                            shape = RoundedCornerShape(8.dp)
+                                                        )
+                                                        .clickable(enabled = showSimpleCounter && isEnabled) {
+                                                            scope.launch {
+                                                                db.memoDao().saveAppSetting(
+                                                                    currentAppSetting.copy(
+                                                                        rateFontSize = rFValue
+                                                                    )
+                                                                )
+                                                            }
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = when (rFValue) {
                                                             30 -> "1"
                                                             45 -> "2"
                                                             60 -> "3"
@@ -1445,6 +1560,10 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+
 
                                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -1475,7 +1594,7 @@ class MainActivity : ComponentActivity() {
                                         Spacer(modifier = Modifier.height(16.dp))
 
                                         Text(
-                                            "現在のボタン一覧",
+                                            "現在のボタン一覧(タップで入れ替え・色変更・削除)",
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
@@ -1533,7 +1652,7 @@ class MainActivity : ComponentActivity() {
                                         Spacer(modifier = Modifier.height(16.dp))
 
                                         Text(
-                                            "カウント処理一覧",
+                                            "カウント処理一覧(タップで計算処理編集)",
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
@@ -1688,19 +1807,43 @@ class MainActivity : ComponentActivity() {
                                             Column(
                                                 modifier = Modifier.padding(20.dp)
                                             ) {
-                                                Text(
-                                                    text = "ボタン [ $currentLetter ] の出現率設定",
-                                                    color = Color.White,
-                                                    fontSize = 20.sp,
-                                                    fontWeight = FontWeight.Bold,
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier.padding(bottom = 20.dp)
-                                                )
+                                                ) {
+                                                    val chipColor =
+                                                        showCalcSettingDialog?.color?.let { Color(it) }
+                                                            ?: Color.Gray
 
-                                                Text(
-                                                    "■ 1. 計算方法",
-                                                    color = Color.LightGray,
-                                                    fontSize = 14.sp
-                                                )
+                                                    // 🟢 ここ！先頭に幅44dp、高さ32dpの固定サイズでチップを配置
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(44.dp)   // ★ここを変えたかった！
+                                                            .height(32.dp)  // 一覧のチップと同じ高さ
+                                                            .background(
+                                                                color = chipColor,
+                                                                shape = RoundedCornerShape(8.dp)
+                                                            ),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = currentLetter,
+                                                            color = Color.Black,
+                                                            fontSize = 18.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+
+                                                    // チップと文字の間に少しだけすき間を開ける
+                                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                                    Text(
+                                                        text = "の出現率設定",
+                                                        color = Color.White,
+                                                        fontSize = 20.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
 
                                                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                                                     val calcOptions = listOf(
@@ -3298,8 +3441,16 @@ class MainActivity : ComponentActivity() {
                                 // 1. メモ履歴をリセット
                                 viewModel.resetAllMemosWithHistory(machineId)
 
-                                // 2. ★ここを修正！ViewModelにある名前に合わせます
+                                // 2. カウンターをリセット
                                 viewModel.resetAllCountersWithHistory()
+
+                                // 3. 画面上の表示を "0000" にリセット
+                                rotationInputText = "0000"
+
+                                // 🟢 【追加】リセットした "0000" をデータベースにも上書き保存する！
+                                db.memoDao().saveRotationValue(
+                                    RotationValue(machineId = machineId, rotationText = "0000")
+                                )
 
                                 kotlinx.coroutines.delay(150)
                                 refreshData()
@@ -3348,8 +3499,16 @@ class MainActivity : ComponentActivity() {
                 confirmButton = {
                     TextButton(
                         onClick = {
+                            scope.launch {
+                                // 🟢 【修正】新しく作ったテーブルに、機種ID付きで保存する
+                                db.memoDao().saveRotationValue(
+                                    RotationValue(
+                                        machineId = machineId,
+                                        rotationText = rotationInputText
+                                    )
+                                )
+                            }
                             showRotationDialog = false
-                            // 💡 ここで後ほど、確率の再計算やDBへの保存処理を行います！
                         }
                     ) {
                         Text("確定", color = Color(0xFFBB86FC), fontWeight = FontWeight.Bold)

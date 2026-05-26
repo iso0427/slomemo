@@ -179,6 +179,35 @@ interface MemoDao {
     @Query("SELECT cv.* FROM counter_values cv INNER JOIN counter_settings cs ON cv.counterId = cs.id WHERE cs.machineId = :machineId")
     fun getCounterValuesByMachineFlow(machineId: Int): Flow<List<CounterValue>>
 
+    @Query("SELECT * FROM rotation_values WHERE machineId = :machineId")
+    suspend fun getRotationValue(machineId: Int): RotationValue?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveRotationValue(rotationValue: RotationValue)
+
+    // 🟢 引数の型を Long から Int に変更しました
+    @Query("SELECT * FROM counter_settings WHERE machineId = :machineId")
+    suspend fun getCounterSettingsByMachineDirect(machineId: Int): List<CounterSetting>
+
+    // カウンター設定をすべて削除する
+    @Query("DELETE FROM counter_settings")
+    suspend fun deleteAllCounterSettings()
+
+    // カウンターの値をすべて削除する
+    @Query("DELETE FROM counter_values")
+    suspend fun deleteAllCounterValues()
+
+    // カウンター設定を保存して、生成された新しい一意のID(Long)を返す
+    @Insert
+    suspend fun insertCounterSettingReturnId(counterSetting: CounterSetting): Long
+
+    // 初期値（0）のカウンター値を保存する
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun insertCounterValue(counterValue: CounterValue)
+
+    // 計算相手のカウンターIDだけを後から更新する
+    @Query("UPDATE counter_settings SET targetCounterId = :targetId WHERE id = :id")
+    suspend fun updateCounterTargetId(id: Int, targetId: Int)
 
 
 

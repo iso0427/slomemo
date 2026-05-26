@@ -78,7 +78,8 @@ data class AppSetting(
     val counterHeight: Int = 60,
     val counterFontSize: Int = 45,
     val rotationFontSize: Int = 45,
-    val showTotalRotation: Boolean = true
+    val showTotalRotation: Boolean = true,
+    val rateFontSize: Int = 30
 )
 
 // ⑦ 簡易カウンターの項目（ボタン名と色、自動計算ルール）を保存する
@@ -107,5 +108,11 @@ data class CounterSetting(
 data class CounterValue(
     @PrimaryKey val counterId: Int, // CounterSettingのidと紐付ける
     val count: Int = 0              // 現在の数値
+)
+
+@Entity(tableName = "rotation_values")
+data class RotationValue(
+    @PrimaryKey val machineId: Int,
+    val rotationText: String = "0000"
 )
 
