@@ -1318,46 +1318,15 @@ class MainActivity : ComponentActivity() {
                                                         .weight(1f)
                                                         .height(32.dp)
                                                         .background(
-                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(
-                                                                0xFF333333
-                                                            ),
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
                                                         .clickable(enabled = showSimpleCounter) {
                                                             scope.launch {
-                                                                val newHeight = hValue
-
-                                                                // 🟢 カウンター文字サイズの判定
-                                                                val newFontSize =
-                                                                    if (currentAppSetting.counterFontSize > newHeight) {
-                                                                        newHeight
-                                                                    } else {
-                                                                        currentAppSetting.counterFontSize
-                                                                    }
-
-                                                                // 🟢 総回転数文字サイズの判定を追加
-                                                                val newRotationFontSize =
-                                                                    if (currentAppSetting.rotationFontSize > newHeight) {
-                                                                        newHeight
-                                                                    } else {
-                                                                        currentAppSetting.rotationFontSize
-                                                                    }
-
-                                                                // 🟢 確率表示文字サイズの判定を追加
-                                                                val newRateFontSize =
-                                                                    if (currentAppSetting.rateFontSize > newHeight) {
-                                                                        newHeight
-                                                                    } else {
-                                                                        currentAppSetting.rateFontSize
-                                                                    }
-
-                                                                // すべてのサイズを安全な値に調整して一括保存
+                                                                // 🟢 連動処理をすべて削除し、純粋に高さだけを保存します
                                                                 db.memoDao().saveAppSetting(
                                                                     currentAppSetting.copy(
-                                                                        counterHeight = newHeight,
-                                                                        counterFontSize = newFontSize,
-                                                                        rotationFontSize = newRotationFontSize,
-                                                                        rateFontSize = newRateFontSize
+                                                                        counterHeight = hValue
                                                                     )
                                                                 )
                                                             }
@@ -1396,8 +1365,7 @@ class MainActivity : ComponentActivity() {
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             rotationFontSizeOptions.forEach { rValue ->
-                                                val isEnabled =
-                                                    rValue <= currentAppSetting.counterHeight
+                                                // 🟢 高さ制限（isEnabled）を撤廃
                                                 val isSelected =
                                                     currentAppSetting.rotationFontSize == rValue
 
@@ -1406,14 +1374,11 @@ class MainActivity : ComponentActivity() {
                                                         .weight(1f)
                                                         .height(32.dp)
                                                         .background(
-                                                            color = when {
-                                                                isSelected -> Color(0xFFBB86FC)
-                                                                isEnabled -> Color(0xFF333333)
-                                                                else -> Color(0xFF1A1A1A)
-                                                            },
+                                                            // 🟢 常に有効な状態の色設定に変更
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
-                                                        .clickable(enabled = showSimpleCounter && isEnabled) {
+                                                        .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
                                                                 db.memoDao().saveAppSetting(
                                                                     currentAppSetting.copy(
@@ -1433,7 +1398,7 @@ class MainActivity : ComponentActivity() {
                                                             50 -> "5"
                                                             else -> ""
                                                         },
-                                                        color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
+                                                        color = if (isSelected) Color.Black else Color.White, // 🟢 グレーアウトを廃止
                                                         fontSize = 24.sp,
                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                     )
@@ -1447,7 +1412,7 @@ class MainActivity : ComponentActivity() {
                                             fontSize = 18.sp
                                         )
 
-                                        val fontSizeOptions = listOf(10, 20, 30, 40, 50)
+                                        val fontSizeOptions = listOf(20, 26, 32, 38, 44)
 
                                         Row(
                                             modifier = Modifier
@@ -1456,8 +1421,7 @@ class MainActivity : ComponentActivity() {
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             fontSizeOptions.forEach { fValue ->
-                                                val isEnabled =
-                                                    fValue <= currentAppSetting.counterHeight
+                                                // 🟢 高さ制限（isEnabled）を撤廃
                                                 val isSelected =
                                                     currentAppSetting.counterFontSize == fValue
 
@@ -1466,14 +1430,11 @@ class MainActivity : ComponentActivity() {
                                                         .weight(1f)
                                                         .height(32.dp)
                                                         .background(
-                                                            color = when {
-                                                                isSelected -> Color(0xFFBB86FC)
-                                                                isEnabled -> Color(0xFF333333)
-                                                                else -> Color(0xFF1A1A1A)
-                                                            },
+                                                            // 🟢 常に有効な状態の色設定に変更
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
-                                                        .clickable(enabled = showSimpleCounter && isEnabled) {
+                                                        .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
                                                                 db.memoDao().saveAppSetting(
                                                                     currentAppSetting.copy(
@@ -1486,14 +1447,14 @@ class MainActivity : ComponentActivity() {
                                                 ) {
                                                     Text(
                                                         text = when (fValue) {
-                                                            10 -> "1"
-                                                            20 -> "2"
-                                                            30 -> "3"
-                                                            40 -> "4"
-                                                            50 -> "5"
+                                                            20 -> "1"
+                                                            26 -> "2"
+                                                            32 -> "3"
+                                                            38 -> "4"
+                                                            44 -> "5"
                                                             else -> ""
                                                         },
-                                                        color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
+                                                        color = if (isSelected) Color.Black else Color.White, // 🟢 グレーアウトを廃止
                                                         fontSize = 24.sp,
                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                     )
@@ -1507,7 +1468,7 @@ class MainActivity : ComponentActivity() {
                                             fontSize = 18.sp
                                         )
 
-                                        val rateFontSizeOptions = listOf(10, 30, 50, 70, 90)
+                                        val rateFontSizeOptions = listOf(45, 55, 65, 75, 85)
 
                                         Row(
                                             modifier = Modifier
@@ -1516,8 +1477,7 @@ class MainActivity : ComponentActivity() {
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             rateFontSizeOptions.forEach { rFValue ->
-                                                val isEnabled =
-                                                    rFValue <= currentAppSetting.counterHeight
+                                                // 🟢 高さ制限（isEnabled）を撤廃
                                                 val isSelected =
                                                     currentAppSetting.rateFontSize == rFValue
 
@@ -1526,14 +1486,11 @@ class MainActivity : ComponentActivity() {
                                                         .weight(1f)
                                                         .height(32.dp)
                                                         .background(
-                                                            color = when {
-                                                                isSelected -> Color(0xFFBB86FC)
-                                                                isEnabled -> Color(0xFF333333)
-                                                                else -> Color(0xFF1A1A1A)
-                                                            },
+                                                            // 🟢 常に有効な状態の色設定に変更
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
-                                                        .clickable(enabled = showSimpleCounter && isEnabled) {
+                                                        .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
                                                                 db.memoDao().saveAppSetting(
                                                                     currentAppSetting.copy(
@@ -1546,14 +1503,14 @@ class MainActivity : ComponentActivity() {
                                                 ) {
                                                     Text(
                                                         text = when (rFValue) {
-                                                            10 -> "1"
-                                                            30 -> "2"
-                                                            50 -> "3"
-                                                            70 -> "4"
-                                                            90 -> "5"
+                                                            45 -> "1"
+                                                            55 -> "2"
+                                                            65 -> "3"
+                                                            75 -> "4"
+                                                            85 -> "5"
                                                             else -> ""
                                                         },
-                                                        color = if (isEnabled) (if (isSelected) Color.Black else Color.White) else Color.DarkGray,
+                                                        color = if (isSelected) Color.Black else Color.White, // 🟢 グレーアウトを廃止
                                                         fontSize = 24.sp,
                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                     )
