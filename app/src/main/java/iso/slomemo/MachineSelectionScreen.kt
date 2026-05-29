@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -459,263 +458,194 @@ fun MachineSelectionScreen(
 
         if (menuExpanded) {
             Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.6f))
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White.copy(alpha = 0.3f))
+                        .clickable { menuExpanded = false } // 背景タップで閉じる
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 80.dp, end = 4.dp)
+                            .width(220.dp),
+                        shape = RoundedCornerShape(5.dp),
+                        color = surfaceColor,
+                        shadowElevation = 8.dp
+                    ) {
+                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                            MenuRow(
+                                icon = Icons.Default.Edit,
+                                label = "新規機種を登録",
+                                fontSize = 18.sp,
+                                onClick = {
+                                    showAddDialog = true
+                                    menuExpanded = false
+                                },
+                                mainText = mainText
+                            )
+                            MenuRow(
+                                icon = Icons.Default.ArrowForward,
+                                label = "バックアップ(CSV)",
+                                fontSize = 18.sp,
+                                onClick = {
+                                    menuExpanded = false
+
+                                    // 今日の日付を取得 (例: 20260507_1230)
+                                    val timeStamp = java.text.SimpleDateFormat(
+                                        "yyyyMMdd_HHmm",
+                                        java.util.Locale.getDefault()
+                                    ).format(java.util.Date())
+                                    val fileName = "slomemo_backup_$timeStamp.csv"
+
+                                    createCsvLauncher.launch(fileName)
+                                },
+                                mainText = mainText
+                            )
+
+                            MenuRow(
+                                icon = Icons.Default.ArrowBack, // インポートっぽく「戻る」矢印
+                                label = "インポート(CSV)",
+                                fontSize = 18.sp,
+                                onClick = {
+                                    menuExpanded = false
+                                    // CSVファイルだけを選択できるように制限して起動
+                                    importCsvLauncher.launch(arrayOf("text/csv"))
+                                },
+                                mainText = mainText
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- 入力用ダイアログ (自作レイヤー・デザイン/色/サイズ完全統一版) ---
+    if (showAddDialog) {
+        androidx.activity.compose.BackHandler {
+            showAddDialog = false
+        }
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // 【1枚目：奥】システムと同じ濃さの黒い膜を手動で敷く
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .clickable { menuExpanded = false } // 背景タップで閉じる
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 80.dp, end = 4.dp)
-                        .width(220.dp),
-                    shape = RoundedCornerShape(5.dp),
-                    color = surfaceColor,
-                    shadowElevation = 8.dp
-                ) {
-                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                        MenuRow(
-                            icon = Icons.Default.Edit,
-                            label = "新規機種を登録",
-                            fontSize = 18.sp,
-                            onClick = {
-                                showAddDialog = true
-                                menuExpanded = false
-                            },
-                            mainText = mainText
-                        )
-                        MenuRow(
-                            icon = Icons.Default.ArrowForward,
-                            label = "バックアップ(CSV)",
-                            fontSize = 18.sp,
-                            onClick = {
-                                menuExpanded = false
-
-                                // 今日の日付を取得 (例: 20260507_1230)
-                                val timeStamp = java.text.SimpleDateFormat(
-                                    "yyyyMMdd_HHmm",
-                                    java.util.Locale.getDefault()
-                                ).format(java.util.Date())
-                                val fileName = "slomemo_backup_$timeStamp.csv"
-
-                                createCsvLauncher.launch(fileName)
-                            },
-                            mainText = mainText
-                        )
-
-                        MenuRow(
-                            icon = Icons.Default.ArrowBack, // インポートっぽく「戻る」矢印
-                            label = "インポート(CSV)",
-                            fontSize = 18.sp,
-                            onClick = {
-                                menuExpanded = false
-                                // CSVファイルだけを選択できるように制限して起動
-                                importCsvLauncher.launch(arrayOf("text/csv"))
-                            },
-                            mainText = mainText
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // --- 入力用ダイアログ ---
-    if (showAddDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            containerColor = surfaceColor, // ★ デザイン統一
-            title = { Text("新規機種登録", color = mainText) }, // ★ デザイン統一
-            text = {
-                OutlinedTextField(
-                    value = newMachineName,
-                    onValueChange = { newMachineName = it },
-                    placeholder = {
-                        Text("機種名を入力", fontSize = 14.sp, color = subText)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedContainerColor = Color(0xFF474747), // ★ 編集と同じ明るいグレー
-                        unfocusedContainerColor = Color(0xFF474747),
-                        cursorColor = Color.White,
-                        focusedBorderColor = Color.Gray,
-                        unfocusedBorderColor = Color.Transparent
-                    )
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (newMachineName.isNotBlank()) {
-                            val name = newMachineName
-                            newMachineName = ""
-                            scope.launch {
-                                // machines が null の場合は空リストとして扱うように修正
-                                val currentMachines = machines ?: emptyList()
-
-                                val updatedList =
-                                    currentMachines.map { it.copy(position = it.position + 1) }
-
-                                db.machineDao().updateMachines(updatedList)
-                                db.machineDao()
-                                    .insertMachine(Machine(name = name, position = 0))
-                                showAddDialog = false
-                            }
-                        }
-                    }
-                ) {
-                    Text(
-                        "追加",
-                        color = Color(0xFF7E57C2),
-                        fontWeight = FontWeight.Bold
-                    ) // ★ 文字色を紫に
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) {
-                    Text("キャンセル", color = mainText) // ★ キャンセルは白系で統一
-                }
-            }
-        )
-    }
-
-    // ★ タイル型ダイアログの表示（ここを修正！）
-    if (showActionDialog && selectedMachine != null) {
-        MachineActionDialog(
-            selectedMachine = selectedMachine!!,
-            allMachines = machines ?: emptyList(),
-            onDismiss = { showActionDialog = false },
-            onRename = {
-                showActionDialog = false
-                machineToEdit = selectedMachine
-                editNameText = selectedMachine!!.name
-                showEditDialog = true
-            },
-            onDelete = {
-                showActionDialog = false
-                scope.launch {
-                    db.machineDao().deleteMachine(selectedMachine!!)
-                }
-            },
-            db = db, // ★追加
-            scope = scope, // ★追加
-            onRefresh = { /* 必要ならここに更新処理 */ } // ★追加
-        )
-    }
-
-    // 1. 名前編集用入力ダイアログ
-    if (showEditDialog && machineToEdit != null) {
-        AlertDialog(
-            onDismissRequest = { showEditDialog = false },
-            containerColor = surfaceColor,
-            title = { Text("機種名の編集", color = mainText) },
-            text = {
-                OutlinedTextField(
-                    value = editNameText,
-                    onValueChange = { editNameText = it },
-                    placeholder = { Text("機種名を入力", fontSize = 14.sp, color = subText) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedContainerColor = Color(0xFF474747),
-                        unfocusedContainerColor = Color(0xFF474747),
-                        cursorColor = Color.White,
-                        focusedBorderColor = Color.Gray,
-                        unfocusedBorderColor = Color.Transparent
-                    )
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (editNameText.isNotBlank()) {
-                            scope.launch {
-                                db.machineDao()
-                                    .updateMachine(machineToEdit!!.copy(name = editNameText))
-                                showEditDialog = false
-                            }
-                        }
-                    }
-                ) {
-                    Text("保存", color = Color(0xFF7E57C2), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) {
-                    Text("キャンセル", color = mainText)
-                }
-            }
-        )
-    }
-
-    // 2. 削除確認用ダイアログ
-    if (showDeleteConfirmDialog && selectedMachine != null) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            properties = androidx.compose.ui.window.DialogProperties(
-                // システム標準の暗転（Dim）を有効にし、画面全体に広げる
-                usePlatformDefaultWidth = true,
-                decorFitsSystemWindows = true
+                    .background(Color.Black.copy(alpha = 0.6f))
             )
-        ) {
-            // Boxを削除し、直接AlertDialogを配置。これで「寸足らず」が直ります
-            AlertDialog(
-                onDismissRequest = { showDeleteConfirmDialog = false },
-                containerColor = surfaceColor, // 180dpのタイルと同じ背景色
-                title = {
-                    Text(
-                        text = "機種の削除",
-                        color = mainText,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                text = {
-                    Text(
-                        text = "「${selectedMachine!!.name}」を削除してもよろしいですか？\n\n※この機種に含まれるすべてのメモも完全に削除されます。",
-                        color = mainText,
-                        lineHeight = 20.sp
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            scope.launch {
-                                db.machineDao().deleteMachine(selectedMachine!!)
-                                showDeleteConfirmDialog = false
-                                showActionDialog = false
-                            }
-                        }
+            // 【2枚目：手前】重ねたい白の30%透過膜（外側タップで閉じる）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.3f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
                     ) {
+                        showAddDialog = false
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                // AlertDialogの代わりにSurfaceを使ってダイアログの見た目を作る
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF1E1E1E), // 🟢 surfaceColor から 総回転数と同じ「0xFF1E1E1E」に変更！
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(28.dp)
+                        .clickable(enabled = false) { }
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Text(
-                            text = "削除",
-                            color = Color(0xFFF44336), // 警告の赤色
+                            text = "新規機種登録",
+                            color = mainText,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.Bold
                         )
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showDeleteConfirmDialog = false }
-                    ) {
-                        Text(
-                            text = "キャンセル",
-                            color = mainText
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = newMachineName,
+                            onValueChange = { newMachineName = it },
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 20.sp,
+                                color = Color.White
+                            ),
+                            placeholder = {
+                                Text("機種名を入力", fontSize = 16.sp, color = subText)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedContainerColor = Color(0xFF252525), // 🟢 入力欄の背景もメモ入力と同じ深めのグレーに統一
+                                unfocusedContainerColor = Color(0xFF252525), // 🟢 同上
+                                cursorColor = Color.White,
+                                focusedBorderColor = Color(0xFF7E57C2), // 🟢 フォーカス時の枠線をテーマカラーの紫に
+                                unfocusedBorderColor = Color.Transparent
+                            )
                         )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // ボタン配置エリア
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showAddDialog = false }) {
+                                Text("キャンセル", color = mainText, fontSize = 18.sp)
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Button(
+                                onClick = {
+                                    if (newMachineName.isNotBlank()) {
+                                        val name = newMachineName
+                                        newMachineName = ""
+                                        scope.launch {
+                                            val currentMachines = machines ?: emptyList()
+                                            val updatedList = currentMachines.map { it.copy(position = it.position + 1) }
+                                            db.machineDao().updateMachines(updatedList)
+                                            db.machineDao().insertMachine(Machine(name = name, position = 0))
+                                            showAddDialog = false
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF7E57C2)
+                                )
+                            ) {
+                                Text("追加", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
-            )
+            }
         }
     }
 
-    // 3. タイル型アクションダイアログ（これが一番最後にくるように配置）
+    // --- 2. タイル型アクションダイアログ (自作レイヤー・デザイン/背景色完全統一版) ---
     if (showActionDialog && selectedMachine != null) {
+        // 🟢 システム戻るボタンで閉じられるように対策
+        androidx.activity.compose.BackHandler {
+            showActionDialog = false
+        }
+
         MachineActionDialog(
             selectedMachine = selectedMachine!!,
             allMachines = machines ?: emptyList(),
@@ -727,7 +657,6 @@ fun MachineSelectionScreen(
                 showEditDialog = true
             },
             onDelete = {
-                // ここが正解の処理！
                 showDeleteConfirmDialog = true
                 showActionDialog = false
             },
@@ -736,184 +665,381 @@ fun MachineSelectionScreen(
             onRefresh = { }
         )
     }
+
+    // --- 3. 名前編集用入力ダイアログ (自作レイヤー・デザイン完全統一版) ---
+    if (showEditDialog && machineToEdit != null) {
+        androidx.activity.compose.BackHandler {
+            showEditDialog = false
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.3f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) {
+                        showEditDialog = false
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF1E1E1E),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(28.dp)
+                        .clickable(enabled = false) { }
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = "機種名の編集",
+                            color = mainText,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = editNameText,
+                            onValueChange = { editNameText = it },
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 20.sp,
+                                color = Color.White
+                            ),
+                            placeholder = {
+                                Text("機種名を入力", fontSize = 16.sp, color = subText)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedContainerColor = Color(0xFF252525), // 🟢 252525のグレーに統一
+                                unfocusedContainerColor = Color(0xFF252525),
+                                cursorColor = Color.White,
+                                focusedBorderColor = Color(0xFF7E57C2),
+                                unfocusedBorderColor = Color.Transparent
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showEditDialog = false }) {
+                                Text("キャンセル", color = mainText, fontSize = 18.sp)
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Button(
+                                onClick = {
+                                    if (editNameText.isNotBlank()) {
+                                        scope.launch {
+                                            db.machineDao()
+                                                .updateMachine(machineToEdit!!.copy(name = editNameText))
+                                            showEditDialog = false
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF7E57C2)
+                                )
+                            ) {
+                                Text(
+                                    "保存",
+                                    color = Color.White,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- 4. 削除確認用ダイアログ (自作レイヤー化・デザイン完全統一版) ---
+    if (showDeleteConfirmDialog && selectedMachine != null) {
+        // 🟢 戻るボタン操作をキャッチ
+        androidx.activity.compose.BackHandler {
+            showDeleteConfirmDialog = false
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // 【1枚目：奥】システムと同じ濃さの黒い膜
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+            )
+            // 【2枚目：手前】重ねたい白の30%透過膜（外側タップで閉じる）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.3f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) {
+                        showDeleteConfirmDialog = false
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                // 🟢 システムの標準 Dialog + AlertDialog を完全に廃止し、Surface 構造に落とし込んで色を完全統一
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF1E1E1E), // 🟢 完全に同じダークグレーに統一
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(28.dp) // 🟢 横幅サイズを 28.dp パディングに統一
+                        .clickable(enabled = false) { }
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = "機種の削除",
+                            color = mainText,
+                            fontSize = 22.sp, // 🟢 文字サイズ拡大
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "「${selectedMachine!!.name}」を削除してもよろしいですか？\n\n※この機種に含まれるすべてのメモも完全に削除されます。",
+                            color = mainText,
+                            fontSize = 18.sp, // 🟢 文字サイズを18spに拡大
+                            lineHeight = 24.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = { showDeleteConfirmDialog = false }
+                            ) {
+                                Text(text = "キャンセル", color = mainText, fontSize = 18.sp)
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        db.machineDao().deleteMachine(selectedMachine!!)
+                                        showDeleteConfirmDialog = false
+                                        showActionDialog = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFB3261E) // 警告の赤色
+                                )
+                            ) {
+                                Text(
+                                    text = "削除",
+                                    color = Color.White,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
+// 🟢 タイル型アクションダイアログ本体の背景レイヤーを修正
 @Composable
 fun MachineActionDialog(
     selectedMachine: Machine,
-    allMachines: List<Machine>, // 並び替え判定のために必要
+    allMachines: List<Machine>,
     onDismiss: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     db: AppDatabase,
     scope: kotlinx.coroutines.CoroutineScope,
-    onRefresh: () -> Unit // リフレッシュ用
+    onRefresh: () -> Unit
 ) {
-
     val currentIndex = allMachines.indexOfFirst { it.id == selectedMachine.id }
 
-    // 画面全体を覆うレイヤー
+    // 🟢 2重の自作透過レイヤー（黒0.6 ＋ 白0.3）をここに適用。
+    // これにより、長押しした瞬間から2枚目（並び替え）と100%同じ背景色に変わります！
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            //.background(Color.Black.copy(alpha = 0.4f))
-            .background(Color.White.copy(alpha = 0.105f))
-            .clickable { onDismiss() }, // 外側をタップしたら閉じる
-        contentAlignment = Alignment.Center
+        modifier = Modifier.fillMaxSize()
     ) {
-        // ダイアログ本体 (参照コードの Surface 構造を完全再現)
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            shadowElevation = 8.dp,
-            color = Color(0xFF252525),
+        Box(
             modifier = Modifier
-                .width(180.dp) // 参照コードと同じ幅
-                .clickable(enabled = false) { } // ダイアログ内をタップしても閉じないように
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f))
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.3f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onDismiss() }, // 外側をタップしたら閉じる
+            contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                shadowElevation = 8.dp,
+                color = Color(0xFF252525), // タイル部分の背景はそのまま維持
+                modifier = Modifier
+                    .width(180.dp)
+                    .clickable(enabled = false) { }
             ) {
-                // 機種名タイトル
-                Text(
-                    text = "「${selectedMachine.name}」",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.padding(bottom = 20.dp)
-                )
-
-                // 参照コードの配色ルール
-                val canMoveColors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFBBBBBB),
-                    contentColor = Color.Black
-                )
-                val cannotMoveColors = ButtonDefaults.buttonColors(
-                    disabledContainerColor = Color(0xFF333333),
-                    disabledContentColor = Color.Black
-                )
-
-                // 1段目：上下移動ボタン
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // 上へ
-                    Button(
-                        onClick = {
-                            val list = allMachines.toMutableList()
-                            val item = list.removeAt(currentIndex)
-                            list.add(currentIndex - 1, item)
+                    Text(
+                        text = "「${selectedMachine.name}」",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(bottom = 20.dp)
+                    )
 
-                            scope.launch {
-                                // リストの順番通りに 0, 1, 2... と番号を振り直す
-                                val updatedList = list.mapIndexed { index, machine ->
-                                    machine.copy(position = index)
+                    val canMoveColors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFBBBBBB),
+                        contentColor = Color.Black
+                    )
+                    val cannotMoveColors = ButtonDefaults.buttonColors(
+                        disabledContainerColor = Color(0xFF333333),
+                        disabledContentColor = Color.Black
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val list = allMachines.toMutableList()
+                                val item = list.removeAt(currentIndex)
+                                list.add(currentIndex - 1, item)
+
+                                scope.launch {
+                                    val updatedList = list.mapIndexed { index, machine ->
+                                        machine.copy(position = index)
+                                    }
+                                    db.machineDao().updateMachines(updatedList)
                                 }
-                                // DBに一括保存
-                                db.machineDao().updateMachines(updatedList)
+                            },
+                            enabled = currentIndex > 0,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(60.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = if (currentIndex > 0) canMoveColors else cannotMoveColors
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.ArrowBack,
+                                    null,
+                                    modifier = Modifier.graphicsLayer(rotationZ = 90f),
+                                    tint = Color.Black
+                                )
+                                Text("上へ", fontSize = 16.sp, color = Color.Black)
                             }
-                        },
-                        enabled = currentIndex > 0,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(60.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = if (currentIndex > 0) canMoveColors else cannotMoveColors
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.ArrowBack, // 左右で使っているやつ
-                                null,
-                                modifier = Modifier.graphicsLayer(rotationZ = 90f), // 90度回して上に向ける
-                                tint = Color.Black
-                            )
-                            Text("上へ", fontSize = 16.sp, color = Color.Black)
                         }
-                    }
 
-                    // 下へ
-                    Button(
-                        onClick = {
-                            val list = allMachines.toMutableList()
-                            val item = list.removeAt(currentIndex)
-                            list.add(currentIndex + 1, item)
+                        Button(
+                            onClick = {
+                                val list = allMachines.toMutableList()
+                                val item = list.removeAt(currentIndex)
+                                list.add(currentIndex + 1, item)
 
-                            scope.launch {
-                                // リストの順番通りに 0, 1, 2... と番号を振り直す
-                                val updatedList = list.mapIndexed { index, machine ->
-                                    machine.copy(position = index)
+                                scope.launch {
+                                    val updatedList = list.mapIndexed { index, machine ->
+                                        machine.copy(position = index)
+                                    }
+                                    db.machineDao().updateMachines(updatedList)
                                 }
-                                // DBに一括保存
-                                db.machineDao().updateMachines(updatedList)
+                            },
+                            enabled = currentIndex < allMachines.size - 1,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(60.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = if (currentIndex < allMachines.size - 1) canMoveColors else cannotMoveColors
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.ArrowForward,
+                                    null,
+                                    modifier = Modifier.graphicsLayer(rotationZ = 90f),
+                                    tint = Color.Black
+                                )
+                                Text("下へ", fontSize = 16.sp, color = Color.Black)
                             }
-                        },
-                        enabled = currentIndex < allMachines.size - 1,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(60.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = if (currentIndex < allMachines.size - 1) canMoveColors else cannotMoveColors
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            // ★ アイコンを ArrowDown に変更
-                            Icon(
-                                Icons.Default.ArrowForward, // 左右で使っているやつ
-                                null,
-                                modifier = Modifier.graphicsLayer(rotationZ = 90f), // 90度回して下に向ける
-                                tint = Color.Black
-                            )
-                            Text("下へ", fontSize = 16.sp, color = Color.Black)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 2段目：編集・削除ボタン
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // 編集ボタン
-                    Button(
-                        onClick = onRename,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(60.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Edit, null, tint = Color.White)
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text("編集", fontSize = 16.sp, color = Color.White)
                         }
                     }
 
-                    // 削除ボタン
-                    Button(
-                        onClick = {
-                            onDelete() // これを呼ぶだけでOK！
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(60.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Delete, null, tint = Color.White)
+                        Button(
+                            onClick = onRename,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(60.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Edit, null, tint = Color.White)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("編集", fontSize = 16.sp, color = Color.White)
+                            }
+                        }
 
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text("削除", fontSize = 16.sp, color = Color.White)
+                        Button(
+                            onClick = { onDelete() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(60.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Delete, null, tint = Color.White)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("削除", fontSize = 16.sp, color = Color.White)
+                            }
                         }
                     }
                 }
@@ -947,7 +1073,7 @@ fun MenuRow(
     label: String,
     onClick: () -> Unit,
     mainText: Color,
-    fontSize: androidx.compose.ui.unit.TextUnit = 14.sp // ← ここに「文字サイズ」の項目を追加
+    fontSize: androidx.compose.ui.unit.TextUnit = 14.sp
 ) {
     Row(
         modifier = Modifier
@@ -958,30 +1084,26 @@ fun MenuRow(
     ) {
         Icon(icon, null, tint = mainText, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        // 下の fontSize を、上で追加した fontSize に連動させる
         Text(label, color = mainText, fontSize = fontSize)
     }
 }
 
 suspend fun importFromCsv(lines: List<String>, db: AppDatabase) {
-    // 1. 既存データを全削除（慎重に！）
-    db.machineDao().deleteAllMachines() // machineDaoにこのメソッドが必要
+    db.machineDao().deleteAllMachines()
     db.memoDao().deleteAllRecords()
     db.memoDao().deleteAllMemoValues()
-    // 必要に応じて他のテーブルも削除
 
-    // IDを紐付け直すための地図（Map）
-    val machineIdMap = mutableMapOf<Int, Int>() // 旧機種ID -> 新機種ID
-    val columnIdMap = mutableMapOf<Int, Int>()  // 旧項目ID -> 新項目ID
+    val machineIdMap = mutableMapOf<Int, Int>()
+    val columnIdMap = mutableMapOf<Int, Int>()
 
-    lines.drop(1).forEach { line -> // ヘッダーを飛ばす
+    lines.drop(1).forEach { line ->
         val tokens = line.split(",")
         if (tokens.size < 4) return@forEach
 
         val type = tokens[0]
         val oldId = tokens[1].toIntOrNull() ?: 0
         val parentId = tokens[2].toIntOrNull() ?: 0
-        val name = tokens[3].replace("\"", "") // 引用符を外す
+        val name = tokens[3].replace("\"", "")
 
         when (type) {
             "MACHINE" -> {
@@ -990,10 +1112,9 @@ suspend fun importFromCsv(lines: List<String>, db: AppDatabase) {
                 ).toInt()
                 machineIdMap[oldId] = newId
             }
-
             "COLUMN" -> {
                 val newMachineId = machineIdMap[parentId] ?: return@forEach
-                val newId = db.memoDao().insertColumnWithIdReturn( // InsertでLongを返すようにDaoを調整
+                val newId = db.memoDao().insertColumnWithIdReturn(
                     ColumnSetting(
                         machineId = newMachineId,
                         name = name,
@@ -1003,15 +1124,11 @@ suspend fun importFromCsv(lines: List<String>, db: AppDatabase) {
                 ).toInt()
                 columnIdMap[oldId] = newId
             }
-
             "OPTION" -> {
-                val newColumnId = columnIdMap[parentId] ?: return@forEach
-                // SelectionOptionテーブルへ保存
-                // db.memoDao().insertOption(...) を使う
+                // オプション復元
             }
-
             "RULE" -> {
-                // AutoInputRuleの復元ロジック
+                // ルール復元
             }
         }
     }

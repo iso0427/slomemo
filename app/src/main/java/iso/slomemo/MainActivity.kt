@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
@@ -458,6 +459,75 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Icon(Icons.Default.Menu, null, tint = mainText)
                                 }
+                            }
+                        }
+                    }
+                },
+                // 🟢 【ここから新規追加】最新メモ編集（左）と新規追加（右）のボタン
+                floatingActionButton = {
+                    if (currentScreen == "main" && !showInputArea) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp) // ボタン同士の間隔
+                        ) {
+                            // 📄 左側：最新メモの編集ボタン
+                            val isMemoNotEmpty = !records.isNullOrEmpty() // メモが空じゃないか判定
+                            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(
+                                        color = if (isMemoNotEmpty) Color(0xFF6750A4) else Color(0xFF444444), // 空ならグレー
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable(enabled = isMemoNotEmpty) { // 空ならタップ不可
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                                        val latestRecord = records?.firstOrNull()
+                                        if (latestRecord != null) {
+                                            editingRecordId = latestRecord.id
+                                            // 最新データの入力値を非同期で復元して入力欄を開く
+                                            scope.launch {
+                                                val currentValues = db.memoDao().getValuesForRecord(latestRecord.id)
+                                                inputValues.clear()
+                                                currentValues.forEach {
+                                                    inputValues[it.columnId] = it.value
+                                                }
+                                                showInputArea = true
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "最新のメモを編集",
+                                    tint = if (isMemoNotEmpty) Color.White else Color.Gray
+                                )
+                            }
+
+                            // ➕ 右側：通常の新規追加ボタン
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(
+                                        color = Color(0xFF7E57C2), // いつもの紫
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        inputValues.clear()
+                                        editingRecordId = null
+                                        showInputArea = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "新規追加",
+                                    tint = Color.White
+                                )
                             }
                         }
                     }
@@ -1318,7 +1388,9 @@ class MainActivity : ComponentActivity() {
                                                         .weight(1f)
                                                         .height(32.dp)
                                                         .background(
-                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(
+                                                                0xFF333333
+                                                            ),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
                                                         .clickable(enabled = showSimpleCounter) {
@@ -1375,7 +1447,9 @@ class MainActivity : ComponentActivity() {
                                                         .height(32.dp)
                                                         .background(
                                                             // 🟢 常に有効な状態の色設定に変更
-                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(
+                                                                0xFF333333
+                                                            ),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
@@ -1431,7 +1505,9 @@ class MainActivity : ComponentActivity() {
                                                         .height(32.dp)
                                                         .background(
                                                             // 🟢 常に有効な状態の色設定に変更
-                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(
+                                                                0xFF333333
+                                                            ),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
@@ -1487,7 +1563,9 @@ class MainActivity : ComponentActivity() {
                                                         .height(32.dp)
                                                         .background(
                                                             // 🟢 常に有効な状態の色設定に変更
-                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(
+                                                                0xFF333333
+                                                            ),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
@@ -2007,8 +2085,8 @@ class MainActivity : ComponentActivity() {
             }
 
             // ========================================================
-// ① カウンター操作メニュー (完全に独立)
-// ========================================================
+            // ① カウンター操作メニュー (完全に独立)
+            // ========================================================
             if (showCounterMenuSetting != null) {
                 androidx.activity.compose.BackHandler {
                     showCounterMenuSetting = null
@@ -2561,6 +2639,14 @@ class MainActivity : ComponentActivity() {
             // --- メニュー専用レイヤー (自作ガードレール) ---
             if (menuExpanded) {
                 Box(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.6f))
+                    )
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.White.copy(alpha = 0.3f))
@@ -2660,6 +2746,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
             }
             // --- 手順4：項目移動メニュー (長押し用レイヤー) ---
             if (showColumnMenuId != null) {
@@ -3298,42 +3385,53 @@ class MainActivity : ComponentActivity() {
             }
             // --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
-                // 画面全体を覆う半透明レイヤー
+                // 🟢 画面全体を覆うレイヤー（2重の膜を表現する外枠）
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White.copy(alpha = 0.3f))
-                        .clickable { showInputArea = false }
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Surface(
+                    // 🟢 【1枚目：奥】システムと同じ濃さの黒い膜を手動で敷く
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            // ★ Bの挙動：内容に合わせて伸縮、最大90%
-                            .heightIn(
-                                min = 0.dp,
-                                max = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.9f
-                            )
-                            .clickable(enabled = false) { }, // 背後のクリックを遮断
-                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                        color = Color(0xFF121212) // backColor
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.6f))
+                    )
+
+                    // 🟢 【2枚目：手前】重ねたい白の30%透過膜（外側タップで閉じる）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White.copy(alpha = 0.3f))
+                            .clickable { showInputArea = false }
                     ) {
-                        // ★ 隙間管理：ナビゲーションバー分の余白を内側に持たせる
-                        Column(modifier = Modifier.navigationBarsPadding()) {
-                            InputFormContent(
-                                machineId = machineId,
-                                db = db,
-                                viewModel = viewModel,
-                                columns = columns,
-                                inputValues = inputValues,
-                                editingRecordId = editingRecordId,
-                                // true と書かずに、viewModelが持っている設定値を渡す
-                                showTime = viewModel.showTimeSetting.value,
-                                onSave = { showInputArea = false; refreshData() },
-                                mainText = Color.White,
-                                subText = Color.LightGray,
-                                isDarkMode = true
-                            )
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                // ★ Bの挙動：内容に合わせて伸縮、最大90%
+                                .heightIn(
+                                    min = 0.dp,
+                                    max = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.9f
+                                )
+                                .clickable(enabled = false) { }, // 背後のクリックを遮断
+                            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                            color = Color(0xFF121212) // backColor
+                        ) {
+                            // ★ 隙間管理：ナビゲーションバー分の余白を内側に持たせる
+                            Column(modifier = Modifier.navigationBarsPadding()) {
+                                InputFormContent(
+                                    machineId = machineId,
+                                    db = db,
+                                    viewModel = viewModel,
+                                    columns = columns,
+                                    inputValues = inputValues,
+                                    editingRecordId = editingRecordId,
+                                    showTime = viewModel.showTimeSetting.value,
+                                    onSave = { showInputArea = false; refreshData() },
+                                    mainText = Color.White,
+                                    subText = Color.LightGray,
+                                    isDarkMode = true
+                                )
+                            }
                         }
                     }
                 }
@@ -3422,58 +3520,115 @@ class MainActivity : ComponentActivity() {
             }
         }
         // ==========================================
-        // 💡 総回転数入力ダイアログ
+        // 💡 総回転数入力ダイアログ (自作レイヤー・デザイン統一版)
         // ==========================================
         if (showRotationDialog) {
-            AlertDialog(
-                onDismissRequest = { showRotationDialog = false },
-                title = { Text("総回転数の入力", color = Color.White) },
-                text = {
-                    Column {
-                        OutlinedTextField(
-                            value = rotationInputText,
-                            onValueChange = { newValue ->
-                                // 🛠️ 最大4桁かつ数字のみ入力可能にする制限
-                                if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
-                                    rotationInputText = newValue
-                                }
-                            },
-                            label = { Text("回転数 (最大4桁)") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = Color(0xFF222222),
-                                unfocusedContainerColor = Color(0xFF222222)
-                            )
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            scope.launch {
-                                // 🟢 【修正】新しく作ったテーブルに、機種ID付きで保存する
-                                db.memoDao().saveRotationValue(
-                                    RotationValue(
-                                        machineId = machineId,
-                                        rotationText = rotationInputText
-                                    )
-                                )
-                            }
+            androidx.activity.compose.BackHandler {
+                showRotationDialog = false
+            }
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // 【1枚目：奥】システムと同じ濃さの黒い膜
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.6f))
+                )
+                // 【2枚目：手前】白の30%透過膜（外側タップで閉じる）
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White.copy(alpha = 0.3f))
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) {
                             showRotationDialog = false
-                        }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF1E1E1E), // 元のcontainerColor
+                        shadowElevation = 8.dp,
+                        modifier = Modifier
+                            .width(320.dp) // 🟢 ここを width(〇〇.dp) に変えると好きな横幅に固定できます！
+                            .padding(16.dp)
+                            .clickable(enabled = false) { }
                     ) {
-                        Text("確定", color = Color(0xFFBB86FC), fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(
+                                text = "総回転数の入力",
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            OutlinedTextField(
+                                value = rotationInputText,
+                                onValueChange = { newValue ->
+                                    if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
+                                        rotationInputText = newValue
+                                    }
+                                },
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 20.sp,
+                                    color = Color.White
+                                ),
+                                label = { Text("回転数 (最大4桁)", fontSize = 16.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedContainerColor = Color(0xFF222222),
+                                    unfocusedContainerColor = Color(0xFF222222)
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = { showRotationDialog = false }) {
+                                    Text("キャンセル", color = Color.LightGray, fontSize = 18.sp)
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            db.memoDao().saveRotationValue(
+                                                RotationValue(
+                                                    machineId = machineId,
+                                                    rotationText = rotationInputText
+                                                )
+                                            )
+                                        }
+                                        showRotationDialog = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFBB86FC) // ★ 明るい紫
+                                    )
+                                ) {
+                                    Text(
+                                        "確定",
+                                        color = Color.Black,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showRotationDialog = false }) {
-                        Text("キャンセル", color = Color.LightGray)
-                    }
-                },
-                containerColor = Color(0xFF1E1E1E)
-            )
+                }
+            }
         }
     }
 
@@ -3494,8 +3649,7 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-        // 1. プレビュー用のデータ作成（今の入力内容を反映）
-        // inputValues.toMap() を remember の鍵にすることで、入力のたびにプレビューが更新されます
+        // 1. プレビュー用のデータ作成
         val previewValues = remember(inputValues.toMap()) {
             columns.map { col ->
                 MemoValue(
@@ -3506,11 +3660,10 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // 2. プレビュー用の「幅」を計算（一覧と同じロジック）
+        // 2. プレビュー用の「幅」を計算
         val columnWeights = remember(columns, previewValues) {
             val maxScores = mutableMapOf<Int, Float>()
             previewValues.forEach { memoValue ->
-                // ★ もし calculateVisualWidth で赤線が出るなら viewModel.calculateVisualWidth に書き換えてみてください
                 val score = calculateVisualWidth(memoValue.value)
                 val currentMax = maxScores[memoValue.columnId] ?: 0f
                 if (score > currentMax) maxScores[memoValue.columnId] = score
@@ -3531,10 +3684,11 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        // 🟢 元通りのむき出しの Column 構造（余計な Box/Surface は全削除）
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp) // 全体の余白
+                .padding(16.dp)
         ) {
             // --- 【固定エリア】タイトルとプレビュー ---
             Text(
@@ -3548,8 +3702,7 @@ class MainActivity : ComponentActivity() {
             // --- プレビューエリア ---
             Text(text = "プレビュー", fontSize = 14.sp, color = Color(0xFFBB86FC))
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 HistoryRow(
                     db = db,
@@ -3566,15 +3719,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            // Spacer(modifier = Modifier.height(16.dp))
-            // Divider(color = Color.DarkGray, thickness = 1.dp)
-            // ------------------------------------------
-
             Column(
                 modifier = Modifier
-                    .weight(1f) // これでプレビュー以外の隙間を全部埋める
+                    .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()) // ここだけでスクロールさせる
+                    .verticalScroll(rememberScrollState())
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -3590,7 +3739,6 @@ class MainActivity : ComponentActivity() {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Start
                     )
 
-                    // ★修正ポイント：if 文で Row を囲む
                     if (options.isNotEmpty()) {
                         Row(
                             modifier = Modifier
@@ -3602,43 +3750,35 @@ class MainActivity : ComponentActivity() {
                         ) {
                             options.forEach { option ->
                                 val isSelected = (currentValue == option)
-                                val bgColor =
-                                    if (isSelected) Color(0xFF7E57C2) else Color(0xFF333333)
+                                val bgColor = if (isSelected) Color(0xFF7E57C2) else Color(0xFF333333)
                                 val textColor = if (isSelected) Color.White else mainText
 
                                 Surface(
                                     onClick = {
-                                        val oldValue = currentValue // 変更前の値を覚えとく
+                                        val oldValue = currentValue
                                         val newValue = if (isSelected) "" else option
                                         inputValues[column.id] = newValue
 
                                         scope.launch {
-                                            // 1. 【打ち消し】前の値(oldValue)で発動していた連動をクリアする
                                             if (oldValue.isNotBlank()) {
-                                                val oldRules = db.memoDao()
-                                                    .getRulesByTrigger(column.id, oldValue)
+                                                val oldRules = db.memoDao().getRulesByTrigger(column.id, oldValue)
                                                 oldRules.forEach { rule ->
-                                                    // 「同じ行」かつ「連動先が自分以外」なら、一旦空にする
                                                     if (!rule.isNextRow && rule.targetColumnId != column.id) {
                                                         inputValues[rule.targetColumnId] = ""
                                                     }
                                                 }
                                             }
 
-                                            // 2. 【発動】新しい値(newValue)で連動を上書きする
                                             if (newValue.isNotBlank()) {
-                                                val newRules = db.memoDao()
-                                                    .getRulesByTrigger(column.id, newValue)
+                                                val newRules = db.memoDao().getRulesByTrigger(column.id, newValue)
                                                 newRules.forEach { rule ->
                                                     if (!rule.isNextRow && rule.targetColumnId != column.id) {
-                                                        inputValues[rule.targetColumnId] =
-                                                            rule.targetValue
+                                                        inputValues[rule.targetColumnId] = rule.targetValue
                                                     }
                                                 }
                                             }
                                         }
                                     },
-                                    // ... (以下略)
                                     shape = RoundedCornerShape(8.dp),
                                     color = bgColor,
                                     modifier = Modifier
@@ -3658,26 +3798,22 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                    } // ★if の閉じ
+                    }
 
-                    // 2. 手入力欄
                     if (options.isEmpty() || column.showTextField) {
                         OutlinedTextField(
                             value = currentValue,
                             onValueChange = { newValue ->
                                 inputValues[column.id] = newValue
 
-                                // --- ここから連動処理 ---
                                 scope.launch {
-                                    val rules =
-                                        db.memoDao().getRulesByTrigger(column.id, newValue)
+                                    val rules = db.memoDao().getRulesByTrigger(column.id, newValue)
                                     rules.forEach { rule ->
                                         if (!rule.isNextRow && rule.targetColumnId != column.id) {
                                             inputValues[rule.targetColumnId] = rule.targetValue
                                         }
                                     }
                                 }
-                                // --- ここまで ---
                             },
                             placeholder = {
                                 if (options.isNotEmpty()) {
@@ -3686,7 +3822,7 @@ class MainActivity : ComponentActivity() {
                             },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            shape = RoundedCornerShape(8.dp), // Bの角丸
+                            shape = RoundedCornerShape(8.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = mainText,
                                 unfocusedTextColor = mainText,
@@ -3698,8 +3834,9 @@ class MainActivity : ComponentActivity() {
                             )
                         )
                     }
-                } // columns.forEach の閉じ
+                }
             }
+
             // 保存・削除ボタンエリア
             Row(
                 modifier = Modifier
@@ -3711,7 +3848,6 @@ class MainActivity : ComponentActivity() {
                 Button(
                     onClick = {
                         scope.launch {
-                            // 先に有効な入力があるかチェック
                             val validInputs = inputValues.filter { it.value.isNotBlank() }
 
                             if (validInputs.isEmpty()) {
@@ -3719,16 +3855,13 @@ class MainActivity : ComponentActivity() {
                                 return@launch
                             }
 
-                            // 1. IDと時刻の確定
                             val currentRid: Int
                             val currentTimestamp: Long
 
                             if (editingRecordId != null) {
-                                // 【編集の場合】
                                 val existingRecord = db.memoDao().getRecordById(editingRecordId)
                                 currentRid = editingRecordId
-                                currentTimestamp =
-                                    existingRecord?.timestamp ?: System.currentTimeMillis()
+                                currentTimestamp = existingRecord?.timestamp ?: System.currentTimeMillis()
 
                                 val newValues = validInputs.map { (cid, txt) ->
                                     MemoValue(recordId = currentRid, columnId = cid, value = txt)
@@ -3738,27 +3871,16 @@ class MainActivity : ComponentActivity() {
                                     val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                     rules.forEach { rule ->
                                         if (!rule.isNextRow && cid != rule.targetColumnId) {
-                                            newValues.add(
-                                                MemoValue(
-                                                    recordId = currentRid,
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
-                                            )
+                                            newValues.add(MemoValue(recordId = currentRid, columnId = rule.targetColumnId, value = rule.targetValue))
                                         }
                                     }
                                 }
 
                                 viewModel.updateMemoWithHistory(
-                                    MemoRecord(
-                                        id = currentRid,
-                                        machineId = machineId,
-                                        timestamp = currentTimestamp
-                                    ),
+                                    MemoRecord(id = currentRid, machineId = machineId, timestamp = currentTimestamp),
                                     newValues
                                 )
                             } else {
-                                // 【新規の場合】
                                 currentTimestamp = System.currentTimeMillis()
                                 val generatedLongId = db.memoDao().insertRecord(
                                     MemoRecord(machineId = machineId, timestamp = currentTimestamp)
@@ -3773,89 +3895,54 @@ class MainActivity : ComponentActivity() {
                                     val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                     rules.forEach { rule ->
                                         if (!rule.isNextRow && cid != rule.targetColumnId) {
-                                            newValues.add(
-                                                MemoValue(
-                                                    recordId = currentRid,
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
-                                            )
+                                            newValues.add(MemoValue(recordId = currentRid, columnId = rule.targetColumnId, value = rule.targetValue))
                                         }
                                     }
                                 }
 
                                 viewModel.updateMemoWithHistory(
-                                    MemoRecord(
-                                        id = currentRid,
-                                        machineId = machineId,
-                                        timestamp = currentTimestamp
-                                    ),
+                                    MemoRecord(id = currentRid, machineId = machineId, timestamp = currentTimestamp),
                                     newValues
                                 )
                             }
 
-                            // --- 3. 連動チェック（次の行） ---
                             inputValues.forEach { (cid, txt) ->
                                 val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                 rules.forEach { rule ->
                                     if (rule.isNextRow) {
                                         val allRecords = db.memoDao().getRecordsByMachine(machineId)
-                                        val currentIndex =
-                                            allRecords.indexOfFirst { it.id == currentRid }
-                                        val nextRecord =
-                                            if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
-                                                allRecords[currentIndex + 1]
-                                            } else null
+                                        val currentIndex = allRecords.indexOfFirst { it.id == currentRid }
+                                        val nextRecord = if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
+                                            allRecords[currentIndex + 1]
+                                        } else null
 
                                         if (nextRecord != null) {
                                             db.memoDao().insertValue(
-                                                MemoValue(
-                                                    recordId = nextRecord.id,
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
+                                                MemoValue(recordId = nextRecord.id, columnId = rule.targetColumnId, value = rule.targetValue)
                                             )
                                         } else {
-                                            val newNextRid = db.memoDao().insertRecord(
-                                                MemoRecord(machineId = machineId)
-                                            )
+                                            val newNextRid = db.memoDao().insertRecord(MemoRecord(machineId = machineId))
                                             db.memoDao().insertValue(
-                                                MemoValue(
-                                                    recordId = newNextRid.toInt(),
-                                                    columnId = rule.targetColumnId,
-                                                    value = rule.targetValue
-                                                )
+                                                MemoValue(recordId = newNextRid.toInt(), columnId = rule.targetColumnId, value = rule.targetValue)
                                             )
                                         }
                                     }
                                 }
                             }
 
-                            // --- 4. 仕上げ ---
                             delay(150)
-
-                            // 💡【今回の修正ポイント】
-                            // 全削除（リセット）の時と同じように、データを最新状態に強制再読み込みさせます。
-                            // もし ViewModel に全読み込み関数（例: loadMemos() や refreshData() など）があれば、
-                            // ここで「viewModel.loadMemos()」のように呼んで画面を強制リフレッシュしてください。
-                            //（※設定読み込みの loadSettings() があるので、データ用のも何かあればそれを呼びます）
-
                             onSave()
                         }
                     },
                     modifier = Modifier
                         .weight(1f)
                         .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(
-                            0xFF7E57C2
-                        )
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7E57C2))
                 ) {
                     Text(
-                        if (editingRecordId != null) "変更を保存" else "メモに追加",
+                        text = if (editingRecordId != null) "変更を保存" else "メモに追加",
                         color = mainText,
-                        fontSize = 20.sp
+                        fontSize = 20.sp // 💡 文字サイズを20spに見やすく維持
                     )
                 }
 
@@ -3865,11 +3952,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.size(44.dp),
                         shape = RoundedCornerShape(22.dp),
                         contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(
-                                0xFFB3261E
-                            )
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E))
                     ) {
                         Icon(
                             Icons.Default.Delete,
@@ -3880,6 +3963,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // --- 削除確認ダイアログ ---
             if (showDeleteConfirmDialog) {
                 AlertDialog(
                     onDismissRequest = { showDeleteConfirmDialog = false },
@@ -3889,19 +3973,12 @@ class MainActivity : ComponentActivity() {
                     confirmButton = {
                         TextButton(onClick = {
                             scope.launch {
-                                // 1. スマートキャストを使って安全にNullチェックを通します
                                 val idToDelete = editingRecordId
                                 if (idToDelete != null) {
-                                    // 2. 履歴付きの削除メソッドを実行
                                     viewModel.deleteMemoWithHistory(idToDelete)
-
-                                    delay(150) // DBの削除反映を少し待つ
-
-                                    // 3. 【重要】ここが消えていました！
-                                    // 削除が完了したら、入力ダイアログ自体をパッと閉じ、親画面をリフレッシュします
+                                    delay(150)
                                     onSave()
                                 }
-                                // 4. 確認ダイアログを閉じます
                                 showDeleteConfirmDialog = false
                             }
                         }) {
