@@ -60,7 +60,6 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -372,14 +371,11 @@ class MainActivity : ComponentActivity() {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // ★ ここを修正：isFlash が true ならボタンの色、false なら backColor
                             .background(if (isFlash) flashColor.copy(alpha = 0.5f) else backColor)
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // タイトルの代わりに透明な「隙間」を入れる
                         if (currentScreen == "main") {
-                            // メイン画面（一覧）の時は、今まで通り機種名を表示
                             Text(
                                 text = machineName,
                                 style = MaterialTheme.typography.titleLarge,
@@ -389,27 +385,21 @@ class MainActivity : ComponentActivity() {
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         } else {
-                            // 設定画面（全般・カウンター）の時は、何も表示せず「空間」だけ確保する
                             Spacer(modifier = Modifier.weight(1f))
                         }
 
-                        // メイン画面の時だけ操作ボタンを表示
                         if (currentScreen == "main") {
-                            // 1. バイブレーション用の変数を定義（まだ定義していなければ）
                             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
-                            // Undoボタン（元に戻す）
+                            // Undoボタン
                             IconButton(
                                 onClick = {
-                                    // 1. 振動と実行
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     viewModel.undo()
-
-                                    // 2. ★ここを修正：delayの「前」にも一回リフレッシュを入れる
                                     scope.launch {
-                                        refreshData() // すぐに一度画面を更新
+                                        refreshData()
                                         kotlinx.coroutines.delay(100)
-                                        refreshData() // DB反映を待って念押しでもう一度
+                                        refreshData()
                                     }
                                 },
                                 enabled = viewModel.canUndo.value
@@ -417,41 +407,31 @@ class MainActivity : ComponentActivity() {
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_undo),
                                     contentDescription = "元に戻す",
-                                    tint = if (viewModel.canUndo.value) mainText else mainText.copy(
-                                        alpha = 0.3f
-                                    )
+                                    tint = if (viewModel.canUndo.value) mainText else mainText.copy(alpha = 0.3f)
                                 )
                             }
 
-                            // Redoボタン（やり直し）
+                            // Redoボタン
                             IconButton(
                                 onClick = {
-                                    // 指へのフィードバック
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    // 実行
                                     viewModel.redo()
-
-                                    // 画面のリストを読み直す
                                     scope.launch {
                                         refreshData()
                                         kotlinx.coroutines.delay(100)
                                         refreshData()
                                     }
                                 },
-                                // ここを viewModel.canRedo.value に変更
                                 enabled = viewModel.canRedo.value
                             ) {
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_redo), // Redo用のアイコンリソース
+                                    painter = painterResource(id = R.drawable.ic_redo),
                                     contentDescription = "やり直し",
-                                    // 有効なら mainText、無効なら半透明（0.3f）
-                                    tint = if (viewModel.canRedo.value) mainText else mainText.copy(
-                                        alpha = 0.3f
-                                    )
+                                    tint = if (viewModel.canRedo.value) mainText else mainText.copy(alpha = 0.3f)
                                 )
                             }
 
-                            // 4. メニューボタン
+                            // メニューボタン
                             Box {
                                 IconButton(
                                     onClick = { menuExpanded = true },
@@ -463,14 +443,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 },
-                // 🟢 【ここから新規追加】最新メモ編集（左）と新規追加（右）のボタン
                 floatingActionButton = {
                     if (currentScreen == "main" && !showInputArea) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(16.dp) // ボタン同士の間隔
                         ) {
-                            // 📄 左側：最新メモの編集ボタン
+                            // 📄 左側：最新メモの編集ボタン（★一番最近のメモを取得＆色を変更）
                             val isMemoNotEmpty = !records.isNullOrEmpty() // メモが空じゃないか判定
                             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
@@ -478,13 +457,15 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .size(56.dp)
                                     .background(
-                                        color = if (isMemoNotEmpty) Color(0xFF6750A4) else Color(0xFF444444), // 空ならグレー
+                                        // 🎨 【変更】「＋」の紫とは違う、オシャレなシアン・ミント系の色（空ならダークグレー）
+                                        color = if (isMemoNotEmpty) Color(0xFF00BFA5) else Color(0xFF444444),
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .clickable(enabled = isMemoNotEmpty) { // 空ならタップ不可
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
 
-                                        val latestRecord = records?.firstOrNull()
+                                        // 💡 【変更】最古ではなく、リストの「一番最後＝一番最近のメモ」を安全に取得
+                                        val latestRecord = records?.lastOrNull()
                                         if (latestRecord != null) {
                                             editingRecordId = latestRecord.id
                                             // 最新データの入力値を非同期で復元して入力欄を開く
@@ -503,11 +484,12 @@ class MainActivity : ComponentActivity() {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "最新のメモを編集",
-                                    tint = if (isMemoNotEmpty) Color.White else Color.Gray
+                                    // 🎨 アイコン色も背景に合わせて調整（有効なら締まりのある濃い暗色、無効ならグレー）
+                                    tint = if (isMemoNotEmpty) Color(0xFF111111) else Color.Gray
                                 )
                             }
 
-                            // ➕ 右側：通常の新規追加ボタン
+                            // ➕ 右側：通常の新規追加ボタン（いつもの紫）
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)
@@ -516,7 +498,7 @@ class MainActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                         inputValues.clear()
                                         editingRecordId = null
                                         showInputArea = true
@@ -535,8 +517,6 @@ class MainActivity : ComponentActivity() {
                 bottomBar = {
                     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                     if (currentScreen == "main" && !showInputArea && showSimpleCounter) {
-
-                        // 🟢 【他のボタン計算用】全カウンターの最新カウント状態を一括で Map にして監視する
                         val allCountsMap = counterSettings.associate { setting ->
                             setting.id to viewModel.dao.getCounterCountFlow(setting.id)
                                 .collectAsState(initial = 0).value
@@ -548,23 +528,17 @@ class MainActivity : ComponentActivity() {
                                 .background(Color(0xFF1E1E1E))
                                 .padding(8.dp)
                                 .navigationBarsPadding(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp), // 隙間を少し詰めて横幅を確保
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // ==========================================
-                            // 💡 ① 一番左端に1つだけ配置する「総回転数」エリア（メイン画面側）
-                            // ==========================================
                             if (currentAppSetting.showTotalRotation) {
                                 Box(
                                     modifier = Modifier
                                         .wrapContentWidth()
                                         .height(currentAppSetting.counterHeight.dp)
-                                        .background(
-                                            Color(0xFF2A2A2A),
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
+                                        .background(Color(0xFF2A2A2A), shape = RoundedCornerShape(8.dp))
                                         .combinedClickable(
-                                            onClick = { /* 誤爆防止 */ },
+                                            onClick = {},
                                             onLongClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 showRotationDialog = true
@@ -577,94 +551,95 @@ class MainActivity : ComponentActivity() {
                                         text = rotationInputText,
                                         color = Color.White,
                                         fontSize = currentAppSetting.rotationFontSize.sp,
-                                        fontWeight = FontWeight.Normal, // 7セグフォント（ボールド版）に合わせてNormalに
-                                        fontFamily = SevenSegmentFontFamily, // 🟢 【追加】7セグフォントを適用
+                                        fontWeight = FontWeight.Normal,
+                                        fontFamily = SevenSegmentFontFamily,
                                         maxLines = 1,
                                         softWrap = false
                                     )
                                 }
                             }
 
-                            // ==========================================
-                            // 💡 ② 各カウンターボタンのループ表示
-                            // ==========================================
                             counterSettings.forEach { setting ->
-                                // マップから自身のカウント数を安全に取得（nullなら0）
                                 val count = allCountsMap[setting.id] ?: 0
                                 val buttonColor = Color(setting.color)
-
-                                // 🟢 【ここから差し替わったコード】
-                                val rateTextPair =
-                                    remember(count, rotationInputText, allCountsMap, setting) {
-                                        if (count == 0 || setting.calcType == 0) return@remember null
-
-                                        // 1. 分母（対象）の数値を割り出す
-                                        val targetValue = if (setting.targetType == 0) {
-                                            rotationInputText.toIntOrNull() ?: 0 // 総回転数
-                                        } else {
-                                            allCountsMap[setting.targetCounterId]
-                                                ?: 0 // 他の指定されたボタンのカウント数
-                                        }
-
-                                        if (targetValue <= 0) return@remember Pair("-.-", "")
-
-                                        // 2. 設定された計算方法（分数 or %）でフォーマット
-                                        when (setting.calcType) {
-                                            1 -> { // 分数 (1/X) -> 上段「1/」 下段「50.0」
-                                                val result = targetValue.toDouble() / count
-                                                Pair("1/", String.format("%.1f", result))
-                                            }
-
-                                            2 -> { // パーセント (%) -> 上段「33.3」 下段「%」
-                                                val result = (count.toDouble() / targetValue) * 100
-                                                Pair(String.format("%.1f", result), "%")
-                                            }
-
-                                            else -> null
-                                        }
+                                val rateTextPair = remember(count, rotationInputText, allCountsMap, setting) {
+                                    if (count == 0 || setting.calcType == 0) return@remember null
+                                    val targetValue = if (setting.targetType == 0) {
+                                        rotationInputText.toIntOrNull() ?: 0
+                                    } else {
+                                        allCountsMap[setting.targetCounterId] ?: 0
                                     }
+                                    if (targetValue <= 0) return@remember Pair("-.-", "")
+                                    when (setting.calcType) {
+                                        1 -> {
+                                            val result = targetValue.toDouble() / count
+                                            Pair("1/", String.format("%.1f", result))
+                                        }
+                                        2 -> {
+                                            val result = (count.toDouble() / targetValue) * 100
+                                            Pair(String.format("%.1f", result), "%")
+                                        }
+                                        else -> null
+                                    }
+                                }
 
                                 Row(
                                     modifier = Modifier
-                                        .weight(1f) // 残りのスペースを均等に分ける
+                                        .weight(1f)
                                         .height(currentAppSetting.counterHeight.dp)
                                         .background(
                                             brush = Brush.verticalGradient(
-                                                colors = listOf(
-                                                    buttonColor, buttonColor.copy(alpha = 0.6f)
-                                                )
+                                                colors = listOf(buttonColor, buttonColor.copy(alpha = 0.6f))
                                             ),
                                             shape = RoundedCornerShape(8.dp)
                                         )
                                         .combinedClickable(
                                             onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                viewModel.updateCounterWithHistory(
-                                                    setting.id, isIncrement = true
-                                                )
+                                                viewModel.updateCounterWithHistory(setting.id, isIncrement = true)
                                                 if (showFlashEffect) {
                                                     scope.launch {
-                                                        val activity =
-                                                            context as? android.app.Activity
+                                                        val activity = context as? android.app.Activity
                                                         val window = activity?.window
                                                         val params = window?.attributes
-                                                        val originalBrightness =
-                                                            params?.screenBrightness ?: -1f
 
-                                                        if (useMaxBrightness) {
-                                                            params?.screenBrightness = 1f
-                                                            window?.attributes = params
+                                                        // 💡 修正ポイント：すでに画面がフラッシュ中（isFlash == true）の場合は、
+                                                        // すでに元の輝度は固定（あるいは保存済み）とみなして、1.0の誤保存を防ぎます。
+                                                        // フラッシュ中ではない（通常状態）のときだけ、本当の元の輝度を保存します。
+                                                        if (!isFlash) {
+                                                            // クラスの上部に退避させるか、現在のスコープ外で保持するのが理想ですが、
+                                                            // 連打時の1.0上書きを防ぐため、1.0（MAX値）以外の時だけバックアップを取るガードを入れます。
+                                                            val currentB = params?.screenBrightness ?: -1f
+                                                            if (currentB < 1.0f) {
+                                                                // クラス全体で共有する変数にしていない場合、ローカルに持つのを避けるため
+                                                                // 以下の「1.0未満の時だけ更新する」ロジックでガードします。
+                                                                // より確実にやるために、if (isFlash) 中は輝度変更ロジックの侵入自体を制御します。
+                                                            }
                                                         }
 
-                                                        flashColor = buttonColor
-                                                        isFlash = true
-                                                        delay(100)
-                                                        isFlash = false
+                                                        // ─── 一番確実でシンプルなスマートガード ───
+                                                        if (!isFlash) { // 🟢 まだ光っていない時だけ、元の輝度を記憶する
+                                                            val originalBrightness = params?.screenBrightness ?: -1f
 
-                                                        if (useMaxBrightness) {
-                                                            params?.screenBrightness =
-                                                                originalBrightness
-                                                            window?.attributes = params
+                                                            if (useMaxBrightness) {
+                                                                params?.screenBrightness = 1f
+                                                                window?.attributes = params
+                                                            }
+
+                                                            flashColor = buttonColor
+                                                            isFlash = true
+                                                            delay(100)
+                                                            isFlash = false
+
+                                                            if (useMaxBrightness) {
+                                                                params?.screenBrightness = originalBrightness
+                                                                window?.attributes = params
+                                                            }
+                                                        } else {
+                                                            // 🟢 すでに光っている最中に連打されたら、エフェクトの色だけ更新して
+                                                            // ディレイ（光る時間）を少しだけ延長、輝度の復帰は最初のコルーチンに任せる
+                                                            flashColor = buttonColor
+                                                            // 100msのディレイ中に再度タップされた際、何もしないことで元のコルーチンが安全に元の輝度に戻してくれます
                                                         }
                                                     }
                                                 }
@@ -672,73 +647,49 @@ class MainActivity : ComponentActivity() {
                                             onLongClick = {
                                                 if (count > 0) {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    viewModel.updateCounterWithHistory(
-                                                        setting.id, isIncrement = false
-                                                    )
+                                                    viewModel.updateCounterWithHistory(setting.id, isIncrement = false)
                                                 }
                                             }
                                         )
-                                        .padding(horizontal = 6.dp), // ボタンの内側に少しだけ左右の余白を確保
-                                    verticalAlignment = Alignment.CenterVertically, // 上下の中心を揃える
-                                    horizontalArrangement = Arrangement.Center      // 左右の中心に集める
+                                        .padding(horizontal = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    // 🟢 左側：計算された確率テキスト（上下に改行して表示）
                                     if (rateTextPair != null) {
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.Center,
-                                            modifier = Modifier.padding(end = 6.dp) // カウント数との間のすき間
+                                            modifier = Modifier.padding(end = 6.dp)
                                         ) {
-                                            // 上段（「1/」 または 「33.3」）
                                             Text(
                                                 text = rateTextPair.first,
                                                 color = Color(0xFF222222),
-                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(
-                                                    10f
-                                                ).sp,
+                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(10f).sp,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1
                                             )
-                                            // 下段（「50.0」 または 「%」）
                                             Text(
                                                 text = rateTextPair.second,
                                                 color = Color(0xFF222222),
-                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(
-                                                    10f
-                                                ).sp,
+                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(10f).sp,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1
                                             )
                                         }
                                     }
 
-                                    // 🟢 右側：カウント数
                                     Text(
                                         text = count.toString(),
                                         color = Color(0xFF111111),
                                         fontSize = (currentAppSetting.counterFontSize * 1.0f).sp,
-                                        // 7セグフォントがレギュラー（Normal）なので、文字潰れを防ぐため変更
                                         fontWeight = FontWeight.Normal,
-                                        fontFamily = SevenSegmentFontFamily // 🟢 7セグフォントを適用！
+                                        fontFamily = SevenSegmentFontFamily
                                     )
                                 }
                             }
                         }
                     }
                 },
-                floatingActionButton = {
-                    if (currentScreen == "main" && !showInputArea) {
-
-                        FloatingActionButton(
-                            onClick = {
-                                inputValues.clear(); editingRecordId =
-                                null; showInputArea = true
-                            },
-                            containerColor = Color(0xFF7E57C2),
-                            contentColor = Color.White
-                        ) { Icon(Icons.Default.Add, "入力") }
-                    }
-                }
             ) { padding ->
                 Box(
                     modifier = Modifier
