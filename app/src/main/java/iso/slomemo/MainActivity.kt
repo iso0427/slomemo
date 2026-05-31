@@ -1,10 +1,14 @@
 package iso.slomemo
 
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -115,6 +119,7 @@ import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.provider.Settings
 
 // 🟢 どこにも囲まれていない「外側」のここにポツンと貼り付けます！
 val SevenSegmentFontFamily = FontFamily(
@@ -834,6 +839,84 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     "時間を表示する",
+                                    color = mainText,
+                                    fontSize = 18.sp
+                                )
+                            }
+
+                            var isOverlayEnabled by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+
+                            // 画面に戻ってきたときに、許可が下りたか再確認するための処理
+                            val overlayPermissionLauncher = rememberLauncherForActivityResult(
+                                contract = ActivityResultContracts.StartActivityForResult()
+                            ) {
+                                isOverlayEnabled = Settings.canDrawOverlays(context)
+                                if (isOverlayEnabled) {
+                                    // 許可が下りたらサービスを起動
+                                    context.startService(
+                                        Intent(
+                                            context,
+                                            OverlayService::class.java
+                                        )
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (!Settings.canDrawOverlays(context)) {
+                                            // 許可がない場合は、AndroidのOverlay許可設定画面へ飛ばす
+                                            val intent = Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:${context.packageName}")
+                                            )
+                                            overlayPermissionLauncher.launch(intent)
+                                        } else {
+                                            // 許可がある場合はサービスをオン/オフ
+                                            val intent = Intent(context, OverlayService::class.java)
+                                            if (Settings.canDrawOverlays(context)) {
+                                                // 簡易的にボタンがすでに表示されているかを判定
+                                                // 実際にはサービスが動いているかどうかでON/OFFを切り替えます
+                                                context.startService(intent)
+                                            }
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 現在サービスが起動しているかでスイッチの向きを変える
+                                // 今回はシンプルに OverlayService の開始/停止を切り替えるボタンとして機能させます
+                                var isServiceRunning by remember { mutableStateOf(false) }
+
+                                Switch(
+                                    checked = isServiceRunning,
+                                    onCheckedChange = { isChecked ->
+                                        if (!Settings.canDrawOverlays(context)) {
+                                            val intent = Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:${context.packageName}")
+                                            )
+                                            overlayPermissionLauncher.launch(intent)
+                                        } else {
+                                            isServiceRunning = isChecked
+                                            val intent = Intent(context, OverlayService::class.java)
+                                            if (isChecked) {
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                    context.startForegroundService(intent)
+                                                } else {
+                                                    context.startService(intent)
+                                                }
+                                            } else {
+                                                context.stopService(intent)
+                                            }
+                                        }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    "常駐カウンターボタンを表示する",
                                     color = mainText,
                                     fontSize = 18.sp
                                 )
