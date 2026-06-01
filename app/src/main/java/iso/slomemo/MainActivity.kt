@@ -1445,6 +1445,8 @@ class MainActivity : ComponentActivity() {
                                                                         counterHeight = hValue
                                                                     )
                                                                 )
+                                                                // 🟢 今回新しく追加するコード（メモ帳にも高さを保存する）
+                                                                prefs.edit().putInt("counter_height", hValue).apply()
                                                             }
                                                         },
                                                     contentAlignment = Alignment.Center

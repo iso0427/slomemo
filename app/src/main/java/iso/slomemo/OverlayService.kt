@@ -65,6 +65,16 @@ class OverlayService : Service() {
             setBackgroundColor(Color.parseColor("#AA000000")) // 半透明の黒
         }
 
+        // メモ帳（SharedPreferences）から保存された高さを読み込む（保存がなければデフォルト値は 45）
+        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val savedHeight = prefs.getInt("counter_height", 45)
+
+        // 設定値（1〜5段階相当の数値）を、スマホの画面に合わせた実際のピクセル数に変換する計算
+        // 例: 30dp -> 画面に合わせたピクセル数へ変換
+        val density = resources.displayMetrics.density
+        val btnHeightPx = (savedHeight * density).toInt()
+        val btnWidthPx = (150 / 3) // 幅は一旦今の150を基準に調整用（後ほど使用）
+
         // 画面のどこに配置するか、重ね合わせのルール設定
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -74,8 +84,8 @@ class OverlayService : Service() {
         }
 
         val params = WindowManager.LayoutParams(
-            150, // ボタンの横幅
-            150, // ボタンの縦幅
+            btnHeightPx,
+            btnHeightPx,
             layoutType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, // キーボードを奪わない設定
             PixelFormat.TRANSLUCENT
