@@ -463,8 +463,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .size(56.dp)
                                     .background(
-                                        // 🎨 【変更】「＋」の紫とは違う、オシャレなシアン・ミント系の色（空ならダークグレー）
-                                        color = if (isMemoNotEmpty) Color(0xFF00BFA5) else Color(0xFF444444),
+                                        color = if (isMemoNotEmpty) Color(0xFFEDB92A) else Color(0xFF444444),
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .clickable(enabled = isMemoNotEmpty) { // 空ならタップ不可
@@ -514,7 +513,8 @@ class MainActivity : ComponentActivity() {
                                 Icon(
                                     imageVector = Icons.Default.Add,
                                     contentDescription = "新規追加",
-                                    tint = Color.White
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         }

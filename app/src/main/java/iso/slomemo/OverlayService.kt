@@ -15,11 +15,13 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import kotlinx.coroutines.launch
 
 class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var floatingButton: Button? = null
+    private lateinit var db: AppDatabase
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -53,16 +55,34 @@ class OverlayService : Service() {
         }
 
         startForeground(1, notification)
+        db = androidx.room.Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "slomemo_db"
+        ).build()
 
         // 🟢 画面の上にボタンを浮かせる処理
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         // ボタンの見た目や設定
         floatingButton = Button(this).apply {
-            text = "+"
+            // 🟢 元の見た目の設定を引き継ぎます
             textSize = 24f
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.parseColor("#AA000000")) // 半透明の黒
+            text = "..." // 読み込み中の仮文字
+
+            // 🟢 コルーチンを使ってデータベースから実データを安全に読み込みます
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                val setting = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    db.memoDao().getAppSetting()
+                }
+                if (setting != null) {
+                    text = setting.counterValue.toString() // 🟢 本物のカウント数を表示！
+                } else {
+                    text = "0"
+                }
+            }
         }
 
         // メモ帳（SharedPreferences）から保存された高さを読み込む（保存がなければデフォルト値は 45）
