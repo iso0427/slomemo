@@ -40,12 +40,13 @@ class OverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
-            // 通知の「カウンターを消去」ボタンが押された場合
+            // 🟢 【ここが未実装でした！】通知の「カウンターを消去」ボタンが押された時の処理
             if (intent.action == ACTION_STOP_SERVICE) {
+                // アプリ本体の設定（スイッチの状態）をオフに戻しておく
                 val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("overlay_running", false).apply()
 
-                stopSelf()
+                stopSelf() // サービスを終了させて画面から消す！
                 return START_NOT_STICKY
             }
 
