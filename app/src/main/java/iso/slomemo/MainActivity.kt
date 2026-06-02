@@ -463,7 +463,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .size(56.dp)
                                     .background(
-                                        color = if (isMemoNotEmpty) Color(0xFFEDB92A) else Color(0xFF444444),
+                                        color = if (isMemoNotEmpty) Color(0xFF009688) else Color(0xFF444444),
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .clickable(enabled = isMemoNotEmpty) { // 空ならタップ不可
@@ -490,7 +490,7 @@ class MainActivity : ComponentActivity() {
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "最新のメモを編集",
                                     // 🎨 アイコン色も背景に合わせて調整（有効なら締まりのある濃い暗色、無効ならグレー）
-                                    tint = if (isMemoNotEmpty) Color(0xFF111111) else Color.Gray
+                                    tint = if (isMemoNotEmpty) Color(0xFFFFFFFF) else Color.Gray
                                 )
                             }
 
@@ -1352,10 +1352,14 @@ class MainActivity : ComponentActivity() {
                                                         val nextState = !isServiceRunning
                                                         isServiceRunning = nextState
 
-                                                        // メモ帳（SharedPreferences）に状態を保存
+                                                        // 状態を保存
                                                         prefs.edit().putBoolean("overlay_running", nextState).apply()
 
-                                                        val intent = Intent(context, OverlayService::class.java)
+                                                        // 🟢 いま開いている機種ID（machineId）を、TARGET_MACHINE_IDという名前でお手紙に持たせる
+                                                        val intent = Intent(context, OverlayService::class.java).apply {
+                                                            putExtra("TARGET_MACHINE_ID", machineId)
+                                                        }
+
                                                         if (nextState) {
                                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                                                 context.startForegroundService(intent)
@@ -1367,7 +1371,7 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 }
-                                                .padding(vertical = 12.dp),
+                                                .padding(vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Switch(
@@ -1382,10 +1386,14 @@ class MainActivity : ComponentActivity() {
                                                     } else {
                                                         isServiceRunning = isChecked
 
-                                                        // メモ帳（SharedPreferences）に状態を保存
+                                                        // 状態を保存
                                                         prefs.edit().putBoolean("overlay_running", isChecked).apply()
 
-                                                        val intent = Intent(context, OverlayService::class.java)
+                                                        // 🟢 スイッチ側も同じく現在の機種ID（machineId）を持たせる
+                                                        val intent = Intent(context, OverlayService::class.java).apply {
+                                                            putExtra("TARGET_MACHINE_ID", machineId)
+                                                        }
+
                                                         if (isChecked) {
                                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                                                 context.startForegroundService(intent)
@@ -1405,7 +1413,6 @@ class MainActivity : ComponentActivity() {
                                                 fontSize = 18.sp
                                             )
                                         }
-                                        // 🟢 ここまでを差し替えます（この下に「Spacer(modifier = Modifier.height(24.dp))」と「ボタンの高さ」が続きます）
 
                                         Spacer(modifier = Modifier.height(24.dp))
 
