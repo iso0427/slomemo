@@ -156,7 +156,6 @@ class MainActivity : ComponentActivity() {
             "memo-db"
         ).fallbackToDestructiveMigration().build()
 
-
         setContent {
             val view = androidx.compose.ui.platform.LocalView.current
             if (!view.isInEditMode) {
@@ -413,7 +412,9 @@ class MainActivity : ComponentActivity() {
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_undo),
                                     contentDescription = "元に戻す",
-                                    tint = if (viewModel.canUndo.value) mainText else mainText.copy(alpha = 0.3f)
+                                    tint = if (viewModel.canUndo.value) mainText else mainText.copy(
+                                        alpha = 0.3f
+                                    )
                                 )
                             }
 
@@ -433,7 +434,9 @@ class MainActivity : ComponentActivity() {
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_redo),
                                     contentDescription = "やり直し",
-                                    tint = if (viewModel.canRedo.value) mainText else mainText.copy(alpha = 0.3f)
+                                    tint = if (viewModel.canRedo.value) mainText else mainText.copy(
+                                        alpha = 0.3f
+                                    )
                                 )
                             }
 
@@ -463,7 +466,9 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .size(56.dp)
                                     .background(
-                                        color = if (isMemoNotEmpty) Color(0xFF009688) else Color(0xFF444444),
+                                        color = if (isMemoNotEmpty) Color(0xFF009688) else Color(
+                                            0xFF444444
+                                        ),
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .clickable(enabled = isMemoNotEmpty) { // 空ならタップ不可
@@ -475,7 +480,8 @@ class MainActivity : ComponentActivity() {
                                             editingRecordId = latestRecord.id
                                             // 最新データの入力値を非同期で復元して入力欄を開く
                                             scope.launch {
-                                                val currentValues = db.memoDao().getValuesForRecord(latestRecord.id)
+                                                val currentValues =
+                                                    db.memoDao().getValuesForRecord(latestRecord.id)
                                                 inputValues.clear()
                                                 currentValues.forEach {
                                                     inputValues[it.columnId] = it.value
@@ -542,7 +548,10 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier
                                         .wrapContentWidth()
                                         .height(currentAppSetting.counterHeight.dp)
-                                        .background(Color(0xFF2A2A2A), shape = RoundedCornerShape(8.dp))
+                                        .background(
+                                            Color(0xFF2A2A2A),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
                                         .combinedClickable(
                                             onClick = {},
                                             onLongClick = {
@@ -568,26 +577,29 @@ class MainActivity : ComponentActivity() {
                             counterSettings.forEach { setting ->
                                 val count = allCountsMap[setting.id] ?: 0
                                 val buttonColor = Color(setting.color)
-                                val rateTextPair = remember(count, rotationInputText, allCountsMap, setting) {
-                                    if (count == 0 || setting.calcType == 0) return@remember null
-                                    val targetValue = if (setting.targetType == 0) {
-                                        rotationInputText.toIntOrNull() ?: 0
-                                    } else {
-                                        allCountsMap[setting.targetCounterId] ?: 0
-                                    }
-                                    if (targetValue <= 0) return@remember Pair("-.-", "")
-                                    when (setting.calcType) {
-                                        1 -> {
-                                            val result = targetValue.toDouble() / count
-                                            Pair("1/", String.format("%.1f", result))
+                                val rateTextPair =
+                                    remember(count, rotationInputText, allCountsMap, setting) {
+                                        if (count == 0 || setting.calcType == 0) return@remember null
+                                        val targetValue = if (setting.targetType == 0) {
+                                            rotationInputText.toIntOrNull() ?: 0
+                                        } else {
+                                            allCountsMap[setting.targetCounterId] ?: 0
                                         }
-                                        2 -> {
-                                            val result = (count.toDouble() / targetValue) * 100
-                                            Pair(String.format("%.1f", result), "%")
+                                        if (targetValue <= 0) return@remember Pair("-.-", "")
+                                        when (setting.calcType) {
+                                            1 -> {
+                                                val result = targetValue.toDouble() / count
+                                                Pair("1/", String.format("%.1f", result))
+                                            }
+
+                                            2 -> {
+                                                val result = (count.toDouble() / targetValue) * 100
+                                                Pair(String.format("%.1f", result), "%")
+                                            }
+
+                                            else -> null
                                         }
-                                        else -> null
                                     }
-                                }
 
                                 Row(
                                     modifier = Modifier
@@ -595,17 +607,24 @@ class MainActivity : ComponentActivity() {
                                         .height(currentAppSetting.counterHeight.dp)
                                         .background(
                                             brush = Brush.verticalGradient(
-                                                colors = listOf(buttonColor, buttonColor.copy(alpha = 0.6f))
+                                                colors = listOf(
+                                                    buttonColor,
+                                                    buttonColor.copy(alpha = 0.6f)
+                                                )
                                             ),
                                             shape = RoundedCornerShape(8.dp)
                                         )
                                         .combinedClickable(
                                             onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                viewModel.updateCounterWithHistory(setting.id, isIncrement = true)
+                                                viewModel.updateCounterWithHistory(
+                                                    setting.id,
+                                                    isIncrement = true
+                                                )
                                                 if (showFlashEffect) {
                                                     scope.launch {
-                                                        val activity = context as? android.app.Activity
+                                                        val activity =
+                                                            context as? android.app.Activity
                                                         val window = activity?.window
                                                         val params = window?.attributes
 
@@ -615,7 +634,8 @@ class MainActivity : ComponentActivity() {
                                                         if (!isFlash) {
                                                             // クラスの上部に退避させるか、現在のスコープ外で保持するのが理想ですが、
                                                             // 連打時の1.0上書きを防ぐため、1.0（MAX値）以外の時だけバックアップを取るガードを入れます。
-                                                            val currentB = params?.screenBrightness ?: -1f
+                                                            val currentB =
+                                                                params?.screenBrightness ?: -1f
                                                             if (currentB < 1.0f) {
                                                                 // クラス全体で共有する変数にしていない場合、ローカルに持つのを避けるため
                                                                 // 以下の「1.0未満の時だけ更新する」ロジックでガードします。
@@ -625,7 +645,8 @@ class MainActivity : ComponentActivity() {
 
                                                         // ─── 一番確実でシンプルなスマートガード ───
                                                         if (!isFlash) { // 🟢 まだ光っていない時だけ、元の輝度を記憶する
-                                                            val originalBrightness = params?.screenBrightness ?: -1f
+                                                            val originalBrightness =
+                                                                params?.screenBrightness ?: -1f
 
                                                             if (useMaxBrightness) {
                                                                 params?.screenBrightness = 1f
@@ -638,7 +659,8 @@ class MainActivity : ComponentActivity() {
                                                             isFlash = false
 
                                                             if (useMaxBrightness) {
-                                                                params?.screenBrightness = originalBrightness
+                                                                params?.screenBrightness =
+                                                                    originalBrightness
                                                                 window?.attributes = params
                                                             }
                                                         } else {
@@ -653,7 +675,10 @@ class MainActivity : ComponentActivity() {
                                             onLongClick = {
                                                 if (count > 0) {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    viewModel.updateCounterWithHistory(setting.id, isIncrement = false)
+                                                    viewModel.updateCounterWithHistory(
+                                                        setting.id,
+                                                        isIncrement = false
+                                                    )
                                                 }
                                             }
                                         )
@@ -670,14 +695,18 @@ class MainActivity : ComponentActivity() {
                                             Text(
                                                 text = rateTextPair.first,
                                                 color = Color(0xFF222222),
-                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(10f).sp,
+                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(
+                                                    10f
+                                                ).sp,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1
                                             )
                                             Text(
                                                 text = rateTextPair.second,
                                                 color = Color(0xFF222222),
-                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(10f).sp,
+                                                fontSize = (currentAppSetting.rateFontSize * 0.35f).coerceAtLeast(
+                                                    10f
+                                                ).sp,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1
                                             )
@@ -1172,25 +1201,86 @@ class MainActivity : ComponentActivity() {
                         } // Columnの終わり
 
                     } else if (currentScreen == "counter_settings") {
-                        // ★ ここが新設する「簡易カウンター専用の設定画面」 ★
-                        // 🌟 画面全体を覆えるように、一番外側を Box に変更します
+                        // ★ ここが「簡易カウンター専用の設定画面」 ★
                         Box(modifier = Modifier.fillMaxSize()) {
 
-                            // 1. まず一番外側のBoxの直下で、メモ帳（prefs）を用意します
-                            val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                            val prefs = context.getSharedPreferences(
+                                "app_prefs",
+                                android.content.Context.MODE_PRIVATE
+                            )
 
-                            // 2. 次にランチャーを用意します
+                            // 【1】画面のON/OFF状態（isServiceRunning）を定義（重複をなくし、ここに1つだけにしました）
+                            var isServiceRunning by remember {
+                                mutableStateOf(
+                                    prefs.getBoolean(
+                                        "overlay_running",
+                                        false
+                                    )
+                                )
+                            }
+
+                            // 【2】通知の許可ダイアログの結果を受け取るランチャー
+                            val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                                contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+                            ) { isGranted ->
+                                if (isGranted) {
+                                    isServiceRunning = true
+                                    prefs.edit().putBoolean("overlay_running", true).apply()
+
+                                    val intent = Intent(context, OverlayService::class.java).apply {
+                                        putExtra("TARGET_MACHINE_ID", machineId)
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        context.startForegroundService(intent)
+                                    } else {
+                                        context.startService(intent)
+                                    }
+                                } else {
+                                    isServiceRunning = false
+                                }
+                            }
+
+                            // 【3】通知の許可を求める関数（Rowの外側の一番広い場所に引っ越しさせました）
+                            val requestNotificationPermission = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                    androidx.core.content.ContextCompat.checkSelfPermission(
+                                        context,
+                                        android.Manifest.permission.POST_NOTIFICATIONS
+                                    )
+                                    != android.content.pm.PackageManager.PERMISSION_GRANTED
+                                ) {
+
+                                    // 通知の許可がない場合はダイアログをポップアップ
+                                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    // すでに許可があるならそのまま起動
+                                    isServiceRunning = true
+                                    prefs.edit().putBoolean("overlay_running", true).apply()
+
+                                    val intent = Intent(context, OverlayService::class.java).apply {
+                                        putExtra("TARGET_MACHINE_ID", machineId)
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        context.startForegroundService(intent)
+                                    } else {
+                                        context.startService(intent)
+                                    }
+                                }
+                            }
+
+                            // 【4】画面重ね合わせ権限用のランチャー
                             val overlayPermissionLauncher = rememberLauncherForActivityResult(
                                 contract = ActivityResultContracts.StartActivityForResult()
                             ) {
+                                if (Settings.canDrawOverlays(context)) {
+                                    // 重ね合わせが許可されて戻ってきたら、自動で通知チェックへ！
+                                    requestNotificationPermission()
+                                } else {
+                                    isServiceRunning = false
+                                }
                             }
 
-                            // 3. 画面のON/OFF状態（isServiceRunning）をここで定義します（これで下のRowからprefsもrememberも見えます）
-                            var isServiceRunning by remember {
-                                mutableStateOf(prefs.getBoolean("overlay_running", false))
-                            }
-
-                            // 元の設定画面のコンテンツ全体をこの Column に閉じ込めます
+                            // 【5】ここから設定画面のレイアウト
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1202,7 +1292,6 @@ class MainActivity : ComponentActivity() {
                                     style = MaterialTheme.typography.titleLarge,
                                     color = mainText
                                 )
-
                                 Spacer(modifier = Modifier.height(24.dp))
 
                                 // --- ① カウンターを表示するスイッチ ---
@@ -1250,7 +1339,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                             .alpha(if (showSimpleCounter) 1f else 0.4f)
                                     ) {
-                                        // ---①  総回転数を表示するスイッチ ---
+                                        // --- ②-1 総回転数を表示するスイッチ ---
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -1279,7 +1368,8 @@ class MainActivity : ComponentActivity() {
                                                 fontSize = 18.sp
                                             )
                                         }
-                                        // ② フラッシュ設定のスイッチ
+
+                                        // --- ②-2 タップ時にヘッダーをフラッシュ ---
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -1307,7 +1397,8 @@ class MainActivity : ComponentActivity() {
                                                 fontSize = 18.sp
                                             )
                                         }
-                                        // --- ③ 画面輝度を上げるスイッチ ---
+
+                                        // --- ②-3 画面輝度を上げるスイッチ ---
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -1337,11 +1428,11 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        // --- ④ 常駐カウンターボタンを表示するスイッチ ---
+                                        // --- ②-4 常駐カウンターボタンを表示するスイッチ ---
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable {
+                                                .clickable(enabled = showSimpleCounter) {
                                                     if (!Settings.canDrawOverlays(context)) {
                                                         val intent = Intent(
                                                             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -1350,28 +1441,24 @@ class MainActivity : ComponentActivity() {
                                                         overlayPermissionLauncher.launch(intent)
                                                     } else {
                                                         val nextState = !isServiceRunning
-                                                        isServiceRunning = nextState
-
-                                                        // 状態を保存
-                                                        prefs.edit().putBoolean("overlay_running", nextState).apply()
-
-                                                        // 🟢 いま開いている機種ID（machineId）を、TARGET_MACHINE_IDという名前でお手紙に持たせる
-                                                        val intent = Intent(context, OverlayService::class.java).apply {
-                                                            putExtra("TARGET_MACHINE_ID", machineId)
-                                                        }
-
                                                         if (nextState) {
-                                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                                context.startForegroundService(intent)
-                                                            } else {
-                                                                context.startService(intent)
-                                                            }
+                                                            requestNotificationPermission()
                                                         } else {
+                                                            isServiceRunning = false
+                                                            prefs.edit().putBoolean(
+                                                                "overlay_running",
+                                                                false
+                                                            ).apply()
+
+                                                            val intent = Intent(
+                                                                context,
+                                                                OverlayService::class.java
+                                                            )
                                                             context.stopService(intent)
                                                         }
                                                     }
                                                 }
-                                                .padding(vertical = 4.dp),
+                                                .padding(vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Switch(
@@ -1384,35 +1471,33 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         overlayPermissionLauncher.launch(intent)
                                                     } else {
-                                                        isServiceRunning = isChecked
-
-                                                        // 状態を保存
-                                                        prefs.edit().putBoolean("overlay_running", isChecked).apply()
-
-                                                        // 🟢 スイッチ側も同じく現在の機種ID（machineId）を持たせる
-                                                        val intent = Intent(context, OverlayService::class.java).apply {
-                                                            putExtra("TARGET_MACHINE_ID", machineId)
-                                                        }
-
                                                         if (isChecked) {
-                                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                                context.startForegroundService(intent)
-                                                            } else {
-                                                                context.startService(intent)
-                                                            }
+                                                            requestNotificationPermission()
                                                         } else {
+                                                            isServiceRunning = false
+                                                            prefs.edit().putBoolean(
+                                                                "overlay_running",
+                                                                false
+                                                            ).apply()
+
+                                                            val intent = Intent(
+                                                                context,
+                                                                OverlayService::class.java
+                                                            )
                                                             context.stopService(intent)
                                                         }
                                                     }
-                                                }
+                                                },
+                                                enabled = showSimpleCounter
                                             )
                                             Spacer(modifier = Modifier.width(12.dp))
                                             Text(
-                                                "常駐カウンターボタンを表示する",
+                                                text = "常駐カウンターボタンを表示する",
                                                 color = mainText,
                                                 fontSize = 18.sp
                                             )
                                         }
+
 
                                         Spacer(modifier = Modifier.height(24.dp))
 
@@ -1453,7 +1538,10 @@ class MainActivity : ComponentActivity() {
                                                                     )
                                                                 )
                                                                 // 🟢 今回新しく追加するコード（メモ帳にも高さを保存する）
-                                                                prefs.edit().putInt("counter_height", hValue).apply()
+                                                                prefs.edit().putInt(
+                                                                    "counter_height",
+                                                                    hValue
+                                                                ).apply()
                                                             }
                                                         },
                                                     contentAlignment = Alignment.Center
@@ -2137,9 +2225,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ========================================================
-            // ① カウンター操作メニュー (完全に独立)
-            // ========================================================
+// ========================================================
+// ① カウンター操作メニュー (完全に独立)
+// ========================================================
             if (showCounterMenuSetting != null) {
                 androidx.activity.compose.BackHandler {
                     showCounterMenuSetting = null
@@ -2329,10 +2417,10 @@ class MainActivity : ComponentActivity() {
                 }
             } // 👈 🌟 ここで「操作メニュー」の波括弧を完全に閉じます！独立成功！
 
-            // ========================================================
-            // ② 色編集パネル (操作メニューの【外側】に並列に配置)
-            // ========================================================
-            // 記憶しておいたIDを使って、対象のデータを安全に引っ張ってきます
+// ========================================================
+// ② 色編集パネル (操作メニューの【外側】に並列に配置)
+// ========================================================
+// 記憶しておいたIDを使って、対象のデータを安全に引っ張ってきます
             val currentEditingSetting = counterSettings.find { it.id == editingCounterId }
 
             if (showColorEditPanel && currentEditingSetting != null) {
@@ -2689,7 +2777,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // --- メニュー専用レイヤー (自作ガードレール) ---
+// --- メニュー専用レイヤー (自作ガードレール) ---
             if (menuExpanded) {
                 Box(
                     modifier = Modifier.fillMaxSize()
@@ -2699,109 +2787,109 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.6f))
                     )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White.copy(alpha = 0.3f))
-                        .clickable { menuExpanded = false }
-                ) {
-                    // メニュー本体
-                    Surface(
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 80.dp, end = 4.dp) // ★ 1. 【位置】ここをいじると場所が変わる
-                            .width(220.dp),                  // ★ 2. 【幅】ここをいじると横幅が変わる
-                        shape = RoundedCornerShape(5.dp),    // 角の丸み
-                        shadowElevation = 8.dp,
-                        color = surfaceColor,
+                            .fillMaxSize()
+                            .background(Color.White.copy(alpha = 0.3f))
+                            .clickable { menuExpanded = false }
                     ) {
-                        Column(
-                            modifier = Modifier.padding(vertical = 4.dp)
+                        // メニュー本体
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 80.dp, end = 4.dp) // ★ 1. 【位置】ここをいじると場所が変わる
+                                .width(220.dp),                  // ★ 2. 【幅】ここをいじると横幅が変わる
+                            shape = RoundedCornerShape(5.dp),    // 角の丸み
+                            shadowElevation = 8.dp,
+                            color = surfaceColor,
                         ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            ) {
 
-                            // --- 項目2：設定 ---
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        currentScreen = "settings"
-                                        menuExpanded = false
-                                    }
-                                    .padding(
-                                        horizontal = 16.dp, vertical = 16.dp
-                                    ), // ★ 高さを少しだけ広げて押しやすく
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Settings,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(22.dp),
-                                    tint = mainText
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "項目・選択肢の設定",
-                                    fontSize = 18.sp,
-                                    color = mainText
-                                )
-                            }
-                            // --- 簡易カウンターの設定ボタン ---
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        currentScreen = "counter_settings" // ここで新しい画面の名前を指定
-                                        menuExpanded = false               // メニューを閉じる
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Build,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(22.dp),
-                                    tint = mainText
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "簡易カウンターの設定",
-                                    fontSize = 18.sp,
-                                    color = mainText,
-                                    maxLines = 1,      // 改行禁止
-                                    softWrap = false   // 縦書き防止
-                                )
-                            }
-                            // ★ ここに追加：項目3：メモをリセット
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        // リセット確認ダイアログを表示する
-                                        showResetConfirmDialog = true
-                                        menuExpanded = false
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(22.dp),
-                                    tint = mainText
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "メモをリセット",
-                                    fontSize = 18.sp,
-                                    color = mainText
-                                )
+                                // --- 項目2：設定 ---
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            currentScreen = "settings"
+                                            menuExpanded = false
+                                        }
+                                        .padding(
+                                            horizontal = 16.dp, vertical = 16.dp
+                                        ), // ★ 高さを少しだけ広げて押しやすく
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.Settings,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp),
+                                        tint = mainText
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "項目・選択肢の設定",
+                                        fontSize = 18.sp,
+                                        color = mainText
+                                    )
+                                }
+                                // --- 簡易カウンターの設定ボタン ---
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            currentScreen = "counter_settings" // ここで新しい画面の名前を指定
+                                            menuExpanded = false               // メニューを閉じる
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Build,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp),
+                                        tint = mainText
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "簡易カウンターの設定",
+                                        fontSize = 18.sp,
+                                        color = mainText,
+                                        maxLines = 1,      // 改行禁止
+                                        softWrap = false   // 縦書き防止
+                                    )
+                                }
+                                // ★ ここに追加：項目3：メモをリセット
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            // リセット確認ダイアログを表示する
+                                            showResetConfirmDialog = true
+                                            menuExpanded = false
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp),
+                                        tint = mainText
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "メモをリセット",
+                                        fontSize = 18.sp,
+                                        color = mainText
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-            }
-            // --- 手順4：項目移動メニュー (長押し用レイヤー) ---
+// --- 手順4：項目移動メニュー (長押し用レイヤー) ---
             if (showColumnMenuId != null) {
                 val targetIndex = columns.indexOfFirst { it.id == showColumnMenuId }
                 val targetCol = columns.find { it.id == showColumnMenuId }
@@ -2924,7 +3012,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            //--- 自動入力ルールの設定ダイアログ (デザイン統一版) ---
+//--- 自動入力ルールの設定ダイアログ (デザイン統一版) ---
             if (showConditionEditDialog && selectedColumnIdForRule != null && selectedOptionForRule != null) {
                 val localRules = remember { mutableStateListOf<AutoInputRule>() }
                 var isNextRow by remember { mutableStateOf(false) }
@@ -3209,7 +3297,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // --- 手順3：選択肢操作メニュー (選択肢用レイヤー) ---
+// --- 手順3：選択肢操作メニュー (選択肢用レイヤー) ---
             if (showOptionMenuName != null && selectedColumnId != null) {
                 val col = columns.find { it.id == selectedColumnId }
                 val opt = showOptionMenuName!!
@@ -3436,7 +3524,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            // --- 3. 入力エリア (オーバーレイ) ---
+// --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
                 // 🟢 画面全体を覆うレイヤー（2重の膜を表現する外枠）
                 Box(
@@ -3572,9 +3660,9 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        // ==========================================
-        // 💡 総回転数入力ダイアログ (自作レイヤー・デザイン統一版)
-        // ==========================================
+// ==========================================
+// 💡 総回転数入力ダイアログ (自作レイヤー・デザイン統一版)
+// ==========================================
         if (showRotationDialog) {
             androidx.activity.compose.BackHandler {
                 showRotationDialog = false
@@ -3803,7 +3891,8 @@ class MainActivity : ComponentActivity() {
                         ) {
                             options.forEach { option ->
                                 val isSelected = (currentValue == option)
-                                val bgColor = if (isSelected) Color(0xFF7E57C2) else Color(0xFF333333)
+                                val bgColor =
+                                    if (isSelected) Color(0xFF7E57C2) else Color(0xFF333333)
                                 val textColor = if (isSelected) Color.White else mainText
 
                                 Surface(
@@ -3814,7 +3903,8 @@ class MainActivity : ComponentActivity() {
 
                                         scope.launch {
                                             if (oldValue.isNotBlank()) {
-                                                val oldRules = db.memoDao().getRulesByTrigger(column.id, oldValue)
+                                                val oldRules = db.memoDao()
+                                                    .getRulesByTrigger(column.id, oldValue)
                                                 oldRules.forEach { rule ->
                                                     if (!rule.isNextRow && rule.targetColumnId != column.id) {
                                                         inputValues[rule.targetColumnId] = ""
@@ -3823,10 +3913,12 @@ class MainActivity : ComponentActivity() {
                                             }
 
                                             if (newValue.isNotBlank()) {
-                                                val newRules = db.memoDao().getRulesByTrigger(column.id, newValue)
+                                                val newRules = db.memoDao()
+                                                    .getRulesByTrigger(column.id, newValue)
                                                 newRules.forEach { rule ->
                                                     if (!rule.isNextRow && rule.targetColumnId != column.id) {
-                                                        inputValues[rule.targetColumnId] = rule.targetValue
+                                                        inputValues[rule.targetColumnId] =
+                                                            rule.targetValue
                                                     }
                                                 }
                                             }
@@ -3914,7 +4006,8 @@ class MainActivity : ComponentActivity() {
                             if (editingRecordId != null) {
                                 val existingRecord = db.memoDao().getRecordById(editingRecordId)
                                 currentRid = editingRecordId
-                                currentTimestamp = existingRecord?.timestamp ?: System.currentTimeMillis()
+                                currentTimestamp =
+                                    existingRecord?.timestamp ?: System.currentTimeMillis()
 
                                 val newValues = validInputs.map { (cid, txt) ->
                                     MemoValue(recordId = currentRid, columnId = cid, value = txt)
@@ -3924,13 +4017,23 @@ class MainActivity : ComponentActivity() {
                                     val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                     rules.forEach { rule ->
                                         if (!rule.isNextRow && cid != rule.targetColumnId) {
-                                            newValues.add(MemoValue(recordId = currentRid, columnId = rule.targetColumnId, value = rule.targetValue))
+                                            newValues.add(
+                                                MemoValue(
+                                                    recordId = currentRid,
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
+                                            )
                                         }
                                     }
                                 }
 
                                 viewModel.updateMemoWithHistory(
-                                    MemoRecord(id = currentRid, machineId = machineId, timestamp = currentTimestamp),
+                                    MemoRecord(
+                                        id = currentRid,
+                                        machineId = machineId,
+                                        timestamp = currentTimestamp
+                                    ),
                                     newValues
                                 )
                             } else {
@@ -3948,13 +4051,23 @@ class MainActivity : ComponentActivity() {
                                     val rules = db.memoDao().getRulesByTrigger(cid, txt)
                                     rules.forEach { rule ->
                                         if (!rule.isNextRow && cid != rule.targetColumnId) {
-                                            newValues.add(MemoValue(recordId = currentRid, columnId = rule.targetColumnId, value = rule.targetValue))
+                                            newValues.add(
+                                                MemoValue(
+                                                    recordId = currentRid,
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
+                                            )
                                         }
                                     }
                                 }
 
                                 viewModel.updateMemoWithHistory(
-                                    MemoRecord(id = currentRid, machineId = machineId, timestamp = currentTimestamp),
+                                    MemoRecord(
+                                        id = currentRid,
+                                        machineId = machineId,
+                                        timestamp = currentTimestamp
+                                    ),
                                     newValues
                                 )
                             }
@@ -3964,19 +4077,30 @@ class MainActivity : ComponentActivity() {
                                 rules.forEach { rule ->
                                     if (rule.isNextRow) {
                                         val allRecords = db.memoDao().getRecordsByMachine(machineId)
-                                        val currentIndex = allRecords.indexOfFirst { it.id == currentRid }
-                                        val nextRecord = if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
-                                            allRecords[currentIndex + 1]
-                                        } else null
+                                        val currentIndex =
+                                            allRecords.indexOfFirst { it.id == currentRid }
+                                        val nextRecord =
+                                            if (currentIndex != -1 && currentIndex + 1 < allRecords.size) {
+                                                allRecords[currentIndex + 1]
+                                            } else null
 
                                         if (nextRecord != null) {
                                             db.memoDao().insertValue(
-                                                MemoValue(recordId = nextRecord.id, columnId = rule.targetColumnId, value = rule.targetValue)
+                                                MemoValue(
+                                                    recordId = nextRecord.id,
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
                                             )
                                         } else {
-                                            val newNextRid = db.memoDao().insertRecord(MemoRecord(machineId = machineId))
+                                            val newNextRid = db.memoDao()
+                                                .insertRecord(MemoRecord(machineId = machineId))
                                             db.memoDao().insertValue(
-                                                MemoValue(recordId = newNextRid.toInt(), columnId = rule.targetColumnId, value = rule.targetValue)
+                                                MemoValue(
+                                                    recordId = newNextRid.toInt(),
+                                                    columnId = rule.targetColumnId,
+                                                    value = rule.targetValue
+                                                )
                                             )
                                         }
                                     }
