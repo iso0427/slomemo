@@ -1298,7 +1298,6 @@ class MainActivity : ComponentActivity() {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
                                         .clickable {
                                             showSimpleCounter = !showSimpleCounter
                                             scope.launch {
@@ -1337,13 +1336,13 @@ class MainActivity : ComponentActivity() {
                                                         matrix
                                                     )
                                             }
-                                            .alpha(if (showSimpleCounter) 1f else 0.4f)
+                                            .alpha(if (showSimpleCounter) 1f else 0.4f),
+                                        verticalArrangement = Arrangement.spacedBy(0.dp)
                                     ) {
                                         // --- ②-1 総回転数を表示するスイッチ ---
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 4.dp)
                                                 .clickable(enabled = showSimpleCounter) {
                                                     val nextValue =
                                                         !currentAppSetting.showTotalRotation
@@ -1373,7 +1372,6 @@ class MainActivity : ComponentActivity() {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 4.dp)
                                                 .clickable(enabled = showSimpleCounter) {
                                                     showFlashEffect = !showFlashEffect
                                                     scope.launch {
@@ -1392,7 +1390,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                             Spacer(modifier = Modifier.width(12.dp))
                                             Text(
-                                                text = "タップ時にヘッダーをフラッシュ",
+                                                text = "タップ時にボタンの色にフラッシュ",
                                                 color = mainText,
                                                 fontSize = 18.sp
                                             )
@@ -1402,7 +1400,6 @@ class MainActivity : ComponentActivity() {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 4.dp)
                                                 .clickable(enabled = showSimpleCounter) {
                                                     val nextValue =
                                                         !currentAppSetting.useMaxBrightness
@@ -1457,8 +1454,7 @@ class MainActivity : ComponentActivity() {
                                                             context.stopService(intent)
                                                         }
                                                     }
-                                                }
-                                                .padding(vertical = 8.dp),
+                                                },
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Switch(
@@ -1499,7 +1495,7 @@ class MainActivity : ComponentActivity() {
                                         }
 
 
-                                        Spacer(modifier = Modifier.height(24.dp))
+                                        Spacer(modifier = Modifier.height(20.dp))
 
                                         Text(
                                             text = "ボタンの高さ",
@@ -1613,7 +1609,7 @@ class MainActivity : ComponentActivity() {
                                                             50 -> "5"
                                                             else -> ""
                                                         },
-                                                        color = if (isSelected) Color.Black else Color.White, // 🟢 グレーアウトを廃止
+                                                        color = if (isSelected) Color.Black else Color.White,
                                                         fontSize = 24.sp,
                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                     )
@@ -1671,7 +1667,7 @@ class MainActivity : ComponentActivity() {
                                                             44 -> "5"
                                                             else -> ""
                                                         },
-                                                        color = if (isSelected) Color.Black else Color.White, // 🟢 グレーアウトを廃止
+                                                        color = if (isSelected) Color.Black else Color.White,
                                                         fontSize = 24.sp,
                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                     )
@@ -1729,7 +1725,7 @@ class MainActivity : ComponentActivity() {
                                                             85 -> "5"
                                                             else -> ""
                                                         },
-                                                        color = if (isSelected) Color.Black else Color.White, // 🟢 グレーアウトを廃止
+                                                        color = if (isSelected) Color.Black else Color.White,
                                                         fontSize = 24.sp,
                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                     )
@@ -1744,15 +1740,17 @@ class MainActivity : ComponentActivity() {
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
-                                        Spacer(modifier = Modifier.height(8.dp))
 
                                         Button(
                                             onClick = { showAddCounterDialog = true },
                                             modifier = Modifier.fillMaxWidth(),
+                                            enabled = showSimpleCounter, // タップの有効・無効はこれに連動
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(
-                                                    0xFFBB86FC
-                                                )
+                                                containerColor = Color(0xFFBB86FC),
+                                                contentColor = Color.Black,
+                                                // 🟢 無効化された時も、有効な時と「全く同じ色」をあえて指定する
+                                                disabledContainerColor = Color(0xFFBB86FC),
+                                                disabledContentColor = Color.Black
                                             )
                                         ) {
                                             Text(
@@ -1770,7 +1768,6 @@ class MainActivity : ComponentActivity() {
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
-                                        Spacer(modifier = Modifier.height(8.dp))
 
                                         // 横並び（FlowRow）のチップ一覧
                                         FlowRow(
@@ -1790,6 +1787,7 @@ class MainActivity : ComponentActivity() {
                                                             onClick = {
                                                                 showCounterMenuSetting = setting
                                                             },
+                                                            enabled = showSimpleCounter, // 🟢 1. タップの有効・無効を連動させる
                                                             label = {
                                                                 Box(
                                                                     modifier = Modifier.fillMaxSize(),
@@ -1808,10 +1806,17 @@ class MainActivity : ComponentActivity() {
                                                                 .height(32.dp),
                                                             colors = InputChipDefaults.inputChipColors(
                                                                 containerColor = Color(setting.color),
-                                                                labelColor = Color.Black
+                                                                labelColor = Color.Black,
+                                                                // 🟢 2. 無効化された時も元の色を維持する
+                                                                disabledContainerColor = Color(
+                                                                    setting.color
+                                                                ),
+                                                                disabledLabelColor = Color.Black
                                                             ),
                                                             border = InputChipDefaults.inputChipBorder(
                                                                 borderColor = Color(setting.color),
+                                                                // 🟢 3. ここは無効時も枠線の色を維持するため、常に true または同じ色にする
+                                                                disabledBorderColor = Color(setting.color),
                                                                 enabled = true,
                                                                 selected = false
                                                             )
@@ -1828,8 +1833,6 @@ class MainActivity : ComponentActivity() {
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
-
-                                        Spacer(modifier = Modifier.height(16.dp))
 
                                         // ==========================================
                                         // ② 下段：縦並び（Column）のチップ＋処理説明一覧
@@ -1891,6 +1894,7 @@ class MainActivity : ComponentActivity() {
                                                                     selectedTargetCounterId =
                                                                         setting.targetCounterId
                                                                 },
+                                                                enabled = showSimpleCounter, // 🟢 1. タップの有効・無効を連動
                                                                 label = {
                                                                     Box(
                                                                         modifier = Modifier.fillMaxSize(),
@@ -1907,10 +1911,19 @@ class MainActivity : ComponentActivity() {
                                                                 },
                                                                 colors = InputChipDefaults.inputChipColors(
                                                                     containerColor = Color(setting.color),
-                                                                    labelColor = Color.Black
+                                                                    labelColor = Color.Black,
+                                                                    // 🟢 2. 無効化された時も元の色を維持
+                                                                    disabledContainerColor = Color(
+                                                                        setting.color
+                                                                    ),
+                                                                    disabledLabelColor = Color.Black
                                                                 ),
                                                                 border = InputChipDefaults.inputChipBorder(
                                                                     borderColor = Color(setting.color),
+                                                                    // 🟢 3. 無効時の枠線の色も維持
+                                                                    disabledBorderColor = Color(
+                                                                        setting.color
+                                                                    ),
                                                                     enabled = true,
                                                                     selected = false
                                                                 )
@@ -2417,10 +2430,10 @@ class MainActivity : ComponentActivity() {
                 }
             } // 👈 🌟 ここで「操作メニュー」の波括弧を完全に閉じます！独立成功！
 
-// ========================================================
-// ② 色編集パネル (操作メニューの【外側】に並列に配置)
-// ========================================================
-// 記憶しておいたIDを使って、対象のデータを安全に引っ張ってきます
+            // ========================================================
+            // ② 色編集パネル (操作メニューの【外側】に並列に配置)
+            // ========================================================
+            // 記憶しておいたIDを使って、対象のデータを安全に引っ張ってきます
             val currentEditingSetting = counterSettings.find { it.id == editingCounterId }
 
             if (showColorEditPanel && currentEditingSetting != null) {

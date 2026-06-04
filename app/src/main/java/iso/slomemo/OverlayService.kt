@@ -40,13 +40,11 @@ class OverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
-            // 🟢 【ここが未実装でした！】通知の「カウンターを消去」ボタンが押された時の処理
             if (intent.action == ACTION_STOP_SERVICE) {
-                // アプリ本体の設定（スイッチの状態）をオフに戻しておく
                 val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("overlay_running", false).apply()
 
-                stopSelf() // サービスを終了させて画面から消す！
+                stopSelf()
                 return START_NOT_STICKY
             }
 
@@ -66,7 +64,7 @@ class OverlayService : Service() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "常駐カウンター", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(channelId, "常駐カウンター", NotificationManager.IMPORTANCE_DEFAULT)
             manager.createNotificationChannel(channel)
         }
 
@@ -78,12 +76,12 @@ class OverlayService : Service() {
             this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or flagImmutable
         )
 
-        // 🟢 タイポを修正した安全な通知ビルド処理
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
                 .setContentTitle("常駐カウンター起動中")
                 .setContentText("画面上のボタンからカウントできます")
                 .setSmallIcon(android.R.drawable.ic_input_add)
+                .setOngoing(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "カウンターを消去", stopPendingIntent)
                 .build()
         } else {
@@ -92,6 +90,8 @@ class OverlayService : Service() {
                 .setContentTitle("常駐カウンター起動中")
                 .setContentText("画面上のボタンからカウントできます")
                 .setSmallIcon(android.R.drawable.ic_input_add)
+                .setPriority(Notification.PRIORITY_MAX)
+                .setOngoing(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "カウンターを消去", stopPendingIntent)
                 .build()
         }
@@ -107,16 +107,13 @@ class OverlayService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
     }
 
-    // 🟢 カウンターを作った時の「本物の設定色」を100%連動して反映させる関数
     private fun recreateCounters() {
         containerLayout?.let {
             windowManager.removeView(it)
         }
 
         val density = resources.displayMetrics.density
-        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val savedHeight = prefs.getInt("counter_height", 45)
-        val cellHeightPx = (savedHeight * density).toInt()
+        val savedHeight = 30
 
         containerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -128,7 +125,8 @@ class OverlayService : Service() {
             }
         }
 
-        // 左端の移動用つまみ
+        val cellHeightPx = (savedHeight * density).toInt()
+
         val dragHandle = TextView(this).apply {
             text = "⁝⁝"
             textSize = 18f
@@ -146,16 +144,12 @@ class OverlayService : Service() {
                 db.memoDao().getCounterSettingsByMachineDirect(targetMachineId)
             }
 
-            val activeSettings = counterSettings
-
-            activeSettings.forEachIndexed { index, setting ->
+            counterSettings.forEachIndexed { index, setting ->
                 val btn = Button(this@OverlayService).apply {
-                    textSize = 24f // デジタルフォント用に見やすく少し大きめ
-
-                    // 🟢 1. 文字色を黒に設定
+                    textSize = 24f
                     setTextColor(Color.BLACK)
+                    setPadding(0, 0, 0, 0)
 
-                    // 🟢 2. fontフォルダにある「dseg7classic_bold.ttf」を適用
                     try {
                         val customTypeface = androidx.core.content.res.ResourcesCompat.getFont(
                             this@OverlayService,
@@ -166,20 +160,17 @@ class OverlayService : Service() {
                         setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
                     }
 
-                    // 🟢 3. 本体の設定色（Long/Int型）を安全に取得
                     val btnColor = try {
                         (setting.color as Number).toInt()
                     } catch (e: Exception) {
-                        Color.parseColor("#37474F") // エラー時のグレー
+                        Color.parseColor("#37474F")
                     }
 
-                    // 🟢 4. ボタンの背景色として適用（ここで btnColor を使うので、定義より下に書く必要があります）
                     background = GradientDrawable().apply {
                         setColor(btnColor)
                         cornerRadius = 6 * density
                     }
 
-                    // 初期値を非同期で読み込んでセット
                     CoroutineScope(Dispatchers.Main).launch {
                         val valueObj = withContext(Dispatchers.IO) {
                             db.memoDao().getCounterValue(setting.id)
@@ -187,8 +178,28 @@ class OverlayService : Service() {
                         text = (valueObj?.count ?: 0).toString()
                     }
 
-                    // タップ時のカウントアップ処理
                     setOnClickListener {
+                        it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+
+                        // 🟢 修正①：MainActivity側のキー名「show_flash_effect」に完全連動させる
+                        val currentPrefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                        val isFlashEnabled = currentPrefs.getBoolean("show_flash_effect", true)
+
+                        if (isFlashEnabled) {
+                            val containerDrawable = containerLayout?.background as? GradientDrawable
+                            if (containerDrawable != null) {
+                                containerDrawable.setColor(btnColor)
+                                containerLayout?.invalidate() // 即時描画
+
+                                // 🟢 修正②：100ms後に元の色へ戻したことを強制通知
+                                it.postDelayed({
+                                    val resetDrawable = containerLayout?.background as? GradientDrawable
+                                    resetDrawable?.setColor(Color.parseColor("#333333"))
+                                    containerLayout?.invalidate() // 元の色に確実に更新
+                                }, 100)
+                            }
+                        }
+
                         CoroutineScope(Dispatchers.Main).launch {
                             val nextCount = withContext(Dispatchers.IO) {
                                 val currentValueObj = db.memoDao().getCounterValue(setting.id)
@@ -203,7 +214,6 @@ class OverlayService : Service() {
                     }
                 }
 
-                // ボタンのサイズ・余白設定
                 val btnParams = LinearLayout.LayoutParams((75 * density).toInt(), cellHeightPx).apply {
                     setMargins((2 * density).toInt(), 0, (2 * density).toInt(), 0)
                 }
@@ -222,7 +232,6 @@ class OverlayService : Service() {
                 y = 100
             }
 
-            // 方法①のアノテーションをここに付与して黄色線を完全に消去
             @android.annotation.SuppressLint("ClickableViewAccessibility")
             dragHandle.setOnTouchListener(object : View.OnTouchListener {
                 private var initialX = 0
