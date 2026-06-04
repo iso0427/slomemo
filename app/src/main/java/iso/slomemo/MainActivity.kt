@@ -1488,7 +1488,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                             Spacer(modifier = Modifier.width(12.dp))
                                             Text(
-                                                text = "常駐カウンターボタンを表示する",
+                                                text = "常駐カウンターを表示する",
                                                 color = mainText,
                                                 fontSize = 18.sp
                                             )
@@ -1498,7 +1498,7 @@ class MainActivity : ComponentActivity() {
                                         Spacer(modifier = Modifier.height(20.dp))
 
                                         Text(
-                                            text = "ボタンの高さ",
+                                            text = "カウンターの高さ",
                                             color = mainText,
                                             fontSize = 18.sp
                                         )
@@ -1733,6 +1733,66 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
 
+                                        // --- 確率表示文字サイズの Row の閉じ括弧 のすぐ下（状態管理・完全分離版） ---
+
+                                        Text(
+                                            text = "常駐カウンターの高さ",
+                                            color = mainText,
+                                            fontSize = 18.sp
+                                        )
+
+                                        val customHeightOptions = listOf(30, 45, 60, 75, 90)
+
+                                        // 🟢 1. Composeがリアルタイムに検知して画面を書き換えるための「状態」を作成します
+                                        var overlaySavedHeight by remember {
+                                            mutableStateOf(prefs.getInt("counter_overlay_height", 30))
+                                        }
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 2.dp, bottom = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            customHeightOptions.forEach { hValue ->
+                                                // 🟢 作成した状態（overlaySavedHeight）を監視してハイライトを切り替える
+                                                val isSelected = overlaySavedHeight == hValue
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(32.dp)
+                                                        .background(
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
+                                                            shape = RoundedCornerShape(8.dp)
+                                                        )
+                                                        .clickable {
+                                                            // 🟢 2. タップされた瞬間に状態を直接書き換えることで、ハイライトがその場で即座に移動します
+                                                            overlaySavedHeight = hValue
+
+                                                            scope.launch {
+                                                                // バックグラウンド（SharedPreferences）にもしっかり保存
+                                                                prefs.edit().putInt("counter_overlay_height", hValue).apply()
+                                                            }
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = when (hValue) {
+                                                            30 -> "1"
+                                                            45 -> "2"
+                                                            60 -> "3"
+                                                            75 -> "4"
+                                                            90 -> "5"
+                                                            else -> ""
+                                                        },
+                                                        color = if (isSelected) Color.Black else Color.White,
+                                                        fontSize = 24.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Spacer(modifier = Modifier.height(20.dp))
 
                                         Text(

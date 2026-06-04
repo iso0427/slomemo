@@ -113,37 +113,47 @@ class OverlayService : Service() {
         }
 
         val density = resources.displayMetrics.density
-        val savedHeight = 30
 
-        containerLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding((2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt())
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#333333"))
-                cornerRadius = 8 * density
-            }
-        }
-
-        val cellHeightPx = (savedHeight * density).toInt()
-
-        val dragHandle = TextView(this).apply {
-            text = "⁝⁝"
-            textSize = 18f
-            setTextColor(Color.LTGRAY)
-            gravity = Gravity.CENTER
-            val handleWidth = (24 * density).toInt()
-            layoutParams = LinearLayout.LayoutParams(handleWidth, cellHeightPx).apply {
-                setMargins((4 * density).toInt(), 0, (4 * density).toInt(), 0)
-            }
-        }
-        containerLayout?.addView(dragHandle)
-
+        // 🟢 関数の開始直後にコルーチンを1つだけ起動し、設定とカウンター情報をすべて一気に取得する
         CoroutineScope(Dispatchers.Main).launch {
+            // 💡 appSetting の取得は不要になりますが、削除せずそのままで問題ありません
+            val appSetting = withContext(Dispatchers.IO) {
+                db.memoDao().getAppSetting()
+            }
             val counterSettings = withContext(Dispatchers.IO) {
                 db.memoDao().getCounterSettingsByMachineDirect(targetMachineId)
             }
 
+            // 🟢 修正箇所：本体のDBではなく、常駐専用のSharedPreferences（counter_overlay_height）から高さを直接取得する
+            val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            val savedHeight = prefs.getInt("counter_overlay_height", 30)
+
+            val cellHeightPx = (savedHeight * density).toInt()
+
+            containerLayout = LinearLayout(this@OverlayService).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding((2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt())
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#333333"))
+                    cornerRadius = 8 * density
+                }
+            }
+
+            // 左端の移動用つまみ
+            val dragHandle = TextView(this@OverlayService).apply {
+                text = "⁝⁝"
+                textSize = 18f
+                setTextColor(Color.LTGRAY)
+                gravity = Gravity.CENTER
+                val handleWidth = (24 * density).toInt()
+                layoutParams = LinearLayout.LayoutParams(handleWidth, cellHeightPx).apply {
+                    setMargins((4 * density).toInt(), 0, (4 * density).toInt(), 0)
+                }
+            }
+            containerLayout?.addView(dragHandle)
+
+            // 各種カウンターボタンの生成ループ
             counterSettings.forEachIndexed { index, setting ->
                 val btn = Button(this@OverlayService).apply {
                     textSize = 24f
@@ -181,21 +191,39 @@ class OverlayService : Service() {
                     setOnClickListener {
                         it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
 
-                        // 🟢 修正①：MainActivity側のキー名「show_flash_effect」に完全連動させる
-                        val currentPrefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                        val isFlashEnabled = currentPrefs.getBoolean("show_flash_effect", true)
+                        CoroutineScope(Dispatchers.Main).launch {
+                            val currentSetting = withContext(Dispatchers.IO) {
+                                db.memoDao().getAppSetting()
+                            }
 
-                        if (isFlashEnabled) {
-                            val containerDrawable = containerLayout?.background as? GradientDrawable
-                            if (containerDrawable != null) {
-                                containerDrawable.setColor(btnColor)
-                                containerLayout?.invalidate() // 即時描画
+                            val isFlashEnabled = currentSetting?.showFlashEffect ?: true
+                            val isMaxBrightnessEnabled = currentSetting?.useMaxBrightness ?: true
 
-                                // 🟢 修正②：100ms後に元の色へ戻したことを強制通知
+                            val params = containerLayout?.layoutParams as? WindowManager.LayoutParams
+                            if (isMaxBrightnessEnabled && params != null) {
+                                params.screenBrightness = 1.0f
+                                windowManager.updateViewLayout(containerLayout, params)
+                            }
+
+                            if (isFlashEnabled) {
+                                val containerDrawable = containerLayout?.background as? GradientDrawable
+                                if (containerDrawable != null) {
+                                    containerDrawable.setColor(btnColor)
+                                    containerLayout?.invalidate()
+                                }
+                            }
+
+                            if (isFlashEnabled || isMaxBrightnessEnabled) {
                                 it.postDelayed({
-                                    val resetDrawable = containerLayout?.background as? GradientDrawable
-                                    resetDrawable?.setColor(Color.parseColor("#333333"))
-                                    containerLayout?.invalidate() // 元の色に確実に更新
+                                    if (isFlashEnabled) {
+                                        val resetDrawable = containerLayout?.background as? GradientDrawable
+                                        resetDrawable?.setColor(Color.parseColor("#333333"))
+                                        containerLayout?.invalidate()
+                                    }
+                                    if (isMaxBrightnessEnabled && params != null) {
+                                        params.screenBrightness = -1.0f
+                                        windowManager.updateViewLayout(containerLayout, params)
+                                    }
                                 }, 100)
                             }
                         }
