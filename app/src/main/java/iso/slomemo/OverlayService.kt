@@ -105,6 +105,15 @@ class OverlayService : Service() {
         ).fallbackToDestructiveMigration().build()
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+        // 🟢 追加箇所：設定画面で「counter_overlay_height」が書き換わった瞬間をリアルタイムに監視
+        val prefsForWatch = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        prefsForWatch.registerOnSharedPreferenceChangeListener { _, key ->
+            if (key == "counter_overlay_height") {
+                // 高さが変わったら、自分だけ即座にカウンターを作り直してサイズを反映する
+                recreateCounters()
+            }
+        }
     }
 
     private fun recreateCounters() {
@@ -133,7 +142,8 @@ class OverlayService : Service() {
             containerLayout = LinearLayout(this@OverlayService).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding((2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt())
+                setPadding((5 * density).toInt(), (5 * density).toInt(), (5 * density).toInt(), (5 * density).toInt())
+
                 background = GradientDrawable().apply {
                     setColor(Color.parseColor("#333333"))
                     cornerRadius = 8 * density
