@@ -34,6 +34,9 @@ class OverlayService : Service() {
 
     companion object {
         const val ACTION_STOP_SERVICE = "STOP_OVERLAY_SERVICE"
+        // 🟢 追加：非表示・再表示用のAction定義
+        const val ACTION_HIDE_OVERLAY = "HIDE_OVERLAY"
+        const val ACTION_SHOW_OVERLAY = "SHOW_OVERLAY"
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -46,6 +49,18 @@ class OverlayService : Service() {
 
                 stopSelf()
                 return START_NOT_STICKY
+            }
+
+            // 🟢 追加：画面の状態に合わせて表示・非表示を切り替える
+            when (intent.action) {
+                ACTION_HIDE_OVERLAY -> {
+                    containerLayout?.visibility = View.GONE
+                    return START_NOT_STICKY
+                }
+                ACTION_SHOW_OVERLAY -> {
+                    containerLayout?.visibility = View.VISIBLE
+                    return START_NOT_STICKY
+                }
             }
 
             val machineId = intent.getIntExtra("TARGET_MACHINE_ID", -1)
@@ -257,6 +272,28 @@ class OverlayService : Service() {
                 }
                 containerLayout?.addView(btn, btnParams)
             }
+
+            // 🟢 右端の「メモに戻る」ボタンを追加
+            val btnMemo = TextView(this@OverlayService).apply {
+                text = "\uD83D\uDCC4"
+                textSize = 18f
+                setTextColor(Color.LTGRAY)
+                gravity = Gravity.CENTER
+                val memoWidth = (24 * density).toInt()
+                layoutParams = LinearLayout.LayoutParams(memoWidth, cellHeightPx).apply {
+                    setMargins((4 * density).toInt(), 0, (4 * density).toInt(), 0)
+                }
+
+                setOnClickListener {
+                    // 🟢 targetMachineId を持って MainActivity（アプリ本体）を起動
+                    val intent = Intent(this@OverlayService, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        putExtra("TARGET_MACHINE_ID", targetMachineId)
+                    }
+                    startActivity(intent)
+                }
+            }
+            containerLayout?.addView(btnMemo)
 
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,

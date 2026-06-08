@@ -81,6 +81,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -115,6 +116,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.room.Room
@@ -172,6 +174,54 @@ class MainActivity : ComponentActivity() {
 
             val navController = rememberNavController()
 
+            // 🟢 修正：アプリの表・裏（ライフサイクル）と画面の状態を完全に連動させる
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            val currentBackStackEntry by navController.currentBackStackEntryAsState()
+
+            DisposableEffect(lifecycleOwner, currentBackStackEntry) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    // 現在表示中の画面のルート（初期状態なら空文字）
+                    val route = currentBackStackEntry?.destination?.route ?: ""
+
+                    // 【判定ルール】
+                    // アプリが「画面に表示されている(ON_RESUME)」かつ「メモ画面(memo/)にいる」ときだけカウンターを隠す
+                    // ホームに帰ったとき(ON_STOP)や、機種選択・設定画面にいるときは100%表示する
+                    val action = if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && route.startsWith("memo/")) {
+                        "HIDE_OVERLAY"
+                    } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP || !route.startsWith("memo/")) {
+                        "SHOW_OVERLAY"
+                    } else {
+                        null
+                    }
+
+                    if (action != null) {
+                        val serviceIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
+                            this.action = action
+                        }
+                        startService(serviceIntent)
+                    }
+                }
+
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            // 🟢 修正：常駐カウンターから起動された時のワープ処理（履歴のミルフィーユを作らない）
+            LaunchedEffect(intent) {
+                val targetMachineId = intent?.getIntExtra("TARGET_MACHINE_ID", -1) ?: -1
+                if (targetMachineId != -1) {
+                    // 既存の履歴をすべて綺麗にクリアして、機種選択 -> メモ画面 の正しい2層構造を再構築する
+                    navController.navigate("memo/$targetMachineId") {
+                        popUpTo("machine_selection") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                    // 処理が終わったらOSの記憶を即座にリセット
+                    intent?.removeExtra("TARGET_MACHINE_ID")
+                }
+            }
+
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
                     // ★ ここが画面遷移の司令塔（NavHost）
@@ -200,6 +250,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 
     @OptIn(
