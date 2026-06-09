@@ -1,5 +1,6 @@
 package iso.slomemo
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -81,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -115,6 +117,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.room.Room
@@ -150,6 +153,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        if (!prefs.contains("overlay_running")) {
+            prefs.edit().putBoolean("overlay_running", false).apply()
+        }
+
         val db = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,
@@ -171,6 +179,37 @@ class MainActivity : ComponentActivity() {
             }
 
             val navController = rememberNavController()
+
+            val currentBackStackEntry by navController.currentBackStackEntryAsState()
+
+            LaunchedEffect(currentBackStackEntry) {
+                val route = currentBackStackEntry?.destination?.route ?: ""
+
+                // メモ画面(memo/)にいる時は隠し、それ以外（機種選択など）では表示する
+                val action = if (route.startsWith("memo/")) "HIDE_OVERLAY" else "SHOW_OVERLAY"
+
+                val serviceIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
+                    this.action = action
+                }
+                startService(serviceIntent)
+            }
+
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                        // アプリが非表示になったらカウンターを表示
+                        val serviceIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
+                            action = "SHOW_OVERLAY"
+                        }
+                        startService(serviceIntent)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
 
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
