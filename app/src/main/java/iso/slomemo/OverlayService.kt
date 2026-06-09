@@ -48,12 +48,6 @@ class OverlayService : Service() {
                 return START_NOT_STICKY
             }
 
-            // 🟢 追加：表示・非表示の切り替え命令（Action）をここで受け取る
-            when (intent.action) {
-                "HIDE_OVERLAY" -> containerLayout?.visibility = View.GONE
-                "SHOW_OVERLAY" -> containerLayout?.visibility = View.VISIBLE
-            }
-
             val machineId = intent.getIntExtra("TARGET_MACHINE_ID", -1)
             if (machineId != -1) {
                 targetMachineId = machineId
