@@ -1219,62 +1219,22 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            // 【2】通知の許可ダイアログの結果を受け取るランチャー
-                            val notificationPermissionLauncher = rememberLauncherForActivityResult(
-                                contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-                            ) { isGranted ->
-                                if (isGranted) {
-                                    isServiceRunning = true
-                                    prefs.edit().putBoolean("overlay_running", true).apply()
-
-                                    val intent = Intent(context, OverlayService::class.java).apply {
-                                        putExtra("TARGET_MACHINE_ID", machineId)
-                                    }
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        context.startForegroundService(intent)
-                                    } else {
-                                        context.startService(intent)
-                                    }
-                                } else {
-                                    isServiceRunning = false
-                                }
-                            }
-
-                            // 【3】通知の許可を求める関数（Rowの外側の一番広い場所に引っ越しさせました）
-                            val requestNotificationPermission = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                    androidx.core.content.ContextCompat.checkSelfPermission(
-                                        context,
-                                        android.Manifest.permission.POST_NOTIFICATIONS
-                                    )
-                                    != android.content.pm.PackageManager.PERMISSION_GRANTED
-                                ) {
-
-                                    // 通知の許可がない場合はダイアログをポップアップ
-                                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                } else {
-                                    // すでに許可があるならそのまま起動
-                                    isServiceRunning = true
-                                    prefs.edit().putBoolean("overlay_running", true).apply()
-
-                                    val intent = Intent(context, OverlayService::class.java).apply {
-                                        putExtra("TARGET_MACHINE_ID", machineId)
-                                    }
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        context.startForegroundService(intent)
-                                    } else {
-                                        context.startService(intent)
-                                    }
-                                }
-                            }
-
                             // 【4】画面重ね合わせ権限用のランチャー
                             val overlayPermissionLauncher = rememberLauncherForActivityResult(
                                 contract = ActivityResultContracts.StartActivityForResult()
                             ) {
                                 if (Settings.canDrawOverlays(context)) {
-                                    // 重ね合わせが許可されて戻ってきたら、自動で通知チェックへ！
-                                    requestNotificationPermission()
+                                    // 🟢 修正：通知チェックを飛ばし、直接サービスを起動する
+                                    isServiceRunning = true
+                                    prefs.edit().putBoolean("overlay_running", true).apply()
+                                    val intent = Intent(context, OverlayService::class.java).apply {
+                                        putExtra("TARGET_MACHINE_ID", machineId)
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        context.startForegroundService(intent)
+                                    } else {
+                                        context.startService(intent)
+                                    }
                                 } else {
                                     isServiceRunning = false
                                 }
@@ -1429,7 +1389,7 @@ class MainActivity : ComponentActivity() {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable(enabled = showSimpleCounter) {
+                                                .clickable {
                                                     if (!Settings.canDrawOverlays(context)) {
                                                         val intent = Intent(
                                                             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -1437,53 +1397,32 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         overlayPermissionLauncher.launch(intent)
                                                     } else {
-                                                        val nextState = !isServiceRunning
-                                                        if (nextState) {
-                                                            requestNotificationPermission()
+                                                        // 🟢 通知の権限チェックを削除し、タップで即座にON/OFFを切り替える
+                                                        if (!isServiceRunning) {
+                                                            isServiceRunning = true
+                                                            prefs.edit().putBoolean("overlay_running", true).apply()
+                                                            val intent = Intent(context, OverlayService::class.java).apply {
+                                                                putExtra("TARGET_MACHINE_ID", machineId)
+                                                            }
+                                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                                context.startForegroundService(intent)
+                                                            } else {
+                                                                context.startService(intent)
+                                                            }
                                                         } else {
                                                             isServiceRunning = false
-                                                            prefs.edit().putBoolean(
-                                                                "overlay_running",
-                                                                false
-                                                            ).apply()
-
-                                                            val intent = Intent(
-                                                                context,
-                                                                OverlayService::class.java
-                                                            )
+                                                            prefs.edit().putBoolean("overlay_running", false).apply()
+                                                            val intent = Intent(context, OverlayService::class.java)
                                                             context.stopService(intent)
                                                         }
                                                     }
-                                                },
+                                                }
+                                            .padding(vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Switch(
                                                 checked = isServiceRunning,
-                                                onCheckedChange = { isChecked ->
-                                                    if (!Settings.canDrawOverlays(context)) {
-                                                        val intent = Intent(
-                                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                            Uri.parse("package:${context.packageName}")
-                                                        )
-                                                        overlayPermissionLauncher.launch(intent)
-                                                    } else {
-                                                        if (isChecked) {
-                                                            requestNotificationPermission()
-                                                        } else {
-                                                            isServiceRunning = false
-                                                            prefs.edit().putBoolean(
-                                                                "overlay_running",
-                                                                false
-                                                            ).apply()
-
-                                                            val intent = Intent(
-                                                                context,
-                                                                OverlayService::class.java
-                                                            )
-                                                            context.stopService(intent)
-                                                        }
-                                                    }
-                                                },
+                                                onCheckedChange = null, // 🟢 自動発火バグを防ぐため、イベントをnullにしてRow（clickable）側に一本化する
                                                 enabled = showSimpleCounter
                                             )
                                             Spacer(modifier = Modifier.width(12.dp))
