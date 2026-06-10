@@ -31,6 +31,8 @@ class OverlayService : Service() {
     private lateinit var db: AppDatabase
 
     private var targetMachineId: Int = 0
+    // 🟢 追加：アプリ本体（メモ画面等）が今前面にいるかどうかのフラグ
+    private var isAppActive: Boolean = false
 
     companion object {
         const val ACTION_STOP_SERVICE = "STOP_OVERLAY_SERVICE"
@@ -48,13 +50,15 @@ class OverlayService : Service() {
                 return START_NOT_STICKY
             }
 
-            // 🟢 修正：メモ画面の開閉に合わせてViewの可視状態（Visibility）を切り替える
+            // 🟢 修正：フラグの状態を更新した上で、Viewがあれば即座に可視性を切り替える
             when (intent.action) {
                 "ACTION_HIDE_OVERLAY" -> {
+                    isAppActive = true
                     containerLayout?.visibility = View.GONE
                     return START_NOT_STICKY
                 }
                 "ACTION_SHOW_OVERLAY" -> {
+                    isAppActive = false
                     containerLayout?.visibility = View.VISIBLE
                     return START_NOT_STICKY
                 }
@@ -117,26 +121,20 @@ class OverlayService : Service() {
         ).fallbackToDestructiveMigration().build()
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-
     }
 
-    // --- OverlayService.kt の 119行目〜140行目付近を修正 ---
-
     private fun recreateCounters() {
-        // 🟢 containerLayoutがnullでなく、かつ画面にアタッチされている（parentが存在する）場合のみ削除する
         containerLayout?.let {
             if (it.parent != null) {
                 try {
                     windowManager.removeView(it)
                 } catch (e: IllegalArgumentException) {
-                    // 安全のため、すでに削除されている場合の例外もキャッチする
                 }
             }
         }
 
         val density = resources.displayMetrics.density
 
-        // 🟢 関数の開始直後にコルーチンを1つだけ起動し、設定とカウンター情報をすべて一気に取得する
         CoroutineScope(Dispatchers.Main).launch {
             val appSetting = withContext(Dispatchers.IO) {
                 db.memoDao().getAppSetting()
@@ -146,7 +144,6 @@ class OverlayService : Service() {
             }
 
             val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-
             val savedHeight = prefs.getInt("counter_overlay_height", 30)
             val cellHeightPx = (savedHeight * density).toInt()
 
@@ -159,6 +156,9 @@ class OverlayService : Service() {
                     setColor(Color.parseColor("#333333"))
                     cornerRadius = 8 * density
                 }
+
+                // 🟢 追加：非同期生成が終わった時点のアプリのフォアグラウンド状態を即座に反映する
+                visibility = if (isAppActive) View.GONE else View.VISIBLE
             }
 
             // 左端の移動用つまみ

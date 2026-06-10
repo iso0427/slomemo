@@ -114,6 +114,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.room.Room
@@ -218,7 +219,7 @@ class MainActivity : ComponentActivity() {
         val subText = Color.LightGray
         val dividerColor = Color(0xFF333333)
 
-        // --- 2. 基本的な状態管理 ---
+// --- 2. 基本的な状態管理 ---
         var currentScreen by remember { mutableStateOf("main") }
         var columns by remember { mutableStateOf(listOf<ColumnSetting>()) }
         var records by remember { mutableStateOf(listOf<MemoRecord>()) }
@@ -232,11 +233,37 @@ class MainActivity : ComponentActivity() {
         var editingRecordId by remember { mutableStateOf<Int?>(null) }
         var valuesMap by remember { mutableStateOf<Map<Int, List<MemoValue>>>(emptyMap()) }
 
-        // --- 4. アプリ全体設定 (DB) ---
-        // 設定変更をリアルタイムに検知するためのFlow
+// --- 3. 画面やメニューの状態を監視して、サービスへ確実にON/OFFを送る ---
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
+
+        androidx.compose.runtime.LaunchedEffect(currentRoute, menuExpanded, showInputArea) {
+            val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+            val isRunning = prefs.getBoolean("overlay_running", false)
+            if (isRunning) {
+                // 現在の画面がメモ画面（"memo/{machineId}"）であるかどうかを判定
+                val isAtMemoScreen = currentRoute?.startsWith("memo/") == true
+
+                // メニューが開いている、または入力エリアが開いている、または「メモ画面ではない」ときは、カウンターを表示する
+                if (menuExpanded || showInputArea || !isAtMemoScreen) {
+                    val showIntent = android.content.Intent(context, OverlayService::class.java).apply {
+                        action = "ACTION_SHOW_OVERLAY"
+                    }
+                    context.startService(showIntent)
+                } else {
+                    // 純粋にメモ画面だけが見えているときは、カウンターを非表示にする
+                    val hideIntent = android.content.Intent(context, OverlayService::class.java).apply {
+                        action = "ACTION_HIDE_OVERLAY"
+                    }
+                    context.startService(hideIntent)
+                }
+            }
+        }
+
+// --- 4. アプリ全体設定 (DB) ---
+// 設定変更をリアルタイムに検知するためのFlow
         val appSettingFromFlow by db.memoDao().getSettingFlow()
             .collectAsState(initial = AppSetting())
-
         // スイッチの状態（初期値はDBから。なければデフォルト）
         var showSimpleCounter by remember { mutableStateOf(true) }
         var showFlashEffect by remember { mutableStateOf(true) }
