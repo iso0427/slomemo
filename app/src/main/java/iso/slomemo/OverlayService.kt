@@ -48,6 +48,18 @@ class OverlayService : Service() {
                 return START_NOT_STICKY
             }
 
+            // 🟢 修正：メモ画面の開閉に合わせてViewの可視状態（Visibility）を切り替える
+            when (intent.action) {
+                "ACTION_HIDE_OVERLAY" -> {
+                    containerLayout?.visibility = View.GONE
+                    return START_NOT_STICKY
+                }
+                "ACTION_SHOW_OVERLAY" -> {
+                    containerLayout?.visibility = View.VISIBLE
+                    return START_NOT_STICKY
+                }
+            }
+
             val machineId = intent.getIntExtra("TARGET_MACHINE_ID", -1)
             if (machineId != -1) {
                 targetMachineId = machineId
@@ -106,26 +118,26 @@ class OverlayService : Service() {
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        // 🟢 追加箇所：設定画面で「counter_overlay_height」が書き換わった瞬間をリアルタイムに監視
-        val prefsForWatch = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        prefsForWatch.registerOnSharedPreferenceChangeListener { _, key ->
-            if (key == "counter_overlay_height") {
-                // 高さが変わったら、自分だけ即座にカウンターを作り直してサイズを反映する
-                recreateCounters()
-            }
-        }
     }
 
+    // --- OverlayService.kt の 119行目〜140行目付近を修正 ---
+
     private fun recreateCounters() {
+        // 🟢 containerLayoutがnullでなく、かつ画面にアタッチされている（parentが存在する）場合のみ削除する
         containerLayout?.let {
-            windowManager.removeView(it)
+            if (it.parent != null) {
+                try {
+                    windowManager.removeView(it)
+                } catch (e: IllegalArgumentException) {
+                    // 安全のため、すでに削除されている場合の例外もキャッチする
+                }
+            }
         }
 
         val density = resources.displayMetrics.density
 
         // 🟢 関数の開始直後にコルーチンを1つだけ起動し、設定とカウンター情報をすべて一気に取得する
         CoroutineScope(Dispatchers.Main).launch {
-            // 💡 appSetting の取得は不要になりますが、削除せずそのままで問題ありません
             val appSetting = withContext(Dispatchers.IO) {
                 db.memoDao().getAppSetting()
             }
@@ -133,10 +145,9 @@ class OverlayService : Service() {
                 db.memoDao().getCounterSettingsByMachineDirect(targetMachineId)
             }
 
-            // 🟢 修正箇所：本体のDBではなく、常駐専用のSharedPreferences（counter_overlay_height）から高さを直接取得する
             val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            val savedHeight = prefs.getInt("counter_overlay_height", 30)
 
+            val savedHeight = prefs.getInt("counter_overlay_height", 30)
             val cellHeightPx = (savedHeight * density).toInt()
 
             containerLayout = LinearLayout(this@OverlayService).apply {

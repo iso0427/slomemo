@@ -101,7 +101,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -212,6 +211,8 @@ class MainActivity : ComponentActivity() {
 
         // --- 1. 色の定義 ---
         val backColor = Color.Black
+        val context = androidx.compose.ui.platform.LocalContext.current
+
         val surfaceColor = Color(0xFF1e1e1e)
         val mainText = Color.White
         val subText = Color.LightGray
@@ -230,9 +231,8 @@ class MainActivity : ComponentActivity() {
         val inputValues = remember { mutableStateMapOf<Int, String>() }
         var editingRecordId by remember { mutableStateOf<Int?>(null) }
         var valuesMap by remember { mutableStateOf<Map<Int, List<MemoValue>>>(emptyMap()) }
-        val context = LocalContext.current
 
-        // --- 3. アプリ全体設定 (DB) ---
+        // --- 4. アプリ全体設定 (DB) ---
         // 設定変更をリアルタイムに検知するためのFlow
         val appSettingFromFlow by db.memoDao().getSettingFlow()
             .collectAsState(initial = AppSetting())
@@ -1400,24 +1400,40 @@ class MainActivity : ComponentActivity() {
                                                         // 🟢 通知の権限チェックを削除し、タップで即座にON/OFFを切り替える
                                                         if (!isServiceRunning) {
                                                             isServiceRunning = true
-                                                            prefs.edit().putBoolean("overlay_running", true).apply()
-                                                            val intent = Intent(context, OverlayService::class.java).apply {
-                                                                putExtra("TARGET_MACHINE_ID", machineId)
+                                                            prefs.edit()
+                                                                .putBoolean("overlay_running", true)
+                                                                .apply()
+                                                            val intent = Intent(
+                                                                context,
+                                                                OverlayService::class.java
+                                                            ).apply {
+                                                                putExtra(
+                                                                    "TARGET_MACHINE_ID",
+                                                                    machineId
+                                                                )
                                                             }
                                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                                context.startForegroundService(intent)
+                                                                context.startForegroundService(
+                                                                    intent
+                                                                )
                                                             } else {
                                                                 context.startService(intent)
                                                             }
                                                         } else {
                                                             isServiceRunning = false
-                                                            prefs.edit().putBoolean("overlay_running", false).apply()
-                                                            val intent = Intent(context, OverlayService::class.java)
+                                                            prefs.edit().putBoolean(
+                                                                "overlay_running",
+                                                                false
+                                                            ).apply()
+                                                            val intent = Intent(
+                                                                context,
+                                                                OverlayService::class.java
+                                                            )
                                                             context.stopService(intent)
                                                         }
                                                     }
                                                 }
-                                            .padding(vertical = 8.dp),
+                                                .padding(vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Switch(
@@ -1684,7 +1700,12 @@ class MainActivity : ComponentActivity() {
 
                                         // 🟢 1. Composeがリアルタイムに検知して画面を書き換えるための「状態」を作成します
                                         var overlaySavedHeight by remember {
-                                            mutableStateOf(prefs.getInt("counter_overlay_height", 30))
+                                            mutableStateOf(
+                                                prefs.getInt(
+                                                    "counter_overlay_height",
+                                                    30
+                                                )
+                                            )
                                         }
 
                                         Row(
@@ -1702,7 +1723,9 @@ class MainActivity : ComponentActivity() {
                                                         .weight(1f)
                                                         .height(32.dp)
                                                         .background(
-                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(0xFF333333),
+                                                            color = if (isSelected) Color(0xFFBB86FC) else Color(
+                                                                0xFF333333
+                                                            ),
                                                             shape = RoundedCornerShape(8.dp)
                                                         )
                                                         .clickable {
@@ -1711,7 +1734,10 @@ class MainActivity : ComponentActivity() {
 
                                                             scope.launch {
                                                                 // バックグラウンド（SharedPreferences）にもしっかり保存
-                                                                prefs.edit().putInt("counter_overlay_height", hValue).apply()
+                                                                prefs.edit().putInt(
+                                                                    "counter_overlay_height",
+                                                                    hValue
+                                                                ).apply()
                                                             }
                                                         },
                                                     contentAlignment = Alignment.Center
