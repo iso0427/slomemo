@@ -173,6 +173,27 @@ class MainActivity : ComponentActivity() {
 
             val navController = rememberNavController()
 
+            // 🟢 修正：アプリが完全に終了している状態からの起動でも、一発で指定のメモ画面を開く
+            LaunchedEffect(Unit) {
+                // 1. アプリ起動後に「📄」が押された時のリアルタイム受け取り口
+                onOverlayNavigationRequested = { id ->
+                    navController.navigate("memo/$id") {
+                        popUpTo("machine_selection") { inclusive = true }
+                    }
+                }
+
+                // 2. アプリが完全に終了した状態から「📄」で新しく起動した時の直接チェック
+                val startupIntent = (view.context as? android.app.Activity)?.intent
+                if (startupIntent?.action == "ACTION_OPEN_MEMO_FROM_OVERLAY") {
+                    val targetId = startupIntent.getIntExtra("TARGET_MACHINE_ID", -1)
+                    if (targetId != -1) {
+                        navController.navigate("memo/$targetId") {
+                            popUpTo("machine_selection") { inclusive = true }
+                        }
+                    }
+                }
+            }
+
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
                     // ★ ここが画面遷移の司令塔（NavHost）
@@ -199,20 +220,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    // 🟢 追加：常駐カウンターの「📄」ボタンから呼び出された際に、対象のメモ画面を自動で開く処理
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent) // 届いた新しいインテントを保持
-
-        if (intent.action == "ACTION_OPEN_MEMO_FROM_OVERLAY") {
-            val targetId = intent.getIntExtra("TARGET_MACHINE_ID", -1)
-            if (targetId != -1) {
-                // クラス内の変数や、Composeの状態に反映させるための処理をここで行います。
-                // 次のステップで、この targetId を Compose の machineId 状態にスムーズに連動させます。
             }
         }
     }
