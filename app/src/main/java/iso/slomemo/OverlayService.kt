@@ -1,9 +1,5 @@
 package iso.slomemo
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -31,7 +27,6 @@ class OverlayService : Service() {
     private lateinit var db: AppDatabase
 
     private var targetMachineId: Int = 0
-    // 🟢 追加：アプリ本体（メモ画面等）が今前面にいるかどうかのフラグ
     private var isAppActive: Boolean = false
 
     companion object {
@@ -42,25 +37,35 @@ class OverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
+            // アプリ側や外部から停止命令が来たら、Viewを消してサービスを終了する
             if (intent.action == ACTION_STOP_SERVICE) {
                 val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("overlay_running", false).apply()
+
+                containerLayout?.let {
+                    if (it.parent != null) {
+                        try {
+                            windowManager.removeView(it)
+                        } catch (e: IllegalArgumentException) {
+                            // 既に削除されている場合はスキップ
+                        }
+                    }
+                }
+                containerLayout = null
 
                 stopSelf()
                 return START_NOT_STICKY
             }
 
-            // 🟢 修正：フラグの状態を更新した上で、Viewがあれば即座に可視性を切り替える
+            // 画面の状態に合わせてViewの可視性を切り替えるだけ
             when (intent.action) {
                 "ACTION_HIDE_OVERLAY" -> {
                     isAppActive = true
                     containerLayout?.visibility = View.GONE
-                    return START_NOT_STICKY
                 }
                 "ACTION_SHOW_OVERLAY" -> {
                     isAppActive = false
                     containerLayout?.visibility = View.VISIBLE
-                    return START_NOT_STICKY
                 }
             }
 
@@ -70,49 +75,12 @@ class OverlayService : Service() {
                 recreateCounters()
             }
         }
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     override fun onCreate() {
         super.onCreate()
-
-        val channelId = "overlay_service_channel"
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "常駐カウンター", NotificationManager.IMPORTANCE_DEFAULT)
-            manager.createNotificationChannel(channel)
-        }
-
-        val stopIntent = Intent(this, OverlayService::class.java).apply {
-            action = ACTION_STOP_SERVICE
-        }
-        val flagImmutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
-        val stopPendingIntent = PendingIntent.getService(
-            this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or flagImmutable
-        )
-
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, channelId)
-                .setContentTitle("常駐カウンター起動中")
-                .setContentText("画面上のボタンからカウントできます")
-                .setSmallIcon(android.R.drawable.ic_input_add)
-                .setOngoing(true)
-                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "カウンターを消去", stopPendingIntent)
-                .build()
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-                .setContentTitle("常駐カウンター起動中")
-                .setContentText("画面上のボタンからカウントできます")
-                .setSmallIcon(android.R.drawable.ic_input_add)
-                .setPriority(Notification.PRIORITY_MAX)
-                .setOngoing(true)
-                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "カウンターを消去", stopPendingIntent)
-                .build()
-        }
-
-        startForeground(1, notification)
+        // 🟢 修正：通知に関する処理（startForegroundなど）をすべて削除
 
         db = androidx.room.Room.databaseBuilder(
             applicationContext,
@@ -157,11 +125,9 @@ class OverlayService : Service() {
                     cornerRadius = 8 * density
                 }
 
-                // 🟢 追加：非同期生成が終わった時点のアプリのフォアグラウンド状態を即座に反映する
                 visibility = if (isAppActive) View.GONE else View.VISIBLE
             }
 
-            // 左端の移動用つまみ
             val dragHandle = TextView(this@OverlayService).apply {
                 text = "⁝⁝"
                 textSize = 18f
@@ -174,7 +140,6 @@ class OverlayService : Service() {
             }
             containerLayout?.addView(dragHandle)
 
-            // 各種カウンターボタンの生成ループ
             counterSettings.forEachIndexed { index, setting ->
                 val btn = Button(this@OverlayService).apply {
                     textSize = 24f
@@ -269,6 +234,36 @@ class OverlayService : Service() {
                 containerLayout?.addView(btn, btnParams)
             }
 
+            // 🟢 修正：アイコンを「📄」に変更し、すっきりした見た目に設定
+            val openAppBtn = TextView(this@OverlayService).apply {
+                text = "📄" // 書類アイコン
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER // 文字を中央にぴったり配置
+                setPadding(0, 0, 0, 0)
+
+                // TextViewをクリック可能にする設定
+                isClickable = true
+                isFocusable = true
+
+                setOnClickListener {
+                    it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+
+                    val launchIntent = Intent(this@OverlayService, MainActivity::class.java).apply {
+                        action = "ACTION_OPEN_MEMO_FROM_OVERLAY"
+                        putExtra("TARGET_MACHINE_ID", targetMachineId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    startActivity(launchIntent)
+                }
+            }
+
+            // サイズは左側のつまみと同じ幅24dpに据え置き
+            val openAppParams = LinearLayout.LayoutParams((24 * density).toInt(), cellHeightPx).apply {
+                setMargins((6 * density).toInt(), 0, (4 * density).toInt(), 0)
+            }
+            containerLayout?.addView(openAppBtn, openAppParams)
+
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -321,7 +316,13 @@ class OverlayService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         containerLayout?.let {
-            windowManager.removeView(it)
+            if (it.parent != null) {
+                try {
+                    windowManager.removeView(it)
+                } catch (e: IllegalArgumentException) {
+                }
+            }
         }
+        containerLayout = null
     }
 }
