@@ -39,6 +39,28 @@ class OverlayService : Service() {
         if (intent != null) {
             // アプリ側や外部から停止命令が来たら、Viewを消してサービスを終了する
             if (intent.action == ACTION_STOP_SERVICE) {
+                // 🟢 修正：古い端末から最新の端末まで赤線（エラー）が出ない安全なバイブレーションの実装
+                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                    vibratorManager.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_CLICK)
+                    } else {
+                        android.os.VibrationEffect.createOneShot(50, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                    }
+                    vibrator.vibrate(effect)
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(50)
+                }
+
+                // 確実にアプリ内のスイッチ状態もOFF（false）に書き換えます
                 val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("overlay_running", false).apply()
 
@@ -308,6 +330,44 @@ class OverlayService : Service() {
                     return false
                 }
             })
+
+            // 🟢 修正：通知の重要度を引き上げてサイレントに入らないようにする
+            val channelId = "overlay_counter_channel"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val notificationChannel = android.app.NotificationChannel(
+                    channelId,
+                    "常駐カウンター連動",
+                    android.app.NotificationManager.IMPORTANCE_DEFAULT // 🟢 サイレントを回避する標準の重要度に変更
+                )
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                manager.createNotificationChannel(notificationChannel)
+            }
+
+            // 🟢 追加：通知のボタンが押されたときにサービスを止めるためのインテントを用意
+            val stopIntent = Intent(this@OverlayService, OverlayService::class.java).apply {
+                action = ACTION_STOP_SERVICE
+            }
+            val stopPendingIntent = android.app.PendingIntent.getService(
+                this@OverlayService,
+                0,
+                stopIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = androidx.core.app.NotificationCompat.Builder(this@OverlayService, channelId)
+                .setContentTitle("スロメモ常駐カウンター")
+                .setContentText("カウンター表示中")
+                .setSmallIcon(android.R.drawable.ic_menu_agenda)
+                .setOngoing(true)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
+                .addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel, // ×ボタンなどのアイコン
+                    "常駐カウンターを非表示", // 通知に表示されるボタンの文字
+                    stopPendingIntent // タップ時に実行する処理
+                )
+                .build()
+
+            startForeground(1001, notification)
 
             windowManager.addView(containerLayout, params)
         }

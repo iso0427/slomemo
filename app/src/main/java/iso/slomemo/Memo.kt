@@ -75,11 +75,11 @@ data class AppSetting(
     val showSimpleCounter: Boolean = true,
     val showFlashEffect: Boolean = true,
     val showCounterName: Boolean = true,
-    val counterHeight: Int = 60,
-    val counterFontSize: Int = 45,
-    val rotationFontSize: Int = 45,
+    val counterHeight: Int = 60,       // 🟢 段階3の数値（60）
+    val counterFontSize: Int = 32,     // 🟢 既存コードの段階3の数値「32」に一致
+    val rotationFontSize: Int = 30,    // 🟢 既存コードの段階3の数値「30」に一致
     val showTotalRotation: Boolean = true,
-    val rateFontSize: Int = 30
+    val rateFontSize: Int = 65         // 🟢 既存コードの段階3の数値「65」に一致
 )
 
 // ⑦ 簡易カウンターの項目（ボタン名と色、自動計算ルール）を保存する

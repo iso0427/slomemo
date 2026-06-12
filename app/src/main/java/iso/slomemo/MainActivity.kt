@@ -460,6 +460,45 @@ class MainActivity : ComponentActivity() {
                         if (currentScreen == "main") {
                             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
+                            // 🟢 修正：「カウンターを表示する」がONのときだけ、このスイッチを表示する条件を追加
+                            if (showSimpleCounter) {
+                                val overlayPrefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                var isOverlayRunning by remember {
+                                    mutableStateOf(overlayPrefs.getBoolean("overlay_running", false))
+                                }
+
+                                Switch(
+                                    checked = isOverlayRunning,
+                                    onCheckedChange = { isChecked ->
+                                        isOverlayRunning = isChecked
+
+                                        if (isChecked) {
+                                            if (android.provider.Settings.canDrawOverlays(this@MainActivity)) {
+                                                overlayPrefs.edit().putBoolean("overlay_running", true).apply()
+
+                                                val startIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
+                                                    putExtra("TARGET_MACHINE_ID", machineId)
+                                                }
+                                                startService(startIntent)
+
+                                                updateOverlayVisibility()
+                                            } else {
+                                                val intent = Intent(
+                                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                    android.net.Uri.parse("package:$packageName")
+                                                )
+                                                startActivity(intent)
+                                                isOverlayRunning = false
+                                            }
+                                        } else {
+                                            val intent = Intent(this@MainActivity, OverlayService::class.java)
+                                            stopService(intent)
+                                            overlayPrefs.edit().putBoolean("overlay_running", false).apply()
+                                        }
+                                    },
+                                    modifier = Modifier.padding(end = 4.dp)
+                                )
+                            }
                             // Undoボタン
                             IconButton(
                                 onClick = {
@@ -1283,6 +1322,29 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            // 🟢 修正：通知エリアが閉じられてアプリ画面にフォーカスが戻った瞬間（hasWindowFocus）を検知して再読込する
+                            val contextActivity = context as? androidx.activity.ComponentActivity
+                            androidx.compose.runtime.DisposableEffect(contextActivity) {
+                                val listener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+                                    // 通知エリアが閉じられて、アプリ画面に操作権（フォーカス）が戻ってきた場合
+                                    if (hasFocus) {
+                                        val latestStatus = prefs.getBoolean("overlay_running", false)
+                                        if (!latestStatus) {
+                                            isServiceRunning = false
+                                        } else {
+                                            isServiceRunning = true
+                                        }
+                                    }
+                                }
+
+                                val view = contextActivity?.window?.decorView
+                                view?.viewTreeObserver?.addOnWindowFocusChangeListener(listener)
+
+                                onDispose {
+                                    view?.viewTreeObserver?.removeOnWindowFocusChangeListener(listener)
+                                }
+                            }
+
                             // 【4】画面重ね合わせ権限用のランチャー
                             val overlayPermissionLauncher = rememberLauncherForActivityResult(
                                 contract = ActivityResultContracts.StartActivityForResult()
@@ -1315,19 +1377,38 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(24.dp))
 
                                 // --- ① カウンターを表示するスイッチ ---
+                                // 🟢 修正：タップして大元をOFFにした際、常駐カウンターのスイッチの見た目（State）も即座にOFFへ更新します
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            showSimpleCounter = !showSimpleCounter
+                                            val nextChecked = !showSimpleCounter
                                             scope.launch {
                                                 db.memoDao().saveAppSetting(
-                                                    currentAppSetting.copy(showSimpleCounter = showSimpleCounter)
+                                                    currentAppSetting.copy(showSimpleCounter = nextChecked)
                                                 )
                                             }
+
+                                            // 「カウンターを表示する」をOFFにされた場合
+                                            if (!nextChecked) {
+                                                // 1. サービスを完全に終了
+                                                val intent = Intent(this@MainActivity, OverlayService::class.java)
+                                                stopService(intent)
+
+                                                // 2. データのフラグをOFFにする
+                                                context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                                    .edit().putBoolean("overlay_running", false).apply()
+
+                                                // 3. 🟢 追加：設定画面内にある常駐カウンタースイッチのStateの見た目も強制的にOFFにする
+                                                // (設定画面内の変数名 isServiceRunning または isOverlayRunning に合わせて画面を即座に再描画させます)
+                                                if (currentScreen == "counter_settings") {
+                                                    // メニュー画面のスイッチの状態を管理しているStateを直接falseにします
+                                                    isServiceRunning = false
+                                                }
+                                            }
                                         }
-                                        .padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                 ) {
                                     Switch(
                                         checked = showSimpleCounter,
@@ -1457,27 +1538,29 @@ class MainActivity : ComponentActivity() {
                                                         val intent = Intent(context, OverlayService::class.java)
                                                         context.stopService(intent)
                                                     } else {
-                                                        // 🟢 ONにする処理：権限チェックへ
-                                                        if (Settings.canDrawOverlays(context)) {
-                                                            isServiceRunning = true
-                                                            prefs.edit().putBoolean("overlay_running", true).apply()
-                                                            val intent = Intent(context, OverlayService::class.java).apply {
-                                                                putExtra("TARGET_MACHINE_ID", machineId)
+                                                        // 🟢 ONにする処理：まず通知の権限チェックを挟み込む
+                                                        (context as? MainActivity)?.checkAndRequestNotificationPermission {
+                                                            // 通知が許可されたら（または元々許可されていれば）ここが実行される
+                                                            if (Settings.canDrawOverlays(context)) {
+                                                                isServiceRunning = true
+                                                                prefs.edit().putBoolean("overlay_running", true).apply()
+                                                                val intent = Intent(context, OverlayService::class.java).apply {
+                                                                    putExtra("TARGET_MACHINE_ID", machineId)
+                                                                }
+                                                                // 通常のバックグラウンドサービスとして安全に起動
+                                                                context.startService(intent)
+                                                            } else {
+                                                                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                                                                    data = Uri.parse("package:${context.packageName}")
+                                                                }
+                                                                overlayPermissionLauncher.launch(intent)
                                                             }
-                                                            // 通常のバックグラウンドサービスとして安全に起動
-                                                            context.startService(intent)
-                                                        } else {
-                                                            val intent = Intent(
-                                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                                Uri.parse("package:${context.packageName}")
-                                                            )
-                                                            overlayPermissionLauncher.launch(intent)
                                                         }
                                                     }
                                                 }
-                                                .padding(vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
+                                                .padding(vertical = 0.dp), // 🟢 大切なデザイン設定を残しています
+                                            verticalAlignment = Alignment.CenterVertically // 🟢 大切なデザイン設定を残しています
+                                        ){
                                             Switch(
                                                 checked = isServiceRunning,
                                                 onCheckedChange = { isChecked ->
@@ -1767,7 +1850,7 @@ class MainActivity : ComponentActivity() {
                                             mutableStateOf(
                                                 prefs.getInt(
                                                     "counter_overlay_height",
-                                                    30
+                                                    60
                                                 )
                                             )
                                         }
@@ -4378,4 +4461,26 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-} // ←これがファイルの一番最後にある、クラス自体の閉じカッコです
+
+    // 🟢 追加：ファイルの最後、閉じカッコの直前にこの関数を貼り付けます
+    fun checkAndRequestNotificationPermission(onPermissionGranted: () -> Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (!hasPermission) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    101
+                )
+            } else {
+                onPermissionGranted()
+            }
+        } else {
+            onPermissionGranted()
+        }
+    }
+} // 💡 これがファイルの一番最後にある、クラス全体の閉じカッコです
