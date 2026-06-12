@@ -134,7 +134,7 @@ class OverlayService : Service() {
             }
 
             val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            val savedHeight = prefs.getInt("counter_overlay_height", 30)
+            val savedHeight = prefs.getInt("counter_overlay_height", 60)
             val cellHeightPx = (savedHeight * density).toInt()
 
             containerLayout = LinearLayout(this@OverlayService).apply {
@@ -152,7 +152,7 @@ class OverlayService : Service() {
 
             val dragHandle = TextView(this@OverlayService).apply {
                 text = "⁝⁝"
-                textSize = 18f
+                textSize = 24f
                 setTextColor(Color.LTGRAY)
                 gravity = Gravity.CENTER
                 val handleWidth = (24 * density).toInt()
@@ -196,9 +196,11 @@ class OverlayService : Service() {
                         text = (valueObj?.count ?: 0).toString()
                     }
 
+                    // 🟢 修正：単体タップでカウントアップ（+1）
                     setOnClickListener {
                         it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
 
+                        // エフェクト（フラッシュ・最大輝度）の既存処理を実行
                         CoroutineScope(Dispatchers.Main).launch {
                             val currentSetting = withContext(Dispatchers.IO) {
                                 db.memoDao().getAppSetting()
@@ -236,6 +238,7 @@ class OverlayService : Service() {
                             }
                         }
 
+                        // カウントアップ（+1）処理
                         CoroutineScope(Dispatchers.Main).launch {
                             val nextCount = withContext(Dispatchers.IO) {
                                 val currentValueObj = db.memoDao().getCounterValue(setting.id)
@@ -247,6 +250,27 @@ class OverlayService : Service() {
                             }
                             text = nextCount.toString()
                         }
+                    }
+
+                    // 🟢 修正：長押しでカウントダウン（ただし0未満には下げない）
+                    setOnLongClickListener {
+                        it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+
+                        CoroutineScope(Dispatchers.Main).launch {
+                            val nextCount = withContext(Dispatchers.IO) {
+                                val currentValueObj = db.memoDao().getCounterValue(setting.id)
+                                val currentCount = currentValueObj?.count ?: 0
+
+                                // 🟢 修正：計算結果が0未満にならないよう、kotlin.math.max を使って0でストップさせます
+                                val next = kotlin.math.max(0, currentCount - 1)
+
+                                val newValueObj = CounterValue(counterId = setting.id, count = next)
+                                db.memoDao().insertCounterValue(newValueObj)
+                                next
+                            }
+                            text = nextCount.toString()
+                        }
+                        true
                     }
                 }
 
@@ -268,6 +292,7 @@ class OverlayService : Service() {
                 isClickable = true
                 isFocusable = true
 
+                // 通常タップ：アプリ（MainActivity）を起動
                 setOnClickListener {
                     it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
 
@@ -277,6 +302,16 @@ class OverlayService : Service() {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     }
                     startActivity(launchIntent)
+                }
+
+                // 🟢 追加：長押し（ロングタップ）で常駐カウンターを完全に非表示（終了）にする
+                setOnLongClickListener {
+                    // 自分自身（OverlayService）の停止アクションを呼び出す
+                    val stopIntent = Intent(this@OverlayService, OverlayService::class.java).apply {
+                        action = ACTION_STOP_SERVICE
+                    }
+                    startService(stopIntent)
+                    true // イベントを消費して通常のタップが同時に走るのを防ぐ
                 }
             }
 

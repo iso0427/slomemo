@@ -88,6 +88,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -460,18 +461,22 @@ class MainActivity : ComponentActivity() {
                         if (currentScreen == "main") {
                             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
-                            // 🟢 修正：「カウンターを表示する」がONのときだけ、このスイッチを表示する条件を追加
                             if (showSimpleCounter) {
                                 val overlayPrefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
-                                var isOverlayRunning by remember {
-                                    mutableStateOf(overlayPrefs.getBoolean("overlay_running", false))
+
+                                // 🟢 修正：SharedPreferencesを監視し、値が変更されたら即座にisOverlayRunningを更新する
+                                val isOverlayRunning by produceState(initialValue = overlayPrefs.getBoolean("overlay_running", false), overlayPrefs) {
+                                    val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+                                        if (key == "overlay_running") value = prefs.getBoolean("overlay_running", false)
+                                    }
+                                    overlayPrefs.registerOnSharedPreferenceChangeListener(listener)
+                                    awaitDispose { overlayPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
                                 }
 
                                 Switch(
                                     checked = isOverlayRunning,
                                     onCheckedChange = { isChecked ->
-                                        isOverlayRunning = isChecked
-
+                                        // （onCheckedChange内の処理はそのまま維持）
                                         if (isChecked) {
                                             if (android.provider.Settings.canDrawOverlays(this@MainActivity)) {
                                                 overlayPrefs.edit().putBoolean("overlay_running", true).apply()
@@ -488,7 +493,6 @@ class MainActivity : ComponentActivity() {
                                                     android.net.Uri.parse("package:$packageName")
                                                 )
                                                 startActivity(intent)
-                                                isOverlayRunning = false
                                             }
                                         } else {
                                             val intent = Intent(this@MainActivity, OverlayService::class.java)
@@ -1312,14 +1316,13 @@ class MainActivity : ComponentActivity() {
                                 android.content.Context.MODE_PRIVATE
                             )
 
-                            // 【1】画面のON/OFF状態（isServiceRunning）を定義（重複をなくし、ここに1つだけにしました）
-                            var isServiceRunning by remember {
-                                mutableStateOf(
-                                    prefs.getBoolean(
-                                        "overlay_running",
-                                        false
-                                    )
-                                )
+                            // 【1】画面のON/OFF状態（isServiceRunning）の管理
+                            // 🟢 修正：単なる初期値代入ではなく、画面が再描画されるたびにプリファレンスから最新状態を取得するようにします
+                            var isServiceRunning by remember { mutableStateOf(false) }
+
+                            LaunchedEffect(Unit) {
+                                val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                isServiceRunning = prefs.getBoolean("overlay_running", false)
                             }
 
                             // 🟢 修正：通知エリアが閉じられてアプリ画面にフォーカスが戻った瞬間（hasWindowFocus）を検知して再読込する
@@ -1377,12 +1380,13 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(24.dp))
 
                                 // --- ① カウンターを表示するスイッチ ---
-                                // 🟢 修正：タップして大元をOFFにした際、常駐カウンターのスイッチの見た目（State）も即座にOFFへ更新します
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
                                             val nextChecked = !showSimpleCounter
+
+                                            // DBの設定を更新
                                             scope.launch {
                                                 db.memoDao().saveAppSetting(
                                                     currentAppSetting.copy(showSimpleCounter = nextChecked)
@@ -1399,20 +1403,19 @@ class MainActivity : ComponentActivity() {
                                                 context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
                                                     .edit().putBoolean("overlay_running", false).apply()
 
-                                                // 3. 🟢 追加：設定画面内にある常駐カウンタースイッチのStateの見た目も強制的にOFFにする
-                                                // (設定画面内の変数名 isServiceRunning または isOverlayRunning に合わせて画面を即座に再描画させます)
-                                                if (currentScreen == "counter_settings") {
-                                                    // メニュー画面のスイッチの状態を管理しているStateを直接falseにします
-                                                    isServiceRunning = false
-                                                }
+                                                // 3. 🟢 修正：常駐カウンタースイッチのStateを明示的にOFFにする
+                                                isServiceRunning = false
                                             }
+
+                                            // showSimpleCounter の状態更新
+                                            showSimpleCounter = nextChecked
                                         }
                                         .padding(vertical = 12.dp),
                                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                 ) {
                                     Switch(
                                         checked = showSimpleCounter,
-                                        onCheckedChange = null
+                                        onCheckedChange = null // clickableで制御するためnull
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
