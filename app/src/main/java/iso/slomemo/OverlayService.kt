@@ -329,8 +329,11 @@ class OverlayService : Service() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = 100
-                y = 100
+
+                // 🟢 修正：保存された座標を読み込む（なければ初期値100）
+                val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                x = prefs.getInt("overlay_x", 100)
+                y = prefs.getInt("overlay_y", 100)
             }
 
             @android.annotation.SuppressLint("ClickableViewAccessibility")
@@ -355,10 +358,23 @@ class OverlayService : Service() {
                             val diffY = event.rawY - initialTouchY
 
                             if (java.lang.Math.abs(diffX) > 5 || java.lang.Math.abs(diffY) > 5) {
-                                params.x = initialX + diffX.toInt()
-                                params.y = initialY + diffY.toInt()
+                                val metrics = resources.displayMetrics
+                                val maxX = metrics.widthPixels - (containerLayout?.width ?: 1)
+                                val maxY = metrics.heightPixels - (containerLayout?.height ?: 1)
+
+                                params.x = (initialX + diffX.toInt()).coerceIn(0, maxX)
+                                params.y = (initialY + diffY.toInt()).coerceIn(0, maxY)
                                 windowManager.updateViewLayout(containerLayout, params)
                             }
+                            return true
+                        }
+                        // 🟢 修正：指を離した瞬間に座標を保存する
+                        MotionEvent.ACTION_UP -> {
+                            val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                            prefs.edit()
+                                .putInt("overlay_x", params.x)
+                                .putInt("overlay_y", params.y)
+                                .apply()
                             return true
                         }
                     }

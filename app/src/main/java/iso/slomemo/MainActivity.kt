@@ -500,7 +500,7 @@ class MainActivity : ComponentActivity() {
                                             overlayPrefs.edit().putBoolean("overlay_running", false).apply()
                                         }
                                     },
-                                    modifier = Modifier.padding(end = 4.dp)
+                                    modifier = Modifier.padding(end = 24.dp)
                                 )
                             }
                             // Undoボタン
