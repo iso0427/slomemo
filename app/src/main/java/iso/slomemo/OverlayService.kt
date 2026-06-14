@@ -145,6 +145,7 @@ class OverlayService : Service() {
                 background = GradientDrawable().apply {
                     setColor(Color.parseColor("#333333"))
                     cornerRadius = 8 * density
+                    setStroke((0.5 * density).toInt(), Color.LTGRAY)
                 }
 
                 visibility = if (isAppActive) View.GONE else View.VISIBLE
@@ -186,7 +187,7 @@ class OverlayService : Service() {
 
                     background = GradientDrawable().apply {
                         setColor(btnColor)
-                        cornerRadius = 6 * density
+                        cornerRadius = 16 * density
                     }
 
                     CoroutineScope(Dispatchers.Main).launch {
