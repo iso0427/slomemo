@@ -45,6 +45,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -52,6 +53,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -332,6 +334,7 @@ class MainActivity : ComponentActivity() {
         var isFlash by remember { mutableStateOf(false) }
         var flashColor by remember { mutableStateOf(Color.White) }
         var showCounterName by remember { mutableStateOf(true) }
+
 
         // DBから取得するカウンター項目
         // 💡 1. カウンターのボタン（色や並び順）を、今の機種（machineId）だけで絞り込んで監視
@@ -4062,13 +4065,40 @@ class MainActivity : ComponentActivity() {
                     val options = column.options
                     val currentValue = inputValues[column.id] ?: ""
 
-                    Text(
-                        text = column.name,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Color(0xFFBB86FC),
-                        modifier = Modifier.padding(top = 8.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Start
-                    )
+                    // 選択状態の判定（値が入っているか）
+                    val isFilled = currentValue.isNotBlank()
+
+                    // ★ここから修正：TextをRowで囲ってチェックマークと並べる
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        // ★修正：丸い背景付きのチェックアイコン
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(24.dp)
+                                .background(
+                                    color = if (isFilled) Color(0xFF4CAF50) else Color(0xFF333333),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Check,
+                                contentDescription = "入力済み",
+                                tint = if (isFilled) Color.White else Color.Transparent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Text(
+                            text = column.name,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color(0xFFBB86FC),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                        )
+                    }
+                    // ★ここまで
 
                     if (options.isNotEmpty()) {
                         Row(
@@ -4422,6 +4452,7 @@ class MainActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier
                             .weight(weight)
+                            .height(16.dp) // ★ここを追加して高さを固定
                             .padding(horizontal = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
