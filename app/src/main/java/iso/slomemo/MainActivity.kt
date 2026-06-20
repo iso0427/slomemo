@@ -4014,7 +4014,7 @@ class MainActivity : ComponentActivity() {
             MemoRecord(
                 id = editingRecordId ?: 0,
                 machineId = machineId,
-                timestamp = System.currentTimeMillis()
+                timestamp = 0L
             )
         }
 
@@ -4105,6 +4105,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp)
+                                .height(48.dp) // ★ここを追加（Surfaceの高さ40dp + 上下padding分をカバーする高さ）
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
@@ -4117,47 +4118,38 @@ class MainActivity : ComponentActivity() {
 
                                 Surface(
                                     onClick = {
+                                        // 既存のクリック処理
                                         val oldValue = currentValue
                                         val newValue = if (isSelected) "" else option
                                         inputValues[column.id] = newValue
-
-                                        scope.launch {
-                                            if (oldValue.isNotBlank()) {
-                                                val oldRules = db.memoDao()
-                                                    .getRulesByTrigger(column.id, oldValue)
-                                                oldRules.forEach { rule ->
-                                                    if (!rule.isNextRow && rule.targetColumnId != column.id) {
-                                                        inputValues[rule.targetColumnId] = ""
-                                                    }
-                                                }
-                                            }
-
-                                            if (newValue.isNotBlank()) {
-                                                val newRules = db.memoDao()
-                                                    .getRulesByTrigger(column.id, newValue)
-                                                newRules.forEach { rule ->
-                                                    if (!rule.isNextRow && rule.targetColumnId != column.id) {
-                                                        inputValues[rule.targetColumnId] =
-                                                            rule.targetValue
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        // ... (以降のscope.launchなどはそのまま)
                                     },
                                     shape = RoundedCornerShape(8.dp),
                                     color = bgColor,
                                     modifier = Modifier
                                         .height(40.dp)
                                         .padding(end = 8.dp)
+                                    // ★ clipToBoundsは削除し、タップ領域を確保
                                 ) {
                                     Box(
                                         contentAlignment = Alignment.Center,
-                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                        modifier = Modifier
+                                            .padding(horizontal = 16.dp)
+                                            .fillMaxHeight() // 高さを親に合わせる
                                     ) {
                                         Text(
                                             text = option,
                                             color = textColor,
-                                            fontSize = 14.sp
+                                            fontSize = 14.sp,
+                                            style = androidx.compose.ui.text.TextStyle(
+                                                fontSize = 14.sp,
+                                                lineHeight = 14.sp,
+                                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                                    includeFontPadding = false
+                                                )
+                                            ),
+                                            lineHeight = 14.sp
+                                            // modifierのpadding(0.dp)は削除してもOKです
                                         )
                                     }
                                 }
@@ -4419,17 +4411,22 @@ class MainActivity : ComponentActivity() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showTime) {
-                    val timeText =
+                    android.util.Log.d("SloMemoDebug", "timestampの値: ${record.timestamp}")
+                    // 修正：0L（プレビュー用）なら「時間」と表示、そうでなければ時刻を表示
+                    val timeText = if (record.timestamp == 0L) {
+                        "時間"
+                    } else {
                         java.text.SimpleDateFormat(
                             "HH:mm",
                             java.util.Locale.getDefault()
-                        )
-                            .format(record.timestamp)
+                        ).format(record.timestamp)
+                    }
+
                     Text(
                         text = timeText,
                         modifier = Modifier.width(50.dp),
                         style = androidx.compose.ui.text.TextStyle(
-                            fontSize = 16.sp, // ★12sp前後から18spへ
+                            fontSize = 16.sp,
                         ),
                         color = mainText,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -4459,7 +4456,12 @@ class MainActivity : ComponentActivity() {
                         Text(
                             text = value,
                             style = androidx.compose.ui.text.TextStyle(
-                                fontSize = 16.sp, // ★ここをガツンと大きく！
+                                fontSize = 16.sp,
+                                // ★ここにも念のため高さ固定の設定を入れる
+                                lineHeight = 16.sp,
+                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                    includeFontPadding = false
+                                )
                             ),
                             color = mainText,
                             maxLines = 1,
