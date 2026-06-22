@@ -93,6 +93,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
@@ -335,6 +336,11 @@ class MainActivity : ComponentActivity() {
         var flashColor by remember { mutableStateOf(Color.White) }
         var showCounterName by remember { mutableStateOf(true) }
 
+        // 💡 修正：rememberSaveable に統一
+        var startRotation by rememberSaveable { mutableStateOf("0000") }
+        var currentRotation by rememberSaveable { mutableStateOf("0000") }
+        var addRotation by rememberSaveable { mutableStateOf("0000") }
+        var editingTargetId by rememberSaveable { mutableStateOf<String?>(null) }
 
         // DBから取得するカウンター項目
         // 💡 1. カウンターのボタン（色や並び順）を、今の機種（machineId）だけで絞り込んで監視
@@ -378,7 +384,7 @@ class MainActivity : ComponentActivity() {
             rotationInputText = savedRotation?.rotationText ?: "0000"
         }
 
-// Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
+   // Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
         LaunchedEffect(appSettingFromFlow) {
             appSettingFromFlow?.let {
                 showSimpleCounter = it.showSimpleCounter
@@ -655,34 +661,72 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (currentAppSetting.showTotalRotation) {
-                                Box(
-                                    modifier = Modifier
-                                        .wrapContentWidth()
-                                        .height(currentAppSetting.counterHeight.dp)
-                                        .background(
-                                            Color(0xFF2A2A2A),
-                                            shape = RoundedCornerShape(8.dp)
+                            Column {
+                                if (currentAppSetting.showTotalRotation) {
+                                    Box(
+                                        modifier = Modifier
+                                            .wrapContentWidth()
+                                            .height(currentAppSetting.counterHeight.dp)
+                                            .background(Color(0xFF2A2A2A), shape = RoundedCornerShape(8.dp))
+                                            .combinedClickable(
+                                                onLongClick = { editingTargetId = "start" },
+                                                onClick = { /* 必要に応じて処理 */ }
+                                            )
+                                            .padding(horizontal = 6.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        val total = (startRotation.toIntOrNull() ?: 0) + (currentRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0)
+                                        Text(
+                                            text = ((currentRotation.toIntOrNull() ?: 0) - (startRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0))
+                                                .toString().padStart(4, '0'),
+                                            color = Color.White,
+                                            fontSize = currentAppSetting.rotationFontSize.sp,
+                                            fontFamily = SevenSegmentFontFamily
                                         )
-                                        .combinedClickable(
-                                            onClick = {},
-                                            onLongClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                showRotationDialog = true
+                                    }
+                                }
+
+                                if (editingTargetId != null) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        val items = listOf("start" to "開始時回転数", "current" to "現在回転数", "add" to "回転数加算")
+                                        items.forEach { (id, label) ->
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { editingTargetId = id }
+                                                    .padding(vertical = 4.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(text = label, color = if (editingTargetId == id) Color.Yellow else Color.White)
+                                                Text(
+                                                    text = when(id) {
+                                                        "start" -> startRotation
+                                                        "current" -> currentRotation
+                                                        else -> addRotation
+                                                    },
+                                                    color = Color.White,
+                                                    fontSize = 20.sp,
+                                                    fontFamily = SevenSegmentFontFamily
+                                                )
+                                            }
+                                        }
+                                        SimpleTenKey(
+                                            onNumberClick = { num ->
+                                                when (editingTargetId) {
+                                                    "start" -> startRotation = (startRotation + num).takeLast(4)
+                                                    "current" -> currentRotation = (currentRotation + num).takeLast(4)
+                                                    "add" -> addRotation = (addRotation + num).takeLast(4)
+                                                }
+                                            },
+                                            onActionClick = { action ->
+                                                if (action == "確定") {
+                                                    currentRotation = ((currentRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0)).toString().padStart(4, '0')
+                                                    addRotation = "0000"
+                                                    editingTargetId = null
+                                                }
                                             }
                                         )
-                                        .padding(horizontal = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = rotationInputText,
-                                        color = Color.White,
-                                        fontSize = currentAppSetting.rotationFontSize.sp,
-                                        fontWeight = FontWeight.Normal,
-                                        fontFamily = SevenSegmentFontFamily,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
+                                    }
                                 }
                             }
 
@@ -3717,7 +3761,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-// --- 3. 入力エリア (オーバーレイ) ---
+              // --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
                 // 🟢 画面全体を覆うレイヤー（2重の膜を表現する外枠）
                 Box(
@@ -4484,7 +4528,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @Composable
+    fun SimpleTenKey(
+        onNumberClick: (String) -> Unit,
+        onActionClick: (String) -> Unit
+    ) {
+        val keys = listOf(
+            listOf("1", "2", "3"),
+            listOf("4", "5", "6"),
+            listOf("7", "8", "9"),
+            listOf("クリア", "0", "確定")
+        )
 
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.LightGray) // 見やすくするための色
+                .padding(8.dp)
+        ) {
+            keys.forEach { row ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { key ->
+                        Button(
+                            onClick = {
+                                if (key == "クリア" || key == "確定") onActionClick(key)
+                                else onNumberClick(key)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(4.dp)
+                        ) {
+                            Text(text = key)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // 🟢 修正：他の関数の外側（クラスの末尾）に配置して赤線を解消
     override fun onNewIntent(intent: Intent) {
