@@ -335,12 +335,11 @@ class MainActivity : ComponentActivity() {
         var isFlash by remember { mutableStateOf(false) }
         var flashColor by remember { mutableStateOf(Color.White) }
         var showCounterName by remember { mutableStateOf(true) }
-
-        // 💡 修正：rememberSaveable に統一
+        // 💡 追加：カウンター数値の編集用状態
         var startRotation by rememberSaveable { mutableStateOf("0000") }
-        var currentRotation by rememberSaveable { mutableStateOf("0000") }
-        var addRotation by rememberSaveable { mutableStateOf("0000") }
-        var editingTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+        var currentRotation by remember { mutableStateOf("0000") }
+        var addRotation by remember { mutableStateOf("0000") }
+        var editingTargetId by remember { mutableStateOf<String?>(null) } // nullなら非表示
 
         // DBから取得するカウンター項目
         // 💡 1. カウンターのボタン（色や並び順）を、今の機種（machineId）だけで絞り込んで監視
@@ -384,7 +383,7 @@ class MainActivity : ComponentActivity() {
             rotationInputText = savedRotation?.rotationText ?: "0000"
         }
 
-   // Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
+// Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
         LaunchedEffect(appSettingFromFlow) {
             appSettingFromFlow?.let {
                 showSimpleCounter = it.showSimpleCounter
@@ -737,7 +736,7 @@ class MainActivity : ComponentActivity() {
                                     remember(count, rotationInputText, allCountsMap, setting) {
                                         if (count == 0 || setting.calcType == 0) return@remember null
                                         val targetValue = if (setting.targetType == 0) {
-                                            rotationInputText.toIntOrNull() ?: 0
+                                            ((currentRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0) - (startRotation.toIntOrNull() ?: 0))
                                         } else {
                                             allCountsMap[setting.targetCounterId] ?: 0
                                         }
