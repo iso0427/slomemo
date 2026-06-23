@@ -93,7 +93,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
@@ -241,6 +240,7 @@ class MainActivity : ComponentActivity() {
         // --- 1. 色の定義 ---
         val backColor = Color.Black
         val context = androidx.compose.ui.platform.LocalContext.current
+
         val surfaceColor = Color(0xFF1e1e1e)
         val mainText = Color.White
         val subText = Color.LightGray
@@ -264,45 +264,40 @@ class MainActivity : ComponentActivity() {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
 
-        // 共通の判定・送信処理を関数化
+// 共通の判定・送信処理を関数化
         val updateOverlayVisibility = {
-            val prefs =
-                context.getSharedPreferences("app_prefs", MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
             val isRunning = prefs.getBoolean("overlay_running", false)
             if (isRunning) {
                 val isAtMemoRoute = currentRoute?.startsWith("memo/") == true
                 val isPureMemoScreen = isAtMemoRoute && (currentScreen == "main")
 
                 if (isPureMemoScreen) {
-                    val hideIntent = Intent(context, OverlayService::class.java)
-                        .apply { action = "ACTION_HIDE_OVERLAY" }
+                    val hideIntent = android.content.Intent(context, OverlayService::class.java).apply { action = "ACTION_HIDE_OVERLAY" }
                     context.startService(hideIntent)
                 } else {
-                    val showIntent = Intent(context, OverlayService::class.java)
-                        .apply { action = "ACTION_SHOW_OVERLAY" }
+                    val showIntent = android.content.Intent(context, OverlayService::class.java).apply { action = "ACTION_SHOW_OVERLAY" }
                     context.startService(showIntent)
                 }
             }
         }
 
-        // 1. アプリ内での画面切り替えを監視
+// 1. アプリ内での画面切り替えを監視
         androidx.compose.runtime.LaunchedEffect(currentRoute, currentScreen) {
             updateOverlayVisibility()
         }
 
-        // 2. 🟢 ホーム画面から「アプリに戻ってきた瞬間」に表示状態を正しく再判定する
+// 2. 🟢 ホーム画面から「アプリに戻ってきた瞬間」に表示状態を正しく再判定する
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_START) {
             updateOverlayVisibility()
         }
 
-        // 3. 🟢 アプリから離れて「ホーム画面に戻った瞬間」は、どこにいても必ずカウンターを再表示する
+// 3. 🟢 アプリから離れて「ホーム画面に戻った瞬間」は、どこにいても必ずカウンターを再表示する
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-            val prefs =
-                context.getSharedPreferences("app_prefs", MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
             val isRunning = prefs.getBoolean("overlay_running", false)
             if (isRunning) {
-                val showIntent = Intent(context, OverlayService::class.java)
-                    .apply { action = "ACTION_SHOW_OVERLAY" }
+                val showIntent = android.content.Intent(context, OverlayService::class.java).apply { action = "ACTION_SHOW_OVERLAY" }
                 context.startService(showIntent)
             }
         }
@@ -340,25 +335,30 @@ class MainActivity : ComponentActivity() {
         var flashColor by remember { mutableStateOf(Color.White) }
         var showCounterName by remember { mutableStateOf(true) }
 
+
         // DBから取得するカウンター項目
         // 💡 1. カウンターのボタン（色や並び順）を、今の機種（machineId）だけで絞り込んで監視
         val counterSettings by db.memoDao().getCountersByMachineFlow(machineId)
             .collectAsState(initial = emptyList())
 
         // 💡 2. カウンターの数字（カウント数）も、今の機種（machineId）に紐づくものだけを監視
+        val currentCounterValues by db.memoDao().getCounterValuesByMachineFlow(machineId)
+            .collectAsState(initial = emptyList())
+        var newCounterName by remember { mutableStateOf("") }
         var showCounterMenuSetting by remember { mutableStateOf<CounterSetting?>(null) }
         var showColorEditPanel by remember { mutableStateOf(false) }
         var showAddCounterDialog by remember { mutableStateOf(false) }
 
         // 💡 総回転数ダイアログ用の状態を新設
         var showRotationDialog by remember { mutableStateOf(false) }
-        var rotationInputText by remember { mutableStateOf("0000") } // とりあえず初期値
+        var rotationInputText by remember { mutableStateOf("7777") } // とりあえず初期値
 
         // 🟢 【新規追加】自動計算設定ダイアログ用の状態
         var showCalcSettingDialog by remember { mutableStateOf<CounterSetting?>(null) }
         var selectedCalcType by remember { mutableStateOf(0) }
         var selectedTargetType by remember { mutableStateOf(0) }
         var selectedTargetCounterId by remember { mutableStateOf<Int?>(null) }
+        var showCalcEditPanel by remember { mutableStateOf(false) }
 
         var editingCounterId by remember { mutableStateOf<Int?>(null) }
 
@@ -378,12 +378,7 @@ class MainActivity : ComponentActivity() {
             rotationInputText = savedRotation?.rotationText ?: "0000"
         }
 
-        // --- 回転数管理用の状態を追加 ---
-        var currentRotation by rememberSaveable { mutableStateOf("0000") }
-        var addRotation by rememberSaveable { mutableStateOf("0000") }
-        var startRotation by rememberSaveable { mutableStateOf("0000") }
-
-        // Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
+// Flowから変更が流れてきたときに変数を同期させる（他画面での変更対策）
         LaunchedEffect(appSettingFromFlow) {
             appSettingFromFlow?.let {
                 showSimpleCounter = it.showSimpleCounter
@@ -462,7 +457,7 @@ class MainActivity : ComponentActivity() {
                                 color = mainText,
                                 modifier = Modifier.weight(1f),
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         } else {
                             Spacer(modifier = Modifier.weight(1f))
@@ -472,29 +467,15 @@ class MainActivity : ComponentActivity() {
                             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
                             if (showSimpleCounter) {
-                                val overlayPrefs = context.getSharedPreferences(
-                                    "app_prefs",
-                                    MODE_PRIVATE
-                                )
+                                val overlayPrefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
 
                                 // 🟢 修正：SharedPreferencesを監視し、値が変更されたら即座にisOverlayRunningを更新する
-                                val isOverlayRunning by produceState(
-                                    initialValue = overlayPrefs.getBoolean(
-                                        "overlay_running",
-                                        false
-                                    ), overlayPrefs
-                                ) {
-                                    val listener =
-                                        android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-                                            if (key == "overlay_running") value =
-                                                prefs.getBoolean("overlay_running", false)
-                                        }
-                                    overlayPrefs.registerOnSharedPreferenceChangeListener(listener)
-                                    awaitDispose {
-                                        overlayPrefs.unregisterOnSharedPreferenceChangeListener(
-                                            listener
-                                        )
+                                val isOverlayRunning by produceState(initialValue = overlayPrefs.getBoolean("overlay_running", false), overlayPrefs) {
+                                    val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+                                        if (key == "overlay_running") value = prefs.getBoolean("overlay_running", false)
                                     }
+                                    overlayPrefs.registerOnSharedPreferenceChangeListener(listener)
+                                    awaitDispose { overlayPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
                                 }
 
                                 Switch(
@@ -502,14 +483,10 @@ class MainActivity : ComponentActivity() {
                                     onCheckedChange = { isChecked ->
                                         // （onCheckedChange内の処理はそのまま維持）
                                         if (isChecked) {
-                                            if (Settings.canDrawOverlays(this@MainActivity)) {
-                                                overlayPrefs.edit()
-                                                    .putBoolean("overlay_running", true).apply()
+                                            if (android.provider.Settings.canDrawOverlays(this@MainActivity)) {
+                                                overlayPrefs.edit().putBoolean("overlay_running", true).apply()
 
-                                                val startIntent = Intent(
-                                                    this@MainActivity,
-                                                    OverlayService::class.java
-                                                ).apply {
+                                                val startIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
                                                     putExtra("TARGET_MACHINE_ID", machineId)
                                                 }
                                                 startService(startIntent)
@@ -517,19 +494,15 @@ class MainActivity : ComponentActivity() {
                                                 updateOverlayVisibility()
                                             } else {
                                                 val intent = Intent(
-                                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                    Uri.parse("package:$packageName")
+                                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                    android.net.Uri.parse("package:$packageName")
                                                 )
                                                 startActivity(intent)
                                             }
                                         } else {
-                                            val intent = Intent(
-                                                this@MainActivity,
-                                                OverlayService::class.java
-                                            )
+                                            val intent = Intent(this@MainActivity, OverlayService::class.java)
                                             stopService(intent)
-                                            overlayPrefs.edit().putBoolean("overlay_running", false)
-                                                .apply()
+                                            overlayPrefs.edit().putBoolean("overlay_running", false).apply()
                                         }
                                     },
                                     modifier = Modifier.padding(end = 24.dp)
@@ -542,7 +515,7 @@ class MainActivity : ComponentActivity() {
                                     viewModel.undo()
                                     scope.launch {
                                         refreshData()
-                                        delay(100)
+                                        kotlinx.coroutines.delay(100)
                                         refreshData()
                                     }
                                 },
@@ -564,7 +537,7 @@ class MainActivity : ComponentActivity() {
                                     viewModel.redo()
                                     scope.launch {
                                         refreshData()
-                                        delay(100)
+                                        kotlinx.coroutines.delay(100)
                                         refreshData()
                                     }
                                 },
@@ -611,7 +584,7 @@ class MainActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .clickable(enabled = isMemoNotEmpty) { // 空ならタップ不可
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
 
                                         // 💡 【変更】最古ではなく、リストの「一番最後＝一番最近のメモ」を安全に取得
                                         val latestRecord = records?.lastOrNull()
@@ -648,7 +621,7 @@ class MainActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                         inputValues.clear()
                                         editingRecordId = null
                                         showInputArea = true
@@ -702,9 +675,7 @@ class MainActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = ((currentRotation.toIntOrNull()
-                                            ?: 0) + (addRotation.toIntOrNull()
-                                            ?: 0) - (startRotation.toIntOrNull() ?: 0)).toString(),
+                                        text = rotationInputText,
                                         color = Color.White,
                                         fontSize = currentAppSetting.rotationFontSize.sp,
                                         fontWeight = FontWeight.Normal,
@@ -716,24 +687,17 @@ class MainActivity : ComponentActivity() {
                             }
 
                             counterSettings.forEach { setting ->
-                                val currentVal = currentRotation.toIntOrNull() ?: 0
-                                val addVal = addRotation.toIntOrNull() ?: 0
-                                val startVal = startRotation.toIntOrNull() ?: 0
                                 val count = allCountsMap[setting.id] ?: 0
                                 val buttonColor = Color(setting.color)
-
                                 val rateTextPair =
                                     remember(count, rotationInputText, allCountsMap, setting) {
                                         if (count == 0 || setting.calcType == 0) return@remember null
-
                                         val targetValue = if (setting.targetType == 0) {
                                             rotationInputText.toIntOrNull() ?: 0
                                         } else {
                                             allCountsMap[setting.targetCounterId] ?: 0
                                         }
-
                                         if (targetValue <= 0) return@remember Pair("-.-", "")
-
                                         when (setting.calcType) {
                                             1 -> {
                                                 val result = targetValue.toDouble() / count
@@ -1098,6 +1062,11 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 // indexを使って位置を特定するために forEachIndexed に変更
                                 columns.forEachIndexed { index, col ->
+                                    var showColumnMenu by remember {
+                                        mutableStateOf(
+                                            false
+                                        )
+                                    }
 
                                     // --- 設定画面の項目並び替えチップ部分 ---
                                     Box {
@@ -1287,6 +1256,11 @@ class MainActivity : ComponentActivity() {
                                 FlowRow(modifier = Modifier.fillMaxWidth()) {
                                     // optIndexを使って位置を特定するために forEachIndexed に変更
                                     col.options.forEachIndexed { optIndex, opt ->
+                                        var showOptMenu by remember {
+                                            mutableStateOf(
+                                                false
+                                            )
+                                        }
 
                                         Box {
                                             InputChip(
@@ -1344,7 +1318,7 @@ class MainActivity : ComponentActivity() {
 
                             val prefs = context.getSharedPreferences(
                                 "app_prefs",
-                                MODE_PRIVATE
+                                android.content.Context.MODE_PRIVATE
                             )
 
                             // 【1】画面のON/OFF状態（isServiceRunning）の管理
@@ -1352,33 +1326,30 @@ class MainActivity : ComponentActivity() {
                             var isServiceRunning by remember { mutableStateOf(false) }
 
                             LaunchedEffect(Unit) {
-                                val prefs = context.getSharedPreferences(
-                                    "app_prefs",
-                                    MODE_PRIVATE
-                                )
+                                val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
                                 isServiceRunning = prefs.getBoolean("overlay_running", false)
                             }
 
                             // 🟢 修正：通知エリアが閉じられてアプリ画面にフォーカスが戻った瞬間（hasWindowFocus）を検知して再読込する
-                            val contextActivity = context as? ComponentActivity
+                            val contextActivity = context as? androidx.activity.ComponentActivity
                             androidx.compose.runtime.DisposableEffect(contextActivity) {
-                                val listener =
-                                    android.view.ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
-                                        // 通知エリアが閉じられて、アプリ画面に操作権（フォーカス）が戻ってきた場合
-                                        if (hasFocus) {
-                                            val latestStatus =
-                                                prefs.getBoolean("overlay_running", false)
-                                            isServiceRunning = latestStatus
+                                val listener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+                                    // 通知エリアが閉じられて、アプリ画面に操作権（フォーカス）が戻ってきた場合
+                                    if (hasFocus) {
+                                        val latestStatus = prefs.getBoolean("overlay_running", false)
+                                        if (!latestStatus) {
+                                            isServiceRunning = false
+                                        } else {
+                                            isServiceRunning = true
                                         }
                                     }
+                                }
 
                                 val view = contextActivity?.window?.decorView
                                 view?.viewTreeObserver?.addOnWindowFocusChangeListener(listener)
 
                                 onDispose {
-                                    view?.viewTreeObserver?.removeOnWindowFocusChangeListener(
-                                        listener
-                                    )
+                                    view?.viewTreeObserver?.removeOnWindowFocusChangeListener(listener)
                                 }
                             }
 
@@ -1430,19 +1401,12 @@ class MainActivity : ComponentActivity() {
                                             // 「カウンターを表示する」をOFFにされた場合
                                             if (!nextChecked) {
                                                 // 1. サービスを完全に終了
-                                                val intent = Intent(
-                                                    this@MainActivity,
-                                                    OverlayService::class.java
-                                                )
+                                                val intent = Intent(this@MainActivity, OverlayService::class.java)
                                                 stopService(intent)
 
                                                 // 2. データのフラグをOFFにする
-                                                context.getSharedPreferences(
-                                                    "app_prefs",
-                                                    MODE_PRIVATE
-                                                )
-                                                    .edit().putBoolean("overlay_running", false)
-                                                    .apply()
+                                                context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                                    .edit().putBoolean("overlay_running", false).apply()
 
                                                 // 3. 🟢 修正：常駐カウンタースイッチのStateを明示的にOFFにする
                                                 isServiceRunning = false
@@ -1452,7 +1416,7 @@ class MainActivity : ComponentActivity() {
                                             showSimpleCounter = nextChecked
                                         }
                                         .padding(vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                 ) {
                                     Switch(
                                         checked = showSimpleCounter,
@@ -1578,13 +1542,8 @@ class MainActivity : ComponentActivity() {
                                                     if (isServiceRunning) {
                                                         // 🟢 安全にOFFにする処理：直接stopServiceを呼ぶ
                                                         isServiceRunning = false
-                                                        prefs.edit()
-                                                            .putBoolean("overlay_running", false)
-                                                            .apply()
-                                                        val intent = Intent(
-                                                            context,
-                                                            OverlayService::class.java
-                                                        )
+                                                        prefs.edit().putBoolean("overlay_running", false).apply()
+                                                        val intent = Intent(context, OverlayService::class.java)
                                                         context.stopService(intent)
                                                     } else {
                                                         // 🟢 ONにする処理：まず通知の権限チェックを挟み込む
@@ -1592,65 +1551,39 @@ class MainActivity : ComponentActivity() {
                                                             // 通知が許可されたら（または元々許可されていれば）ここが実行される
                                                             if (Settings.canDrawOverlays(context)) {
                                                                 isServiceRunning = true
-                                                                prefs.edit().putBoolean(
-                                                                    "overlay_running",
-                                                                    true
-                                                                ).apply()
-                                                                val intent = Intent(
-                                                                    context,
-                                                                    OverlayService::class.java
-                                                                ).apply {
-                                                                    putExtra(
-                                                                        "TARGET_MACHINE_ID",
-                                                                        machineId
-                                                                    )
+                                                                prefs.edit().putBoolean("overlay_running", true).apply()
+                                                                val intent = Intent(context, OverlayService::class.java).apply {
+                                                                    putExtra("TARGET_MACHINE_ID", machineId)
                                                                 }
                                                                 // 通常のバックグラウンドサービスとして安全に起動
                                                                 context.startService(intent)
                                                             } else {
-                                                                val intent =
-                                                                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                                                                        data =
-                                                                            Uri.parse("package:${context.packageName}")
-                                                                    }
-                                                                overlayPermissionLauncher.launch(
-                                                                    intent
-                                                                )
+                                                                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                                                                    data = Uri.parse("package:${context.packageName}")
+                                                                }
+                                                                overlayPermissionLauncher.launch(intent)
                                                             }
                                                         }
                                                     }
                                                 }
                                                 .padding(vertical = 0.dp), // 🟢 大切なデザイン設定を残しています
                                             verticalAlignment = Alignment.CenterVertically // 🟢 大切なデザイン設定を残しています
-                                        ) {
+                                        ){
                                             Switch(
                                                 checked = isServiceRunning,
                                                 onCheckedChange = { isChecked ->
                                                     if (!isChecked) {
                                                         // スイッチを直接OFFにした時も安全に即時停止
                                                         isServiceRunning = false
-                                                        prefs.edit()
-                                                            .putBoolean("overlay_running", false)
-                                                            .apply()
-                                                        val intent = Intent(
-                                                            context,
-                                                            OverlayService::class.java
-                                                        )
+                                                        prefs.edit().putBoolean("overlay_running", false).apply()
+                                                        val intent = Intent(context, OverlayService::class.java)
                                                         context.stopService(intent)
                                                     } else {
                                                         if (Settings.canDrawOverlays(context)) {
                                                             isServiceRunning = true
-                                                            prefs.edit()
-                                                                .putBoolean("overlay_running", true)
-                                                                .apply()
-                                                            val intent = Intent(
-                                                                context,
-                                                                OverlayService::class.java
-                                                            ).apply {
-                                                                putExtra(
-                                                                    "TARGET_MACHINE_ID",
-                                                                    machineId
-                                                                )
+                                                            prefs.edit().putBoolean("overlay_running", true).apply()
+                                                            val intent = Intent(context, OverlayService::class.java).apply {
+                                                                putExtra("TARGET_MACHINE_ID", machineId)
                                                             }
                                                             context.startService(intent)
                                                         } else {
@@ -2203,7 +2136,7 @@ class MainActivity : ComponentActivity() {
                                 val currentLetter =
                                     if (currentIdx >= 0) ('A' + currentIdx).toString() else ""
 
-                                BackHandler {
+                                androidx.activity.compose.BackHandler {
                                     showCalcSettingDialog = null
                                 }
 
@@ -2325,7 +2258,7 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                     Spacer(modifier = Modifier.height(8.dp))
 
-                                                    @OptIn(ExperimentalLayoutApi::class)
+                                                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
                                                     FlowRow(
                                                         modifier = Modifier.fillMaxWidth(),
                                                         horizontalArrangement = Arrangement.spacedBy(
@@ -2483,66 +2416,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                // 🟢 ここから下を MemoScreen の Scaffold の中、または bottomBar の定義の外側に配置してください
-                if (showRotationDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showRotationDialog = false },
-                        title = { Text("回転数設定") },
-                        text = {
-                            Column {
-                                OutlinedTextField(
-                                    value = currentRotation,
-                                    onValueChange = { currentRotation = it },
-                                    label = { Text("現在") }
-                                )
-                                OutlinedTextField(
-                                    value = addRotation,
-                                    onValueChange = { addRotation = it },
-                                    label = { Text("加算") }
-                                )
-                                OutlinedTextField(
-                                    value = startRotation,
-                                    onValueChange = { startRotation = it },
-                                    label = { Text("開始") }
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                scope.launch {
-                                    // 1. 計算実行
-                                    val current = currentRotation.toIntOrNull() ?: 0
-                                    val add = addRotation.toIntOrNull() ?: 0
-                                    val start = startRotation.toIntOrNull() ?: 0
-                                    val result = (current + add - start).toString()
-
-                                    // 2. DBへ保存（RotationValueオブジェクトを生成して保存）
-                                    // ※RotationValueのコンストラクタに合わせて適宜修正してください
-                                    db.memoDao().saveRotationValue(
-                                        RotationValue(
-                                            machineId = machineId,
-                                            rotationText = result
-                                        )
-                                    )
-
-                                    // 3. 画面の表示用変数も更新
-                                    rotationInputText = result
-
-                                    showRotationDialog = false
-                                }
-                            }) {
-                                Text("決定")
-                            }
-                        }
-                    )
-                }
             }
 
-            // ========================================================
-            // ① カウンター操作メニュー (完全に独立)
-            // ========================================================
+// ========================================================
+// ① カウンター操作メニュー (完全に独立)
+// ========================================================
             if (showCounterMenuSetting != null) {
-                BackHandler {
+                androidx.activity.compose.BackHandler {
                     showCounterMenuSetting = null
                 }
                 val setting = showCounterMenuSetting!!
@@ -3134,7 +3014,7 @@ class MainActivity : ComponentActivity() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Settings,
+                                        imageVector = androidx.compose.material.icons.Icons.Default.Settings,
                                         contentDescription = null,
                                         modifier = Modifier.size(22.dp),
                                         tint = mainText
@@ -3332,7 +3212,7 @@ class MainActivity : ComponentActivity() {
                 var targetColId by remember { mutableStateOf<Int?>(null) }
                 var targetValue by remember { mutableStateOf("") }
 
-                BackHandler {
+                androidx.activity.compose.BackHandler {
                     showConditionEditDialog = false
                 }
 
@@ -3381,7 +3261,7 @@ class MainActivity : ComponentActivity() {
                                 Text(
                                     "「${selectedOptionForRule}」選択時の連動入力",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                     color = mainText // ★ タイトルを白文字に
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -3577,7 +3457,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.End
                                 ) {
-                                    TextButton(onClick = {
+                                    androidx.compose.material3.TextButton(onClick = {
                                         showConditionEditDialog = false
                                     }) {
                                         Text("キャンセル", color = subText)
@@ -3837,7 +3717,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            // --- 3. 入力エリア (オーバーレイ) ---
+// --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
                 // 🟢 画面全体を覆うレイヤー（2重の膜を表現する外枠）
                 Box(
@@ -3957,7 +3837,7 @@ class MainActivity : ComponentActivity() {
                                     RotationValue(machineId = machineId, rotationText = "0000")
                                 )
 
-                                delay(150)
+                                kotlinx.coroutines.delay(150)
                                 refreshData()
                                 showResetConfirmDialog = false
                             }
@@ -3973,11 +3853,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        // ==========================================
-        // 💡 総回転数入力ダイアログ (自作レイヤー・デザイン統一版)
-        // ==========================================
+// ==========================================
+// 💡 総回転数入力ダイアログ (自作レイヤー・デザイン統一版)
+// ==========================================
         if (showRotationDialog) {
-            BackHandler {
+            androidx.activity.compose.BackHandler {
                 showRotationDialog = false
             }
             Box(
@@ -4205,7 +4085,7 @@ class MainActivity : ComponentActivity() {
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Check,
+                                imageVector = androidx.compose.material.icons.Icons.Default.Check,
                                 contentDescription = "入力済み",
                                 tint = if (isFilled) Color.White else Color.Transparent,
                                 modifier = Modifier.size(16.dp)
@@ -4601,6 +4481,8 @@ class MainActivity : ComponentActivity() {
             Divider(color = dividerColor, thickness = 1.dp) // 横線
         }
     }
+
+
 
     // 🟢 修正：他の関数の外側（クラスの末尾）に配置して赤線を解消
     override fun onNewIntent(intent: Intent) {
