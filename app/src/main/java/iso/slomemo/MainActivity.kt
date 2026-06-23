@@ -383,7 +383,8 @@ class MainActivity : ComponentActivity() {
 
             // 🟢 データベースから現在の回転数を読み込んで反映
             val savedRotation = db.memoDao().getRotationValue(machineId)
-            currentRotation = savedRotation?.rotationText ?: "0000"
+            // 🟢 【修正】プロパティ名を currentRotation に変更
+            currentRotation = savedRotation?.currentRotation ?: "0000"
 
             val machine = db.machineDao().getMachineById(machineId)
             if (machine != null) machineName = machine.name
@@ -713,7 +714,7 @@ class MainActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = rotationInputText,
+                                        text = currentRotation,
                                         color = Color.White,
                                         fontSize = currentAppSetting.rotationFontSize.sp,
                                         fontWeight = FontWeight.Normal,
@@ -728,10 +729,10 @@ class MainActivity : ComponentActivity() {
                                 val count = allCountsMap[setting.id] ?: 0
                                 val buttonColor = Color(setting.color)
                                 val rateTextPair =
-                                    remember(count, rotationInputText, allCountsMap, setting) {
+                                    remember(count, currentRotation, allCountsMap, setting) {
                                         if (count == 0 || setting.calcType == 0) return@remember null
                                         val targetValue = if (setting.targetType == 0) {
-                                            rotationInputText.toIntOrNull() ?: 0
+                                            currentRotation.toIntOrNull() ?: 0
                                         } else {
                                             allCountsMap[setting.targetCounterId] ?: 0
                                         }
@@ -3913,11 +3914,16 @@ class MainActivity : ComponentActivity() {
                                 viewModel.resetAllCountersWithHistory()
 
                                 // 3. 画面上の表示を "0000" にリセット
-                                rotationInputText = "0000"
+                                currentRotation = "0000"
 
-                                // 🟢 【追加】リセットした "0000" をデータベースにも上書き保存する！
+                                // 4. データベースをリセット
                                 db.memoDao().saveRotationValue(
-                                    RotationValue(machineId = machineId, rotationText = "0000")
+                                    RotationValue(
+                                        machineId = machineId,
+                                        startRotation = "0000",
+                                        currentRotation = "0000",
+                                        addRotation = "0000"
+                                    )
                                 )
 
                                 kotlinx.coroutines.delay(150)
@@ -3938,8 +3944,8 @@ class MainActivity : ComponentActivity() {
         }
 
         // ==========================================
-// 💡 総回転数入力ダイアログ (3行・指定順序・中央寄せ)
-// ==========================================
+        // 💡 総回転数入力ダイアログ (3行・指定順序・中央寄せ)
+        // ==========================================
         if (showRotationDialog) {
             androidx.activity.compose.BackHandler { showRotationDialog = false }
 
@@ -4014,9 +4020,7 @@ class MainActivity : ComponentActivity() {
                                 onNumberClick = { num ->
                                     when (editingTargetId) {
                                         "start" -> startRotation = (startRotation + num).takeLast(4)
-                                        "current" -> currentRotation =
-                                            (currentRotation + num).takeLast(4)
-
+                                        "current" -> currentRotation = (currentRotation + num).takeLast(4)
                                         "add" -> addRotation = (addRotation + num).takeLast(4)
                                     }
                                 },
@@ -4030,8 +4034,7 @@ class MainActivity : ComponentActivity() {
                                     } else if (action == "確定") {
                                         val newTotal = (currentRotation.toIntOrNull()
                                             ?: 0) + (addRotation.toIntOrNull() ?: 0)
-                                        // 4桁に収める安全策
-                                        val newRotationStr = (newTotal % 10000).toString().padStart(4, '0')
+                                        val newRotationStr = newTotal.toString().padStart(4, '0')
 
                                         // 1. メインの状態を更新
                                         currentRotation = newRotationStr
@@ -4040,13 +4043,15 @@ class MainActivity : ComponentActivity() {
 
                                         // 2. データベースを更新
                                         scope.launch {
-                                            db.memoDao()
-                                                .updateRotationValue(machineId, newRotationStr)
+                                            db.memoDao().updateAllRotationValues(
+                                                machineId = machineId,
+                                                start = startRotation,
+                                                current = newRotationStr,
+                                                add = "0000"
+                                            )
                                         }
 
-                                        // 🟢 追加：これでダイアログが閉じます
                                         showRotationDialog = false
-
                                     }
                                 }
                             )

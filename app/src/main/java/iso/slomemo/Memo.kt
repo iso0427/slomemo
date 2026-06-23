@@ -113,6 +113,7 @@ data class CounterValue(
 @Entity(tableName = "rotation_values")
 data class RotationValue(
     @PrimaryKey val machineId: Int,
-    val rotationText: String = "0000"
+    val startRotation: String = "0000",
+    val currentRotation: String = "0000",
+    val addRotation: String = "0000"
 )
-
