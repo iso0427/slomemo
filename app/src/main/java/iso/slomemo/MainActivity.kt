@@ -93,7 +93,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
@@ -265,40 +264,45 @@ class MainActivity : ComponentActivity() {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
 
-// 共通の判定・送信処理を関数化
+        // 共通の判定・送信処理を関数化
         val updateOverlayVisibility = {
-            val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+            val prefs =
+                context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
             val isRunning = prefs.getBoolean("overlay_running", false)
             if (isRunning) {
                 val isAtMemoRoute = currentRoute?.startsWith("memo/") == true
                 val isPureMemoScreen = isAtMemoRoute && (currentScreen == "main")
 
                 if (isPureMemoScreen) {
-                    val hideIntent = android.content.Intent(context, OverlayService::class.java).apply { action = "ACTION_HIDE_OVERLAY" }
+                    val hideIntent = android.content.Intent(context, OverlayService::class.java)
+                        .apply { action = "ACTION_HIDE_OVERLAY" }
                     context.startService(hideIntent)
                 } else {
-                    val showIntent = android.content.Intent(context, OverlayService::class.java).apply { action = "ACTION_SHOW_OVERLAY" }
+                    val showIntent = android.content.Intent(context, OverlayService::class.java)
+                        .apply { action = "ACTION_SHOW_OVERLAY" }
                     context.startService(showIntent)
                 }
             }
         }
 
-// 1. アプリ内での画面切り替えを監視
+        // 1. アプリ内での画面切り替えを監視
         androidx.compose.runtime.LaunchedEffect(currentRoute, currentScreen) {
             updateOverlayVisibility()
         }
 
-// 2. 🟢 ホーム画面から「アプリに戻ってきた瞬間」に表示状態を正しく再判定する
+        // 2. 🟢 ホーム画面から「アプリに戻ってきた瞬間」に表示状態を正しく再判定する
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_START) {
             updateOverlayVisibility()
         }
 
-// 3. 🟢 アプリから離れて「ホーム画面に戻った瞬間」は、どこにいても必ずカウンターを再表示する
+        // 3. 🟢 アプリから離れて「ホーム画面に戻った瞬間」は、どこにいても必ずカウンターを再表示する
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-            val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+            val prefs =
+                context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
             val isRunning = prefs.getBoolean("overlay_running", false)
             if (isRunning) {
-                val showIntent = android.content.Intent(context, OverlayService::class.java).apply { action = "ACTION_SHOW_OVERLAY" }
+                val showIntent = android.content.Intent(context, OverlayService::class.java)
+                    .apply { action = "ACTION_SHOW_OVERLAY" }
                 context.startService(showIntent)
             }
         }
@@ -335,11 +339,6 @@ class MainActivity : ComponentActivity() {
         var isFlash by remember { mutableStateOf(false) }
         var flashColor by remember { mutableStateOf(Color.White) }
         var showCounterName by remember { mutableStateOf(true) }
-        // 💡 追加：カウンター数値の編集用状態
-        var startRotation by rememberSaveable { mutableStateOf("0000") }
-        var currentRotation by remember { mutableStateOf("0000") }
-        var addRotation by remember { mutableStateOf("0000") }
-        var editingTargetId by remember { mutableStateOf<String?>(null) } // nullなら非表示
 
         // DBから取得するカウンター項目
         // 💡 1. カウンターのボタン（色や並び順）を、今の機種（machineId）だけで絞り込んで監視
@@ -366,6 +365,14 @@ class MainActivity : ComponentActivity() {
         var showCalcEditPanel by remember { mutableStateOf(false) }
 
         var editingCounterId by remember { mutableStateOf<Int?>(null) }
+
+        // 🟢 現在編集中の対象を保持する変数
+        var editingTargetId by remember { mutableStateOf<String?>(null) }
+
+        // 🟢 回転数管理用の状態変数（これがないと赤文字になります）
+        var currentRotation by remember { mutableStateOf("0000") }
+        var addRotation by remember { mutableStateOf("0000") }
+        var startRotation by remember { mutableStateOf("0000") }
 
         // --- 6. データの読み込みと更新 ---
         LaunchedEffect(Unit) {
@@ -472,15 +479,29 @@ class MainActivity : ComponentActivity() {
                             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
                             if (showSimpleCounter) {
-                                val overlayPrefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                val overlayPrefs = context.getSharedPreferences(
+                                    "app_prefs",
+                                    android.content.Context.MODE_PRIVATE
+                                )
 
                                 // 🟢 修正：SharedPreferencesを監視し、値が変更されたら即座にisOverlayRunningを更新する
-                                val isOverlayRunning by produceState(initialValue = overlayPrefs.getBoolean("overlay_running", false), overlayPrefs) {
-                                    val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-                                        if (key == "overlay_running") value = prefs.getBoolean("overlay_running", false)
-                                    }
+                                val isOverlayRunning by produceState(
+                                    initialValue = overlayPrefs.getBoolean(
+                                        "overlay_running",
+                                        false
+                                    ), overlayPrefs
+                                ) {
+                                    val listener =
+                                        android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+                                            if (key == "overlay_running") value =
+                                                prefs.getBoolean("overlay_running", false)
+                                        }
                                     overlayPrefs.registerOnSharedPreferenceChangeListener(listener)
-                                    awaitDispose { overlayPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+                                    awaitDispose {
+                                        overlayPrefs.unregisterOnSharedPreferenceChangeListener(
+                                            listener
+                                        )
+                                    }
                                 }
 
                                 Switch(
@@ -489,9 +510,13 @@ class MainActivity : ComponentActivity() {
                                         // （onCheckedChange内の処理はそのまま維持）
                                         if (isChecked) {
                                             if (android.provider.Settings.canDrawOverlays(this@MainActivity)) {
-                                                overlayPrefs.edit().putBoolean("overlay_running", true).apply()
+                                                overlayPrefs.edit()
+                                                    .putBoolean("overlay_running", true).apply()
 
-                                                val startIntent = Intent(this@MainActivity, OverlayService::class.java).apply {
+                                                val startIntent = Intent(
+                                                    this@MainActivity,
+                                                    OverlayService::class.java
+                                                ).apply {
                                                     putExtra("TARGET_MACHINE_ID", machineId)
                                                 }
                                                 startService(startIntent)
@@ -505,9 +530,13 @@ class MainActivity : ComponentActivity() {
                                                 startActivity(intent)
                                             }
                                         } else {
-                                            val intent = Intent(this@MainActivity, OverlayService::class.java)
+                                            val intent = Intent(
+                                                this@MainActivity,
+                                                OverlayService::class.java
+                                            )
                                             stopService(intent)
-                                            overlayPrefs.edit().putBoolean("overlay_running", false).apply()
+                                            overlayPrefs.edit().putBoolean("overlay_running", false)
+                                                .apply()
                                         }
                                     },
                                     modifier = Modifier.padding(end = 24.dp)
@@ -660,72 +689,34 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                if (currentAppSetting.showTotalRotation) {
-                                    Box(
-                                        modifier = Modifier
-                                            .wrapContentWidth()
-                                            .height(currentAppSetting.counterHeight.dp)
-                                            .background(Color(0xFF2A2A2A), shape = RoundedCornerShape(8.dp))
-                                            .combinedClickable(
-                                                onLongClick = { editingTargetId = "start" },
-                                                onClick = { /* 必要に応じて処理 */ }
-                                            )
-                                            .padding(horizontal = 6.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        val total = (startRotation.toIntOrNull() ?: 0) + (currentRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0)
-                                        Text(
-                                            text = ((currentRotation.toIntOrNull() ?: 0) - (startRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0))
-                                                .toString().padStart(4, '0'),
-                                            color = Color.White,
-                                            fontSize = currentAppSetting.rotationFontSize.sp,
-                                            fontFamily = SevenSegmentFontFamily
+                            if (currentAppSetting.showTotalRotation) {
+                                Box(
+                                    modifier = Modifier
+                                        .wrapContentWidth()
+                                        .height(currentAppSetting.counterHeight.dp)
+                                        .background(
+                                            Color(0xFF2A2A2A),
+                                            shape = RoundedCornerShape(8.dp)
                                         )
-                                    }
-                                }
-
-                                if (editingTargetId != null) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        val items = listOf("start" to "開始時回転数", "current" to "現在回転数", "add" to "回転数加算")
-                                        items.forEach { (id, label) ->
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable { editingTargetId = id }
-                                                    .padding(vertical = 4.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Text(text = label, color = if (editingTargetId == id) Color.Yellow else Color.White)
-                                                Text(
-                                                    text = when(id) {
-                                                        "start" -> startRotation
-                                                        "current" -> currentRotation
-                                                        else -> addRotation
-                                                    },
-                                                    color = Color.White,
-                                                    fontSize = 20.sp,
-                                                    fontFamily = SevenSegmentFontFamily
-                                                )
-                                            }
-                                        }
-                                        SimpleTenKey(
-                                            onNumberClick = { num ->
-                                                when (editingTargetId) {
-                                                    "start" -> startRotation = (startRotation + num).takeLast(4)
-                                                    "current" -> currentRotation = (currentRotation + num).takeLast(4)
-                                                    "add" -> addRotation = (addRotation + num).takeLast(4)
-                                                }
-                                            },
-                                            onActionClick = { action ->
-                                                if (action == "確定") {
-                                                    currentRotation = ((currentRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0)).toString().padStart(4, '0')
-                                                    addRotation = "0000"
-                                                    editingTargetId = null
-                                                }
+                                        .combinedClickable(
+                                            onClick = {},
+                                            onLongClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                showRotationDialog = true
                                             }
                                         )
-                                    }
+                                        .padding(horizontal = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = rotationInputText,
+                                        color = Color.White,
+                                        fontSize = currentAppSetting.rotationFontSize.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        fontFamily = SevenSegmentFontFamily,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 }
                             }
 
@@ -736,7 +727,7 @@ class MainActivity : ComponentActivity() {
                                     remember(count, rotationInputText, allCountsMap, setting) {
                                         if (count == 0 || setting.calcType == 0) return@remember null
                                         val targetValue = if (setting.targetType == 0) {
-                                            ((currentRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0) - (startRotation.toIntOrNull() ?: 0))
+                                            rotationInputText.toIntOrNull() ?: 0
                                         } else {
                                             allCountsMap[setting.targetCounterId] ?: 0
                                         }
@@ -1369,30 +1360,37 @@ class MainActivity : ComponentActivity() {
                             var isServiceRunning by remember { mutableStateOf(false) }
 
                             LaunchedEffect(Unit) {
-                                val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                val prefs = context.getSharedPreferences(
+                                    "app_prefs",
+                                    android.content.Context.MODE_PRIVATE
+                                )
                                 isServiceRunning = prefs.getBoolean("overlay_running", false)
                             }
 
                             // 🟢 修正：通知エリアが閉じられてアプリ画面にフォーカスが戻った瞬間（hasWindowFocus）を検知して再読込する
                             val contextActivity = context as? androidx.activity.ComponentActivity
                             androidx.compose.runtime.DisposableEffect(contextActivity) {
-                                val listener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
-                                    // 通知エリアが閉じられて、アプリ画面に操作権（フォーカス）が戻ってきた場合
-                                    if (hasFocus) {
-                                        val latestStatus = prefs.getBoolean("overlay_running", false)
-                                        if (!latestStatus) {
-                                            isServiceRunning = false
-                                        } else {
-                                            isServiceRunning = true
+                                val listener =
+                                    android.view.ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+                                        // 通知エリアが閉じられて、アプリ画面に操作権（フォーカス）が戻ってきた場合
+                                        if (hasFocus) {
+                                            val latestStatus =
+                                                prefs.getBoolean("overlay_running", false)
+                                            if (!latestStatus) {
+                                                isServiceRunning = false
+                                            } else {
+                                                isServiceRunning = true
+                                            }
                                         }
                                     }
-                                }
 
                                 val view = contextActivity?.window?.decorView
                                 view?.viewTreeObserver?.addOnWindowFocusChangeListener(listener)
 
                                 onDispose {
-                                    view?.viewTreeObserver?.removeOnWindowFocusChangeListener(listener)
+                                    view?.viewTreeObserver?.removeOnWindowFocusChangeListener(
+                                        listener
+                                    )
                                 }
                             }
 
@@ -1444,12 +1442,19 @@ class MainActivity : ComponentActivity() {
                                             // 「カウンターを表示する」をOFFにされた場合
                                             if (!nextChecked) {
                                                 // 1. サービスを完全に終了
-                                                val intent = Intent(this@MainActivity, OverlayService::class.java)
+                                                val intent = Intent(
+                                                    this@MainActivity,
+                                                    OverlayService::class.java
+                                                )
                                                 stopService(intent)
 
                                                 // 2. データのフラグをOFFにする
-                                                context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
-                                                    .edit().putBoolean("overlay_running", false).apply()
+                                                context.getSharedPreferences(
+                                                    "app_prefs",
+                                                    android.content.Context.MODE_PRIVATE
+                                                )
+                                                    .edit().putBoolean("overlay_running", false)
+                                                    .apply()
 
                                                 // 3. 🟢 修正：常駐カウンタースイッチのStateを明示的にOFFにする
                                                 isServiceRunning = false
@@ -1585,8 +1590,13 @@ class MainActivity : ComponentActivity() {
                                                     if (isServiceRunning) {
                                                         // 🟢 安全にOFFにする処理：直接stopServiceを呼ぶ
                                                         isServiceRunning = false
-                                                        prefs.edit().putBoolean("overlay_running", false).apply()
-                                                        val intent = Intent(context, OverlayService::class.java)
+                                                        prefs.edit()
+                                                            .putBoolean("overlay_running", false)
+                                                            .apply()
+                                                        val intent = Intent(
+                                                            context,
+                                                            OverlayService::class.java
+                                                        )
                                                         context.stopService(intent)
                                                     } else {
                                                         // 🟢 ONにする処理：まず通知の権限チェックを挟み込む
@@ -1594,39 +1604,65 @@ class MainActivity : ComponentActivity() {
                                                             // 通知が許可されたら（または元々許可されていれば）ここが実行される
                                                             if (Settings.canDrawOverlays(context)) {
                                                                 isServiceRunning = true
-                                                                prefs.edit().putBoolean("overlay_running", true).apply()
-                                                                val intent = Intent(context, OverlayService::class.java).apply {
-                                                                    putExtra("TARGET_MACHINE_ID", machineId)
+                                                                prefs.edit().putBoolean(
+                                                                    "overlay_running",
+                                                                    true
+                                                                ).apply()
+                                                                val intent = Intent(
+                                                                    context,
+                                                                    OverlayService::class.java
+                                                                ).apply {
+                                                                    putExtra(
+                                                                        "TARGET_MACHINE_ID",
+                                                                        machineId
+                                                                    )
                                                                 }
                                                                 // 通常のバックグラウンドサービスとして安全に起動
                                                                 context.startService(intent)
                                                             } else {
-                                                                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                                                                    data = Uri.parse("package:${context.packageName}")
-                                                                }
-                                                                overlayPermissionLauncher.launch(intent)
+                                                                val intent =
+                                                                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                                                                        data =
+                                                                            Uri.parse("package:${context.packageName}")
+                                                                    }
+                                                                overlayPermissionLauncher.launch(
+                                                                    intent
+                                                                )
                                                             }
                                                         }
                                                     }
                                                 }
                                                 .padding(vertical = 0.dp), // 🟢 大切なデザイン設定を残しています
                                             verticalAlignment = Alignment.CenterVertically // 🟢 大切なデザイン設定を残しています
-                                        ){
+                                        ) {
                                             Switch(
                                                 checked = isServiceRunning,
                                                 onCheckedChange = { isChecked ->
                                                     if (!isChecked) {
                                                         // スイッチを直接OFFにした時も安全に即時停止
                                                         isServiceRunning = false
-                                                        prefs.edit().putBoolean("overlay_running", false).apply()
-                                                        val intent = Intent(context, OverlayService::class.java)
+                                                        prefs.edit()
+                                                            .putBoolean("overlay_running", false)
+                                                            .apply()
+                                                        val intent = Intent(
+                                                            context,
+                                                            OverlayService::class.java
+                                                        )
                                                         context.stopService(intent)
                                                     } else {
                                                         if (Settings.canDrawOverlays(context)) {
                                                             isServiceRunning = true
-                                                            prefs.edit().putBoolean("overlay_running", true).apply()
-                                                            val intent = Intent(context, OverlayService::class.java).apply {
-                                                                putExtra("TARGET_MACHINE_ID", machineId)
+                                                            prefs.edit()
+                                                                .putBoolean("overlay_running", true)
+                                                                .apply()
+                                                            val intent = Intent(
+                                                                context,
+                                                                OverlayService::class.java
+                                                            ).apply {
+                                                                putExtra(
+                                                                    "TARGET_MACHINE_ID",
+                                                                    machineId
+                                                                )
                                                             }
                                                             context.startService(intent)
                                                         } else {
@@ -3760,7 +3796,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-              // --- 3. 入力エリア (オーバーレイ) ---
+// --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
                 // 🟢 画面全体を覆うレイヤー（2重の膜を表現する外枠）
                 Box(
@@ -3896,112 +3932,50 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-// ==========================================
-// 💡 総回転数入力ダイアログ (自作レイヤー・デザイン統一版)
-// ==========================================
+
+        // ==========================================
+        // 💡 総回転数入力ダイアログ (自作レイヤー・デザイン統一版)
+        // ==========================================
         if (showRotationDialog) {
-            androidx.activity.compose.BackHandler {
-                showRotationDialog = false
-            }
-            Box(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // 【1枚目：奥】システムと同じ濃さの黒い膜
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.6f))
-                )
-                // 【2枚目：手前】白の30%透過膜（外側タップで閉じる）
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White.copy(alpha = 0.3f))
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) {
-                            showRotationDialog = false
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF1E1E1E), // 元のcontainerColor
-                        shadowElevation = 8.dp,
-                        modifier = Modifier
-                            .width(320.dp) // 🟢 ここを width(〇〇.dp) に変えると好きな横幅に固定できます！
-                            .padding(16.dp)
-                            .clickable(enabled = false) { }
-                    ) {
+            androidx.activity.compose.BackHandler { showRotationDialog = false }
+            Box(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)))
+                Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.3f)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { showRotationDialog = false }, contentAlignment = Alignment.Center) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFF1E1E1E), shadowElevation = 8.dp, modifier = Modifier.width(320.dp).padding(16.dp).clickable(enabled = false) { }) {
                         Column(modifier = Modifier.padding(20.dp)) {
-                            Text(
-                                text = "総回転数の入力",
-                                color = Color.White,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-
+                            Text(text = "回転数入力", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(16.dp))
-
-                            OutlinedTextField(
-                                value = rotationInputText,
-                                onValueChange = { newValue ->
-                                    if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
-                                        rotationInputText = newValue
+                            // 編集対象の選択エリア
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                Text("現在:$currentRotation", color = if(editingTargetId == "current") Color.Cyan else Color.White, modifier = Modifier.clickable { editingTargetId = "current" })
+                                Text("加算:$addRotation", color = if(editingTargetId == "add") Color.Cyan else Color.White, modifier = Modifier.clickable { editingTargetId = "add" })
+                                Text("開始:$startRotation", color = if(editingTargetId == "start") Color.Cyan else Color.White, modifier = Modifier.clickable { editingTargetId = "start" })
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            // テンキー呼び出し
+                            SimpleTenKey(
+                                onNumberClick = { num ->
+                                    when (editingTargetId) {
+                                        "start" -> startRotation = (startRotation + num).takeLast(4)
+                                        "current" -> currentRotation = (currentRotation + num).takeLast(4)
+                                        "add" -> addRotation = (addRotation + num).takeLast(4)
                                     }
                                 },
-                                textStyle = androidx.compose.ui.text.TextStyle(
-                                    fontSize = 20.sp,
-                                    color = Color.White
-                                ),
-                                label = { Text("回転数 (最大4桁)", fontSize = 16.sp) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedContainerColor = Color(0xFF222222),
-                                    unfocusedContainerColor = Color(0xFF222222)
-                                )
-                            )
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                TextButton(onClick = { showRotationDialog = false }) {
-                                    Text("キャンセル", color = Color.LightGray, fontSize = 18.sp)
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            db.memoDao().saveRotationValue(
-                                                RotationValue(
-                                                    machineId = machineId,
-                                                    rotationText = rotationInputText
-                                                )
-                                            )
+                                onActionClick = { action ->
+                                    if (action == "クリア") {
+                                        when (editingTargetId) {
+                                            "start" -> startRotation = "0000"
+                                            "current" -> currentRotation = "0000"
+                                            "add" -> addRotation = "0000"
                                         }
-                                        showRotationDialog = false
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFBB86FC) // ★ 明るい紫
-                                    )
-                                ) {
-                                    Text(
-                                        "確定",
-                                        color = Color.Black,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    } else if (action == "確定") {
+                                        // 確定ロジック（計算ロジックはそのまま）
+                                        currentRotation = ((currentRotation.toIntOrNull() ?: 0) + (addRotation.toIntOrNull() ?: 0)).toString().padStart(4, '0')
+                                        addRotation = "0000"
+                                        editingTargetId = null
+                                    }
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -4057,7 +4031,7 @@ class MainActivity : ComponentActivity() {
             MemoRecord(
                 id = editingRecordId ?: 0,
                 machineId = machineId,
-                timestamp = 0L
+                timestamp = System.currentTimeMillis()
             )
         }
 
@@ -4148,7 +4122,6 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp)
-                                .height(48.dp) // ★ここを追加（Surfaceの高さ40dp + 上下padding分をカバーする高さ）
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
@@ -4161,38 +4134,47 @@ class MainActivity : ComponentActivity() {
 
                                 Surface(
                                     onClick = {
-                                        // 既存のクリック処理
                                         val oldValue = currentValue
                                         val newValue = if (isSelected) "" else option
                                         inputValues[column.id] = newValue
-                                        // ... (以降のscope.launchなどはそのまま)
+
+                                        scope.launch {
+                                            if (oldValue.isNotBlank()) {
+                                                val oldRules = db.memoDao()
+                                                    .getRulesByTrigger(column.id, oldValue)
+                                                oldRules.forEach { rule ->
+                                                    if (!rule.isNextRow && rule.targetColumnId != column.id) {
+                                                        inputValues[rule.targetColumnId] = ""
+                                                    }
+                                                }
+                                            }
+
+                                            if (newValue.isNotBlank()) {
+                                                val newRules = db.memoDao()
+                                                    .getRulesByTrigger(column.id, newValue)
+                                                newRules.forEach { rule ->
+                                                    if (!rule.isNextRow && rule.targetColumnId != column.id) {
+                                                        inputValues[rule.targetColumnId] =
+                                                            rule.targetValue
+                                                    }
+                                                }
+                                            }
+                                        }
                                     },
                                     shape = RoundedCornerShape(8.dp),
                                     color = bgColor,
                                     modifier = Modifier
                                         .height(40.dp)
                                         .padding(end = 8.dp)
-                                    // ★ clipToBoundsは削除し、タップ領域を確保
                                 ) {
                                     Box(
                                         contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .padding(horizontal = 16.dp)
-                                            .fillMaxHeight() // 高さを親に合わせる
+                                        modifier = Modifier.padding(horizontal = 16.dp)
                                     ) {
                                         Text(
                                             text = option,
                                             color = textColor,
-                                            fontSize = 14.sp,
-                                            style = androidx.compose.ui.text.TextStyle(
-                                                fontSize = 14.sp,
-                                                lineHeight = 14.sp,
-                                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
-                                                    includeFontPadding = false
-                                                )
-                                            ),
-                                            lineHeight = 14.sp
-                                            // modifierのpadding(0.dp)は削除してもOKです
+                                            fontSize = 14.sp
                                         )
                                     }
                                 }
@@ -4454,22 +4436,17 @@ class MainActivity : ComponentActivity() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showTime) {
-                    android.util.Log.d("SloMemoDebug", "timestampの値: ${record.timestamp}")
-                    // 修正：0L（プレビュー用）なら「時間」と表示、そうでなければ時刻を表示
-                    val timeText = if (record.timestamp == 0L) {
-                        "時間"
-                    } else {
+                    val timeText =
                         java.text.SimpleDateFormat(
                             "HH:mm",
                             java.util.Locale.getDefault()
-                        ).format(record.timestamp)
-                    }
-
+                        )
+                            .format(record.timestamp)
                     Text(
                         text = timeText,
                         modifier = Modifier.width(50.dp),
                         style = androidx.compose.ui.text.TextStyle(
-                            fontSize = 16.sp,
+                            fontSize = 16.sp, // ★12sp前後から18spへ
                         ),
                         color = mainText,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -4499,12 +4476,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             text = value,
                             style = androidx.compose.ui.text.TextStyle(
-                                fontSize = 16.sp,
-                                // ★ここにも念のため高さ固定の設定を入れる
-                                lineHeight = 16.sp,
-                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
-                                    includeFontPadding = false
-                                )
+                                fontSize = 16.sp, // ★ここをガツンと大きく！
                             ),
                             color = mainText,
                             maxLines = 1,
@@ -4555,9 +4527,13 @@ class MainActivity : ComponentActivity() {
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(4.dp)
+                                .padding(2.dp) // ★ここを小さくするとボタンが詰まります
+                                .height(50.dp), // ★高さを固定すると揃います
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF444444) // ★以前の背景色があればここに
+                            )
                         ) {
-                            Text(text = key)
+                            Text(text = key, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
