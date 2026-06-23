@@ -209,6 +209,9 @@ interface MemoDao {
     @Query("UPDATE counter_settings SET targetCounterId = :targetId WHERE id = :id")
     suspend fun updateCounterTargetId(id: Int, targetId: Int)
 
+    @Query("UPDATE rotation_values SET rotationText = :newRotation WHERE machineId = :machineId")
+    suspend fun updateRotationValue(machineId: Int, newRotation: String)
+
 
 
 }

@@ -14,8 +14,8 @@ import androidx.room.RoomDatabase
         AutoInputRule::class,
         SelectionOption::class,
         CounterSetting::class,
-        CounterValue::class,    // 🟢 ここにカンマを付けて
-        RotationValue::class    // 🟢 これを追加する
+        CounterValue::class,
+        RotationValue::class
     ],
     version = 11
 )
