@@ -385,6 +385,8 @@ class MainActivity : ComponentActivity() {
             val savedRotation = db.memoDao().getRotationValue(machineId)
             // 🟢 【修正】プロパティ名を currentRotation に変更
             currentRotation = savedRotation?.currentRotation ?: "0000"
+            // 🟢 【追加】開始値を読み込んで反映
+            startRotation = savedRotation?.startRotation ?: "0000"
 
             val machine = db.machineDao().getMachineById(machineId)
             if (machine != null) machineName = machine.name
@@ -714,7 +716,8 @@ class MainActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = currentRotation,
+                                        // 🟢 差分を計算して表示（現在 - 開始）
+                                        text = ((currentRotation.toIntOrNull() ?: 0) - (startRotation.toIntOrNull() ?: 0)).toString().padStart(4, '0'),
                                         color = Color.White,
                                         fontSize = currentAppSetting.rotationFontSize.sp,
                                         fontWeight = FontWeight.Normal,
