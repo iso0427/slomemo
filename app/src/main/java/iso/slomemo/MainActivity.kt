@@ -85,6 +85,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -117,6 +118,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -129,6 +134,14 @@ import androidx.room.Room
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+class MemoViewModel : ViewModel() {
+    var showRotationDialog by mutableStateOf(false)
+    var currentRotation by mutableStateOf("0000")
+    var addRotation by mutableStateOf("0000")
+    var startRotation by mutableStateOf("0000")
+    var editingTargetId by mutableStateOf<String?>(null)
+}
 
 // 🟢 どこにも囲まれていない「外側」のここにポツンと貼り付けます！
 val SevenSegmentFontFamily = FontFamily(
@@ -221,11 +234,12 @@ class MainActivity : ComponentActivity() {
                             arguments = listOf(navArgument("machineId") { type = NavType.IntType })
                         ) { backStackEntry ->
                             val machineId = backStackEntry.arguments?.getInt("machineId") ?: 0
-                            // 次のステップで TestColumnApp を MemoScreen にリネームして呼び出します
+                            val memoViewModel: MemoViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
                             MemoScreen(
                                 db = db,
                                 machineId = machineId,
-                                navController = navController
+                                navController = navController,
+                                viewModel = memoViewModel // 🟢 ViewModelを渡す
                             )
                         }
                     }
@@ -240,7 +254,12 @@ class MainActivity : ComponentActivity() {
         ExperimentalLayoutApi::class
     )
     @Composable
-    fun MemoScreen(db: AppDatabase, machineId: Int, navController: NavController) {
+    fun MemoScreen(
+        db: AppDatabase,
+        machineId: Int,
+        navController: NavController,
+        viewModel: MemoViewModel = androidx.lifecycle.viewmodel.compose.viewModel() // 🟢 追加
+    ) {
 
         // --- 1. 色の定義 ---
         val backColor = Color.Black
@@ -368,35 +387,49 @@ class MainActivity : ComponentActivity() {
         var editingCounterId by remember { mutableStateOf<Int?>(null) }
 
         // 💡 回転数管理・ダイアログ用の一元化された状態変数
-        var showRotationDialog by remember { mutableStateOf(false) }
-        var currentRotation by remember { mutableStateOf("0000") }
-        var addRotation by remember { mutableStateOf("0000") }
-        var startRotation by remember { mutableStateOf("0000") }
-        var editingTargetId by remember { mutableStateOf<String?>(null) } // これも必要かと思います
+        // 🟢 修正：プロパティを直接 ViewModel から委譲させる
+        var showRotationDialog by viewModel::showRotationDialog
+        var currentRotation by viewModel::currentRotation
+        var addRotation by viewModel::addRotation
+        var startRotation by viewModel::startRotation
+        var editingTargetId by viewModel::editingTargetId
 
         // --- 6. データの読み込みと更新 ---
-        LaunchedEffect(Unit) {
-            // 設定の読み込み
-            val savedSetting = db.memoDao().getAppSetting()
-            if (savedSetting != null) {
-                currentAppSetting = savedSetting
-                showSimpleCounter = savedSetting.showSimpleCounter
-                showFlashEffect = savedSetting.showFlashEffect
-                showCounterName = savedSetting.showCounterName
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    scope.launch {
+                        // ① 先にDBからデータを取得する
+                        val savedRotation = db.memoDao().getRotationValue(machineId)
+
+                        // ② 取得したデータを変数に反映する
+                        currentRotation = savedRotation?.currentRotation ?: "0000"
+                        startRotation = savedRotation?.startRotation ?: "0000"
+                        addRotation = savedRotation?.addRotation ?: "0000"
+
+                        // ③ その他のデータ読み込み
+                        val savedSetting = db.memoDao().getAppSetting()
+                        if (savedSetting != null) {
+                            currentAppSetting = savedSetting
+                            showSimpleCounter = savedSetting.showSimpleCounter
+                            showFlashEffect = savedSetting.showFlashEffect
+                            showCounterName = savedSetting.showCounterName
+                        }
+
+                        // ④ 残りの必要なデータの更新
+                        val machine = db.machineDao().getMachineById(machineId)
+                        if (machine != null) machineName = machine.name
+                        columns = db.memoDao().getColumnsByMachineDirect(machineId)
+                        records = db.memoDao().getRecordsByMachine(machineId)
+                        valuesMap = db.memoDao().getAllValues().groupBy { it.recordId }
+                    }
+                }
             }
-
-            // 🟢 データベースから現在の回転数を読み込んで反映
-            val savedRotation = db.memoDao().getRotationValue(machineId)
-            // 🟢 【修正】プロパティ名を currentRotation に変更
-            currentRotation = savedRotation?.currentRotation ?: "0000"
-            // 🟢 【追加】開始値を読み込んで反映
-            startRotation = savedRotation?.startRotation ?: "0000"
-
-            val machine = db.machineDao().getMachineById(machineId)
-            if (machine != null) machineName = machine.name
-            columns = db.memoDao().getColumnsByMachineDirect(machineId)
-            records = db.memoDao().getRecordsByMachine(machineId)
-            valuesMap = db.memoDao().getAllValues().groupBy { it.recordId }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
         }
 
         val refreshData = {
