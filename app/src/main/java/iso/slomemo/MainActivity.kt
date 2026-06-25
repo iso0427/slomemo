@@ -135,12 +135,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class MemoViewModel : ViewModel() {
-    var showRotationDialog by mutableStateOf(false)
-    var currentRotation by mutableStateOf("0000")
-    var addRotation by mutableStateOf("0000")
-    var startRotation by mutableStateOf("0000")
-    var editingTargetId by mutableStateOf<String?>(null)
+public class MemoViewModel : ViewModel() {
+    val showRotationDialog = mutableStateOf(false)
+    val currentRotation = mutableStateOf("0000")
+    val addRotation = mutableStateOf("0000")
+    val startRotation = mutableStateOf("0000")
+    val editingTargetId = mutableStateOf<String?>(null)
 }
 
 // 🟢 どこにも囲まれていない「外側」のここにポツンと貼り付けます！
@@ -234,12 +234,13 @@ class MainActivity : ComponentActivity() {
                             arguments = listOf(navArgument("machineId") { type = NavType.IntType })
                         ) { backStackEntry ->
                             val machineId = backStackEntry.arguments?.getInt("machineId") ?: 0
-                            val memoViewModel: MemoViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                            val memoViewModel: MemoViewModel =
+                                androidx.lifecycle.viewmodel.compose.viewModel()
                             MemoScreen(
                                 db = db,
                                 machineId = machineId,
                                 navController = navController,
-                                viewModel = memoViewModel // 🟢 ViewModelを渡す
+                                memoViewModel = memoViewModel
                             )
                         }
                     }
@@ -258,9 +259,8 @@ class MainActivity : ComponentActivity() {
         db: AppDatabase,
         machineId: Int,
         navController: NavController,
-        viewModel: MemoViewModel = androidx.lifecycle.viewmodel.compose.viewModel() // 🟢 追加
+        memoViewModel: MemoViewModel
     ) {
-
         // --- 1. 色の定義 ---
         val backColor = Color.Black
         val context = androidx.compose.ui.platform.LocalContext.current
@@ -383,16 +383,14 @@ class MainActivity : ComponentActivity() {
         var selectedTargetType by remember { mutableStateOf(0) }
         var selectedTargetCounterId by remember { mutableStateOf<Int?>(null) }
         var showCalcEditPanel by remember { mutableStateOf(false) }
-
         var editingCounterId by remember { mutableStateOf<Int?>(null) }
 
-        // 💡 回転数管理・ダイアログ用の一元化された状態変数
-        // 🟢 修正：プロパティを直接 ViewModel から委譲させる
-        var showRotationDialog by viewModel::showRotationDialog
-        var currentRotation by viewModel::currentRotation
-        var addRotation by viewModel::addRotation
-        var startRotation by viewModel::startRotation
-        var editingTargetId by viewModel::editingTargetId
+        var showRotationDialog = memoViewModel.showRotationDialog
+        var currentRotation by memoViewModel.currentRotation
+        var addRotation by memoViewModel.addRotation
+        var startRotation by memoViewModel.startRotation
+        var editingTargetId by memoViewModel.editingTargetId
+        val editingTargetIdState: androidx.compose.runtime.MutableState<String?> = memoViewModel.editingTargetId
 
         // --- 6. データの読み込みと更新 ---
         val lifecycleOwner = LocalLifecycleOwner.current
@@ -400,10 +398,9 @@ class MainActivity : ComponentActivity() {
             val observer = LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) {
                     scope.launch {
-                        // ① 先にDBからデータを取得する
                         val savedRotation = db.memoDao().getRotationValue(machineId)
 
-                        // ② 取得したデータを変数に反映する
+                        // 🟢 `.value` を外す（委譲しているため、変数に直接代入できる）
                         currentRotation = savedRotation?.currentRotation ?: "0000"
                         startRotation = savedRotation?.startRotation ?: "0000"
                         addRotation = savedRotation?.addRotation ?: "0000"
@@ -746,7 +743,7 @@ class MainActivity : ComponentActivity() {
                                             onClick = {},
                                             onLongClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                showRotationDialog = true
+                                                showRotationDialog.value = true
                                             }
                                         )
                                         .padding(horizontal = 6.dp),
@@ -775,7 +772,8 @@ class MainActivity : ComponentActivity() {
                                         if (count == 0 || setting.calcType == 0) return@remember null
                                         val targetValue = if (setting.targetType == 0) {
                                             // 🟢 「現在 - 開始」を計算の基準にする
-                                            (currentRotation.toIntOrNull() ?: 0) - (startRotation.toIntOrNull() ?: 0)
+                                            (currentRotation.toIntOrNull()
+                                                ?: 0) - (startRotation.toIntOrNull() ?: 0)
                                         } else {
                                             allCountsMap[setting.targetCounterId] ?: 0
                                         }
@@ -3997,15 +3995,15 @@ class MainActivity : ComponentActivity() {
         var tempAdd by remember { mutableStateOf(addRotation) }
         val haptic = LocalHapticFeedback.current
 
-        LaunchedEffect(showRotationDialog) {
-            if (showRotationDialog) {
+        LaunchedEffect(showRotationDialog.value) {
+            if (showRotationDialog.value) {
                 tempStart = startRotation
                 tempCurrent = currentRotation
                 tempAdd = addRotation
             }
         }
-        if (showRotationDialog) {
-            androidx.activity.compose.BackHandler { showRotationDialog = false }
+        if (showRotationDialog.value) {
+            androidx.activity.compose.BackHandler { showRotationDialog.value = false }
 
             Box(
                 modifier = Modifier
@@ -4024,7 +4022,7 @@ class MainActivity : ComponentActivity() {
                         .clickable(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() }
-                        ) { showRotationDialog = false },
+                        ) { showRotationDialog.value = false },
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     Surface(
@@ -4162,14 +4160,16 @@ class MainActivity : ComponentActivity() {
 
                                         // 3. データベース更新
                                         scope.launch {
-                                            db.memoDao().updateAllRotationValues(
-                                                machineId = machineId,
-                                                start = startRotation,
-                                                current = currentRotation,
-                                                add = "0000"
+                                            db.memoDao().saveRotationValue(
+                                                RotationValue(
+                                                    machineId = machineId,
+                                                    startRotation = startRotation,
+                                                    currentRotation = currentRotation,
+                                                    addRotation = "0000"
+                                                )
                                             )
                                         }
-                                        showRotationDialog = false
+                                        showRotationDialog.value = false
                                     }
                                 }
                             )
