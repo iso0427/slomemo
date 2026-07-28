@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [
         Machine::class,
+        MachineSetting::class,
         ColumnSetting::class,
         MemoRecord::class,
         MemoValue::class,
@@ -17,7 +18,7 @@ import androidx.room.RoomDatabase
         CounterValue::class,
         RotationValue::class
     ],
-    version = 11
+    version = 13
 )
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

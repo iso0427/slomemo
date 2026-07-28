@@ -409,14 +409,25 @@ class MainActivity : ComponentActivity() {
                         val savedSetting = db.memoDao().getAppSetting()
                         if (savedSetting != null) {
                             currentAppSetting = savedSetting
-                            showSimpleCounter = savedSetting.showSimpleCounter
                             showFlashEffect = savedSetting.showFlashEffect
-                            showCounterName = savedSetting.showCounterName
                         }
 
                         // ④ 残りの必要なデータの更新
                         val machine = db.machineDao().getMachineById(machineId)
-                        if (machine != null) machineName = machine.name
+                        if (machine != null) {
+                            machineName = machine.name
+
+                            showSimpleCounter = machine.showSimpleCounter
+                            showCounterName = machine.showCounterName
+
+                            currentAppSetting = currentAppSetting.copy(
+                                showTotalRotation = machine.showTotalRotation,
+                                counterHeight = machine.counterHeight,
+                                counterFontSize = machine.counterFontSize,
+                                rotationFontSize = machine.rotationFontSize,
+                                rateFontSize = machine.rateFontSize
+                            )
+                        }
                         columns = db.memoDao().getColumnsByMachineDirect(machineId)
                         records = db.memoDao().getRecordsByMachine(machineId)
                         valuesMap = db.memoDao().getAllValues().groupBy { it.recordId }
@@ -1480,9 +1491,11 @@ class MainActivity : ComponentActivity() {
 
                                             // DBの設定を更新
                                             scope.launch {
-                                                db.memoDao().saveAppSetting(
-                                                    currentAppSetting.copy(showSimpleCounter = nextChecked)
-                                                )
+                                                db.machineDao().getMachineById(machineId)?.let { machine ->
+                                                    db.machineDao().updateMachine(
+                                                        machine.copy(showSimpleCounter = nextChecked)
+                                                    )
+                                                }
                                             }
 
                                             // 「カウンターを表示する」をOFFにされた場合
@@ -1550,8 +1563,14 @@ class MainActivity : ComponentActivity() {
                                                     val nextValue =
                                                         !currentAppSetting.showTotalRotation
                                                     scope.launch {
-                                                        db.memoDao().saveAppSetting(
-                                                            currentAppSetting.copy(showTotalRotation = nextValue)
+                                                        db.machineDao().getMachineById(machineId)?.let { machine ->
+                                                            db.machineDao().updateMachine(
+                                                                machine.copy(showTotalRotation = nextValue)
+                                                            )
+                                                        }
+
+                                                        currentAppSetting = currentAppSetting.copy(
+                                                            showTotalRotation = nextValue
                                                         )
                                                     }
                                                 }
@@ -1763,10 +1782,13 @@ class MainActivity : ComponentActivity() {
                                                         .clickable(enabled = showSimpleCounter) {
                                                             scope.launch {
                                                                 // 🟢 連動処理をすべて削除し、純粋に高さだけを保存します
-                                                                db.memoDao().saveAppSetting(
-                                                                    currentAppSetting.copy(
-                                                                        counterHeight = hValue
+                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
+                                                                    db.machineDao().updateMachine(
+                                                                        machine.copy(counterHeight = hValue)
                                                                     )
+                                                                }
+                                                                currentAppSetting = currentAppSetting.copy(
+                                                                    counterHeight = hValue
                                                                 )
                                                                 // 🟢 今回新しく追加するコード（メモ帳にも高さを保存する）
                                                                 prefs.edit().putInt(
@@ -1826,10 +1848,13 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
-                                                                db.memoDao().saveAppSetting(
-                                                                    currentAppSetting.copy(
-                                                                        rotationFontSize = rValue
+                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
+                                                                    db.machineDao().updateMachine(
+                                                                        machine.copy(rotationFontSize = rValue)
                                                                     )
+                                                                }
+                                                                currentAppSetting = currentAppSetting.copy(
+                                                                    rotationFontSize = rValue
                                                                 )
                                                             }
                                                         },
@@ -1884,10 +1909,13 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
-                                                                db.memoDao().saveAppSetting(
-                                                                    currentAppSetting.copy(
-                                                                        counterFontSize = fValue
+                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
+                                                                    db.machineDao().updateMachine(
+                                                                        machine.copy(counterFontSize = fValue)
                                                                     )
+                                                                }
+                                                                currentAppSetting = currentAppSetting.copy(
+                                                                    counterFontSize = fValue
                                                                 )
                                                             }
                                                         },
@@ -1942,10 +1970,13 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
-                                                                db.memoDao().saveAppSetting(
-                                                                    currentAppSetting.copy(
-                                                                        rateFontSize = rFValue
+                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
+                                                                    db.machineDao().updateMachine(
+                                                                        machine.copy(rateFontSize = rFValue)
                                                                     )
+                                                                }
+                                                                currentAppSetting = currentAppSetting.copy(
+                                                                    rateFontSize = rFValue
                                                                 )
                                                             }
                                                         },

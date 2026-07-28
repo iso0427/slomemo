@@ -117,3 +117,18 @@ data class RotationValue(
     val currentRotation: String = "0000",
     val addRotation: String = "0000"
 )
+
+@Entity(tableName = "machine_settings")
+data class MachineSetting(
+    @PrimaryKey
+    val machineId: Int,
+
+    val showSimpleCounter: Boolean = true,
+    val showTotalRotation: Boolean = true,
+    val showCounterName: Boolean = true,
+
+    val counterHeight: Int = 60,
+    val counterFontSize: Int = 32,
+    val rotationFontSize: Int = 30,
+    val rateFontSize: Int = 65
+)
