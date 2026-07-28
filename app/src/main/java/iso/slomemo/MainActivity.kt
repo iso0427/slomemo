@@ -947,7 +947,7 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 if (showTime) {
                                     Box(
-                                        modifier = Modifier.width(50.dp),
+                                        modifier = Modifier.width(45.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
@@ -4672,7 +4672,7 @@ class MainActivity : ComponentActivity() {
                             .format(record.timestamp)
                     Text(
                         text = timeText,
-                        modifier = Modifier.width(50.dp),
+                        modifier = Modifier.width(45.dp),
                         style = androidx.compose.ui.text.TextStyle(
                             fontSize = 16.sp, // ★12sp前後から18spへ
                         ),
