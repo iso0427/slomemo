@@ -26,6 +26,7 @@ data class MemoRecord(
 
 // ③ 実際の入力値
 @Entity(
+    tableName = "memo_values", // 👈 ここに明示的にテーブル名を指定
     foreignKeys = [
         ForeignKey(entity = MemoRecord::class, parentColumns = ["id"], childColumns = ["recordId"], onDelete = ForeignKey.CASCADE),
         ForeignKey(entity = ColumnSetting::class, parentColumns = ["id"], childColumns = ["columnId"], onDelete = ForeignKey.CASCADE)
@@ -40,6 +41,7 @@ data class MemoValue(
 
 // ④ 項目に紐付く「選択肢」
 @Entity(
+    tableName = "selection_options",
     foreignKeys = [
         ForeignKey(
             entity = ColumnSetting::class,
@@ -79,7 +81,8 @@ data class AppSetting(
     val counterFontSize: Int = 32,     // 🟢 既存コードの段階3の数値「32」に一致
     val rotationFontSize: Int = 30,    // 🟢 既存コードの段階3の数値「30」に一致
     val showTotalRotation: Boolean = true,
-    val rateFontSize: Int = 65         // 🟢 既存コードの段階3の数値「65」に一致
+    val rateFontSize: Int = 65,        // 🟢 既存コードの段階3の数値「65」に一致
+    val memoFontSize: Int = 16
 )
 
 // ⑦ 簡易カウンターの項目（ボタン名と色、自動計算ルール）を保存する
@@ -132,3 +135,4 @@ data class MachineSetting(
     val rotationFontSize: Int = 30,
     val rateFontSize: Int = 65
 )
+

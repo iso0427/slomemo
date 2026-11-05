@@ -18,7 +18,7 @@ import androidx.room.RoomDatabase
         CounterValue::class,
         RotationValue::class
     ],
-    version = 13
+    version = 14
 )
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

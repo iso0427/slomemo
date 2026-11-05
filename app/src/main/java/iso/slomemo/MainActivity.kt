@@ -79,6 +79,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -334,11 +335,12 @@ class MainActivity : ComponentActivity() {
         // --- 4. アプリ全体設定 (DB) ---
         // 設定変更をリアルタイムに検知するためのFlow
         val appSettingFromFlow by db.memoDao().getSettingFlow()
-            .collectAsState(initial = AppSetting())
+            .collectAsState(initial = AppSetting(memoFontSize = 16))
         // スイッチの状態（初期値はDBから。なければデフォルト）
         var showSimpleCounter by remember { mutableStateOf(true) }
         var showFlashEffect by remember { mutableStateOf(true) }
-        var currentAppSetting: AppSetting by remember { mutableStateOf(AppSetting()) }
+        var currentAppSetting: AppSetting by remember { mutableStateOf(AppSetting(memoFontSize = 16)) }
+        var memoFontSize by remember { mutableStateOf(16f) }
         var useMaxBrightness by remember(currentAppSetting) { mutableStateOf(currentAppSetting.useMaxBrightness) }
 
         // 既存の showTime も appSettingFromFlow から取得するように統一
@@ -352,6 +354,9 @@ class MainActivity : ComponentActivity() {
         var showOptionMenuName by remember { mutableStateOf<String?>(null) }
         var showSettingsDeleteDialog by remember { mutableStateOf(false) }
         var showOptionDeleteConfirmDialog by remember { mutableStateOf(false) }
+        var showOptionRenameDialog by remember { mutableStateOf(false) }
+        var targetOptionToRename by remember { mutableStateOf<String?>(null) }
+        var optionNewNameInput by remember { mutableStateOf("") }
         val viewModel: MainViewModel = viewModel()
         var pendingDeleteColumnId by remember { mutableStateOf<Int?>(null) }
         var machineName by remember { mutableStateOf("読み込み中...") }
@@ -410,6 +415,7 @@ class MainActivity : ComponentActivity() {
                         if (savedSetting != null) {
                             currentAppSetting = savedSetting
                             showFlashEffect = savedSetting.showFlashEffect
+                            memoFontSize = savedSetting.memoFontSize.toFloat()
                         }
 
                         // ④ 残りの必要なデータの更新
@@ -942,7 +948,7 @@ class MainActivity : ComponentActivity() {
                                     .fillMaxWidth()
                                     .background(Color(0xFF4A4458))
                                     .padding(vertical = 8.dp)
-                                    .height(IntrinsicSize.Min), // ★ 縦線を親の高さ（文字の高さ）に合わせるために必須
+                                    .height(IntrinsicSize.Min),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (showTime) {
@@ -953,7 +959,7 @@ class MainActivity : ComponentActivity() {
                                         Text(
                                             "時間",
                                             style = androidx.compose.ui.text.TextStyle(
-                                                fontSize = 16.sp       // ★ 時間の見出しも大きく
+                                                fontSize = memoFontSize.sp // 👈 16.sp から memoFontSize.sp に変更
                                             ),
                                             color = mainText
                                         )
@@ -961,7 +967,7 @@ class MainActivity : ComponentActivity() {
                                     // --- 時間の横の縦線 ---
                                     Spacer(
                                         modifier = Modifier
-                                            .fillMaxHeight() // 親の高さ（IntrinsicSize.Min）に合わせる
+                                            .fillMaxHeight()
                                             .width(1.5.dp)
                                             .background(Color(0xFF777777))
                                     )
@@ -979,8 +985,7 @@ class MainActivity : ComponentActivity() {
                                         Text(
                                             text = col.name,
                                             style = androidx.compose.ui.text.TextStyle(
-                                                fontSize = 16.sp       // ★ 項目名も大きく！
-
+                                                fontSize = memoFontSize.sp // 👈 16.sp から memoFontSize.sp に変更
                                             ),
                                             color = mainText,
                                             maxLines = 1,
@@ -992,7 +997,7 @@ class MainActivity : ComponentActivity() {
                                     if (index < columns.size - 1) {
                                         Spacer(
                                             modifier = Modifier
-                                                .fillMaxHeight() // 親の高さに合わせる
+                                                .fillMaxHeight()
                                                 .width(1.5.dp)
                                                 .background(Color(0xFF777777))
                                         )
@@ -1001,7 +1006,10 @@ class MainActivity : ComponentActivity() {
                             }
 
                             // --- 履歴データ一覧 ---
-                            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 88.dp)
+                            ) {
                                 items(records, key = { it.id }) { record ->
                                     HistoryRow(
                                         db = db,
@@ -1009,12 +1017,10 @@ class MainActivity : ComponentActivity() {
                                         columns = columns,
                                         values = valuesMap[record.id] ?: emptyList(),
                                         showTime = showTime,
-                                        columnWeights = columnWeights, // ★ ここに追加！
+                                        columnWeights = columnWeights,
                                         onRowClick = {
                                             scope.launch {
-                                                val currentValues =
-                                                    db.memoDao()
-                                                        .getValuesForRecord(record.id)
+                                                val currentValues = db.memoDao().getValuesForRecord(record.id)
                                                 inputValues.clear()
                                                 currentValues.forEach {
                                                     inputValues[it.columnId] = it.value
@@ -1026,7 +1032,8 @@ class MainActivity : ComponentActivity() {
                                         onDelete = { refreshData() },
                                         mainText = mainText,
                                         subText = subText,
-                                        dividerColor = dividerColor
+                                        dividerColor = Color(0xFF333333),
+                                        memoFontSize = memoFontSize // 👈 先ほど追加した引数もここに渡します
                                     )
                                 }
                             }
@@ -1077,7 +1084,29 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            Spacer(modifier = Modifier.height(12.dp))
 
+                            Text(
+                                text = "メモ文字サイズ: ${memoFontSize.toInt()}sp",
+                                color = mainText,
+                                fontSize = 16.sp
+                            )
+
+                            Slider(
+                                value = memoFontSize,
+                                onValueChange = { value ->
+                                    memoFontSize = value
+                                    scope.launch {
+                                        db.memoDao().updateSetting(
+                                            currentAppSetting.copy(
+                                                memoFontSize = value.toInt()
+                                            )
+                                        )
+                                    }
+                                },
+                                valueRange = 6f..20f,
+                                steps = 13
+                            )
 
 
                             Spacer(modifier = Modifier.height(16.dp))
@@ -1491,11 +1520,12 @@ class MainActivity : ComponentActivity() {
 
                                             // DBの設定を更新
                                             scope.launch {
-                                                db.machineDao().getMachineById(machineId)?.let { machine ->
-                                                    db.machineDao().updateMachine(
-                                                        machine.copy(showSimpleCounter = nextChecked)
-                                                    )
-                                                }
+                                                db.machineDao().getMachineById(machineId)
+                                                    ?.let { machine ->
+                                                        db.machineDao().updateMachine(
+                                                            machine.copy(showSimpleCounter = nextChecked)
+                                                        )
+                                                    }
                                             }
 
                                             // 「カウンターを表示する」をOFFにされた場合
@@ -1563,11 +1593,12 @@ class MainActivity : ComponentActivity() {
                                                     val nextValue =
                                                         !currentAppSetting.showTotalRotation
                                                     scope.launch {
-                                                        db.machineDao().getMachineById(machineId)?.let { machine ->
-                                                            db.machineDao().updateMachine(
-                                                                machine.copy(showTotalRotation = nextValue)
-                                                            )
-                                                        }
+                                                        db.machineDao().getMachineById(machineId)
+                                                            ?.let { machine ->
+                                                                db.machineDao().updateMachine(
+                                                                    machine.copy(showTotalRotation = nextValue)
+                                                                )
+                                                            }
 
                                                         currentAppSetting = currentAppSetting.copy(
                                                             showTotalRotation = nextValue
@@ -1782,14 +1813,20 @@ class MainActivity : ComponentActivity() {
                                                         .clickable(enabled = showSimpleCounter) {
                                                             scope.launch {
                                                                 // 🟢 連動処理をすべて削除し、純粋に高さだけを保存します
-                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
-                                                                    db.machineDao().updateMachine(
-                                                                        machine.copy(counterHeight = hValue)
+                                                                db.machineDao()
+                                                                    .getMachineById(machineId)
+                                                                    ?.let { machine ->
+                                                                        db.machineDao()
+                                                                            .updateMachine(
+                                                                                machine.copy(
+                                                                                    counterHeight = hValue
+                                                                                )
+                                                                            )
+                                                                    }
+                                                                currentAppSetting =
+                                                                    currentAppSetting.copy(
+                                                                        counterHeight = hValue
                                                                     )
-                                                                }
-                                                                currentAppSetting = currentAppSetting.copy(
-                                                                    counterHeight = hValue
-                                                                )
                                                                 // 🟢 今回新しく追加するコード（メモ帳にも高さを保存する）
                                                                 prefs.edit().putInt(
                                                                     "counter_height",
@@ -1848,14 +1885,20 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
-                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
-                                                                    db.machineDao().updateMachine(
-                                                                        machine.copy(rotationFontSize = rValue)
+                                                                db.machineDao()
+                                                                    .getMachineById(machineId)
+                                                                    ?.let { machine ->
+                                                                        db.machineDao()
+                                                                            .updateMachine(
+                                                                                machine.copy(
+                                                                                    rotationFontSize = rValue
+                                                                                )
+                                                                            )
+                                                                    }
+                                                                currentAppSetting =
+                                                                    currentAppSetting.copy(
+                                                                        rotationFontSize = rValue
                                                                     )
-                                                                }
-                                                                currentAppSetting = currentAppSetting.copy(
-                                                                    rotationFontSize = rValue
-                                                                )
                                                             }
                                                         },
                                                     contentAlignment = Alignment.Center
@@ -1909,14 +1952,20 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
-                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
-                                                                    db.machineDao().updateMachine(
-                                                                        machine.copy(counterFontSize = fValue)
+                                                                db.machineDao()
+                                                                    .getMachineById(machineId)
+                                                                    ?.let { machine ->
+                                                                        db.machineDao()
+                                                                            .updateMachine(
+                                                                                machine.copy(
+                                                                                    counterFontSize = fValue
+                                                                                )
+                                                                            )
+                                                                    }
+                                                                currentAppSetting =
+                                                                    currentAppSetting.copy(
+                                                                        counterFontSize = fValue
                                                                     )
-                                                                }
-                                                                currentAppSetting = currentAppSetting.copy(
-                                                                    counterFontSize = fValue
-                                                                )
                                                             }
                                                         },
                                                     contentAlignment = Alignment.Center
@@ -1970,14 +2019,20 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         .clickable(enabled = showSimpleCounter) { // 🟢 isEnabled条件を削除
                                                             scope.launch {
-                                                                db.machineDao().getMachineById(machineId)?.let { machine ->
-                                                                    db.machineDao().updateMachine(
-                                                                        machine.copy(rateFontSize = rFValue)
+                                                                db.machineDao()
+                                                                    .getMachineById(machineId)
+                                                                    ?.let { machine ->
+                                                                        db.machineDao()
+                                                                            .updateMachine(
+                                                                                machine.copy(
+                                                                                    rateFontSize = rFValue
+                                                                                )
+                                                                            )
+                                                                    }
+                                                                currentAppSetting =
+                                                                    currentAppSetting.copy(
+                                                                        rateFontSize = rFValue
                                                                     )
-                                                                }
-                                                                currentAppSetting = currentAppSetting.copy(
-                                                                    rateFontSize = rFValue
-                                                                )
                                                             }
                                                         },
                                                     contentAlignment = Alignment.Center
@@ -2570,6 +2625,74 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                    }
+                    if (showOptionRenameDialog && targetOptionToRename != null && selectedColumnId != null) {
+                        val col = columns.find { it.id == selectedColumnId }
+                        val oldOpt = targetOptionToRename!!
+
+                        AlertDialog(
+                            onDismissRequest = { showOptionRenameDialog = false },
+                            title = { Text(text = "選択肢名の変更", color = mainText) },
+                            text = {
+                                Column {
+                                    OutlinedTextField(
+                                        value = optionNewNameInput,
+                                        onValueChange = { optionNewNameInput = it },
+                                        singleLine = true,
+                                        label = { Text("新しい名前", color = subText) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = mainText,
+                                            unfocusedTextColor = mainText,
+                                            focusedContainerColor = Color(0xFF252525),
+                                            unfocusedContainerColor = Color(0xFF252525),
+                                            cursorColor = mainText,
+                                            focusedBorderColor = Color(0xFFBB86FC),
+                                            unfocusedBorderColor = Color.Gray
+                                        )
+                                    )
+                                }
+                            },
+                            containerColor = surfaceColor,
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        if (optionNewNameInput.isNotBlank() && optionNewNameInput != oldOpt && col != null) {
+                                            scope.launch {
+                                                val opts = col.options.toMutableList()
+                                                val index = opts.indexOf(oldOpt)
+                                                if (index != -1) {
+                                                    opts[index] = optionNewNameInput
+                                                    db.memoDao().updateColumn(col.copy(options = opts))
+
+                                                    val rules = db.memoDao().getRulesByTrigger(col.id, oldOpt)
+                                                    db.memoDao().deleteRulesByTrigger(col.id, oldOpt)
+                                                    rules.forEach { rule ->
+                                                        db.memoDao().insertRule(rule.copy(triggerValue = optionNewNameInput))
+                                                    }
+
+                                                    db.memoDao().updateMemoValuesText(col.id, oldOpt, optionNewNameInput)
+
+                                                    refreshData()
+                                                }
+                                                showOptionRenameDialog = false
+                                                targetOptionToRename = null
+                                            }
+                                        } else {
+                                            showOptionRenameDialog = false
+                                        }
+                                    },
+                                    enabled = optionNewNameInput.isNotBlank()
+                                ) {
+                                    Text("保存", color = Color(0xFFBB86FC))
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showOptionRenameDialog = false }) {
+                                    Text("キャンセル", color = mainText)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -3668,52 +3791,47 @@ class MainActivity : ComponentActivity() {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             shadowElevation = 8.dp,
-                            color = Color(0xFF252525), // ダイアログの背景色をダークに
+                            color = Color(0xFF252525),
                             modifier = Modifier
-                                .width(180.dp) // ★ Cのサイズを維持
+                                .width(220.dp) // 幅を少し広げてボタンを配置しやすく調整
                                 .clickable(enabled = false) { }
                         ) {
                             Column(
-                                modifier = Modifier.padding(20.dp),
+                                modifier = Modifier.padding(16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
                                     text = "「$opt」",
-                                    fontSize = 18.sp, // ★ Cの文字サイズを維持
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = mainText,
-                                    modifier = Modifier.padding(bottom = 16.dp)
+                                    modifier = Modifier.padding(bottom = 12.dp)
                                 )
 
-                                // 移動ボタンの配色定義（文字色は常に黒）
+                                // 移動ボタン（左へ / 右へ）
                                 val canMoveColors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFBBBBBB), // 移動可：かなり明るいグレー
-                                    contentColor = Color.Black          // 文字：黒
+                                    containerColor = Color(0xFFBBBBBB),
+                                    contentColor = Color.Black
                                 )
                                 val cannotMoveColors = ButtonDefaults.buttonColors(
-                                    disabledContainerColor = Color(0xFF333333), // 移動不可：少し暗めのグレー
-                                    disabledContentColor = Color.Black          // 文字：黒（無効時も黒）
+                                    disabledContainerColor = Color(0xFF333333),
+                                    disabledContentColor = Color.Black
                                 )
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // 左へ移動ボタン
                                     Button(
                                         onClick = {
                                             scope.launch {
                                                 val opts = col.options.toMutableList()
-                                                // 現在のインデックス(optIndex)とその一つ前(optIndex - 1)を入れ替える
                                                 val targetIndex = optIndex - 1
                                                 if (targetIndex >= 0) {
                                                     val temp = opts[optIndex]
                                                     opts[optIndex] = opts[targetIndex]
                                                     opts[targetIndex] = temp
-
-                                                    // DBを更新
-                                                    db.memoDao()
-                                                        .updateColumn(col.copy(options = opts))
+                                                    db.memoDao().updateColumn(col.copy(options = opts))
                                                     refreshData()
                                                 }
                                             }
@@ -3721,27 +3839,17 @@ class MainActivity : ComponentActivity() {
                                         enabled = optIndex > 0,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(60.dp),
-                                        shape = RoundedCornerShape(12.dp),
+                                            .height(45.dp),
+                                        shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = if (optIndex > 0) canMoveColors else cannotMoveColors
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(
-                                                Icons.Default.ArrowBack,
-                                                null,
-                                                tint = Color.Black
-                                            )
-
-                                            Text(
-                                                "左へ",
-                                                fontSize = 16.sp,
-                                                color = Color.Black
-                                            )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.ArrowBack, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                            Text("左へ", fontSize = 14.sp, color = Color.Black)
                                         }
                                     }
 
-                                    // 右へ移動ボタン
                                     Button(
                                         onClick = {
                                             scope.launch {
@@ -3751,9 +3859,7 @@ class MainActivity : ComponentActivity() {
                                                     val temp = opts[optIndex]
                                                     opts[optIndex] = opts[targetIndex]
                                                     opts[targetIndex] = temp
-
-                                                    db.memoDao()
-                                                        .updateColumn(col.copy(options = opts))
+                                                    db.memoDao().updateColumn(col.copy(options = opts))
                                                     refreshData()
                                                 }
                                             }
@@ -3761,117 +3867,166 @@ class MainActivity : ComponentActivity() {
                                         enabled = optIndex < col.options.size - 1,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(60.dp),
-                                        shape = RoundedCornerShape(12.dp),
+                                            .height(45.dp),
+                                        shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(0.dp),
                                         colors = if (optIndex < col.options.size - 1) canMoveColors else cannotMoveColors
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(
-                                                Icons.Default.ArrowForward,
-                                                null,
-                                                tint = Color.Black
-                                            )
-
-                                            Text(
-                                                "右へ",
-                                                fontSize = 16.sp,
-                                                color = Color.Black
-                                            )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("右へ", fontSize = 14.sp, color = Color.Black)
+                                            Icon(Icons.Default.ArrowForward, null, tint = Color.Black, modifier = Modifier.size(16.dp))
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                                // --- 機能系ボタン（条件編集・削除） ---
+                                // Row 2: 名称変更 & 条件編集
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // 1. 条件編集ボタン
+                                    Button(
+                                        onClick = {
+                                            targetOptionToRename = opt
+                                            optionNewNameInput = opt
+                                            showOptionRenameDialog = true
+                                            showOptionMenuName = null
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(45.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF4CAF50), // 緑色で名称変更を表現
+                                            contentColor = Color.White
+                                        )
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("名称変更", color = Color.White, fontSize = 13.sp)
+                                        }
+                                    }
+
                                     Button(
                                         onClick = {
                                             selectedOptionForRule = opt
                                             selectedColumnIdForRule = col.id
-
-                                            // 🌟 ここで同時にフラグを操作する（色変更と全く同じ！）
                                             showConditionEditDialog = true
                                             showOptionMenuName = null
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(60.dp),
-                                        shape = RoundedCornerShape(12.dp),
+                                            .height(45.dp),
+                                        shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(0.dp),
-                                        // ★ MachineActionDialog と同じ紫に変更
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = Color(0xFF6750A4),
                                             contentColor = Color.White
                                         )
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(
-                                                Icons.Default.Build,
-                                                null,
-                                                tint = Color.White,
-                                                // modifier = Modifier.size(20.dp)
-                                            )
-
-                                            Spacer(modifier = Modifier.height(2.dp))
-
-                                            Text(
-                                                "条件編集",
-                                                color = Color.White,
-                                                fontSize = 16.sp, // ★ MachineActionDialog と同じ 16.sp に変更
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                overflow = TextOverflow.Visible
-                                            )
+                                            Text("条件編集", color = Color.White, fontSize = 13.sp)
                                         }
                                     }
+                                }
 
-                                    // 2. 削除ボタン
-                                    Button(
-                                        onClick = {
-                                            showOptionDeleteConfirmDialog = true
-                                        },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(60.dp),
-                                        shape = RoundedCornerShape(12.dp),
-                                        contentPadding = PaddingValues(0.dp),
-                                        // ★ MachineActionDialog と同じ赤に変更
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFFB3261E),
-                                            contentColor = Color.White
-                                        )
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(
-                                                Icons.Default.Delete,
-                                                null,
-                                                tint = Color.White,
-                                                // modifier = Modifier.size(20.dp)
-                                            )
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                                            Spacer(modifier = Modifier.height(2.dp))
-
-                                            Text(
-                                                "削除",
-                                                color = Color.White,
-                                                fontSize = 16.sp, // ★ MachineActionDialog と同じ 16.sp に変更
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                overflow = TextOverflow.Visible
-                                            )
-                                        }
-                                    }
+                                // Row 3: 削除ボタン
+                                Button(
+                                    onClick = {
+                                        showOptionDeleteConfirmDialog = true
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(40.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFB3261E),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("削除", color = Color.White, fontSize = 14.sp)
                                 }
                             }
                         }
                     }
                 }
+            }
+
+// --- 選択肢名変更用のダイアログ ---
+            if (showOptionRenameDialog && targetOptionToRename != null && selectedColumnId != null) {
+                val col = columns.find { it.id == selectedColumnId }
+                val oldOpt = targetOptionToRename!!
+
+                AlertDialog(
+                    onDismissRequest = { showOptionRenameDialog = false },
+                    title = { Text(text = "選択肢名の変更", color = mainText) },
+                    text = {
+                        Column {
+                            OutlinedTextField(
+                                value = optionNewNameInput,
+                                onValueChange = { optionNewNameInput = it },
+                                singleLine = true,
+                                label = { Text("新しい名前", color = subText) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = mainText,
+                                    unfocusedTextColor = mainText,
+                                    focusedContainerColor = Color(0xFF252525),
+                                    unfocusedContainerColor = Color(0xFF252525),
+                                    cursorColor = mainText,
+                                    focusedBorderColor = Color(0xFFBB86FC),
+                                    unfocusedBorderColor = Color.Gray
+                                )
+                            )
+                        }
+                    },
+                    containerColor = surfaceColor,
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                if (optionNewNameInput.isNotBlank() && optionNewNameInput != oldOpt && col != null) {
+                                    scope.launch {
+                                        val opts = col.options.toMutableList()
+                                        val index = opts.indexOf(oldOpt)
+                                        if (index != -1) {
+                                            opts[index] = optionNewNameInput
+
+                                            // 1. カラムの選択肢リストを更新
+                                            db.memoDao().updateColumn(col.copy(options = opts))
+
+                                            // 2. 紐づく自動入力ルール（トリガー名）を更新
+                                            val rules = db.memoDao().getRulesByTrigger(col.id, oldOpt)
+                                            db.memoDao().deleteRulesByTrigger(col.id, oldOpt)
+                                            rules.forEach { rule ->
+                                                db.memoDao().insertRule(rule.copy(triggerValue = optionNewNameInput))
+                                            }
+
+                                            // 3. 🌟 【追加】過去にその選択肢で保存されたメモのテキストも一括で新しい名前に書き換える
+                                            db.memoDao().updateMemoValuesText(col.id, oldOpt, optionNewNameInput)
+
+                                            refreshData()
+                                        }
+                                        showOptionRenameDialog = false
+                                        targetOptionToRename = null
+                                    }
+                                } else {
+                                    showOptionRenameDialog = false
+                                }
+                            },
+                            enabled = optionNewNameInput.isNotBlank()
+                        ) {
+                            Text("保存", color = Color(0xFFBB86FC))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showOptionRenameDialog = false }) {
+                            Text("キャンセル", color = mainText)
+                        }
+                    }
+                )
             }
 // --- 3. 入力エリア (オーバーレイ) ---
             if (showInputArea) {
@@ -4294,7 +4449,8 @@ class MainActivity : ComponentActivity() {
                     onDelete = {},
                     mainText = mainText,
                     subText = subText,
-                    dividerColor = Color.Gray
+                    dividerColor = Color.Gray,
+                    memoFontSize = 16f
                 )
             }
 
@@ -4649,7 +4805,8 @@ class MainActivity : ComponentActivity() {
         onDelete: () -> Unit,
         mainText: Color,
         subText: Color,
-        dividerColor: Color
+        dividerColor: Color,
+        memoFontSize: Float
     ) {
         Column(
             modifier = Modifier
@@ -4674,7 +4831,7 @@ class MainActivity : ComponentActivity() {
                         text = timeText,
                         modifier = Modifier.width(45.dp),
                         style = androidx.compose.ui.text.TextStyle(
-                            fontSize = 16.sp, // ★12sp前後から18spへ
+                            fontSize = memoFontSize.sp
                         ),
                         color = mainText,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -4704,7 +4861,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             text = value,
                             style = androidx.compose.ui.text.TextStyle(
-                                fontSize = 16.sp, // ★ここをガツンと大きく！
+                                fontSize = memoFontSize.sp
                             ),
                             color = mainText,
                             maxLines = 1,

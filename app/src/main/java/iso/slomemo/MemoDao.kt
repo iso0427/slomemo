@@ -65,13 +65,13 @@ interface MemoDao {
     @Query("DELETE FROM memo_records WHERE id = :recordId")
     suspend fun deleteRecordById(recordId: Int)
 
-    @Query("DELETE FROM MemoValue")
+    @Query("DELETE FROM memo_values")
     suspend fun deleteAllMemoValues()
 
-    @Query("DELETE FROM MemoValue WHERE columnId = :columnId")
+    @Query("DELETE FROM memo_values WHERE columnId = :columnId")
     suspend fun deleteValuesByColumnId(columnId: Int)
 
-    @Query("DELETE FROM MemoValue WHERE recordId = :recordId")
+    @Query("DELETE FROM memo_values WHERE recordId = :recordId")
     suspend fun deleteValuesByRecordId(recordId: Int)
 
     @Query("SELECT * FROM column_settings WHERE machineId = :machineId ORDER BY displayOrder ASC")
@@ -80,10 +80,10 @@ interface MemoDao {
     @Query("SELECT * FROM column_settings WHERE machineId = :machineId ORDER BY displayOrder ASC")
     fun getColumnsByMachine(machineId: Int): Flow<List<ColumnSetting>>
 
-    @Query("SELECT * FROM MemoValue")
+    @Query("SELECT * FROM memo_values")
     fun getAllValuesFlow(): Flow<List<MemoValue>>
 
-    @Query("SELECT * FROM MemoValue")
+    @Query("SELECT * FROM memo_values")
     suspend fun getAllValues(): List<MemoValue>
 
     @Query("SELECT * FROM memo_records WHERE id = :id")
@@ -92,7 +92,7 @@ interface MemoDao {
     @Query("SELECT * FROM memo_records WHERE machineId = :machineId AND isDeleted = 0 ORDER BY timestamp ASC")
     suspend fun getRecordsByMachine(machineId: Int): List<MemoRecord>
 
-    @Query("SELECT * FROM MemoValue WHERE recordId = :recordId")
+    @Query("SELECT * FROM memo_values WHERE recordId = :recordId")
     suspend fun getValuesForRecord(recordId: Int): List<MemoValue>
 
     // --- 削除（ソフトデリート）関連 ---
@@ -106,7 +106,7 @@ interface MemoDao {
     suspend fun softDeleteRecordById(recordId: Int)
 
     // --- SelectionOption（選択肢）関連 ---
-    @Query("SELECT * FROM SelectionOption WHERE columnId = :columnId")
+    @Query("SELECT * FROM selection_options WHERE columnId = :columnId") // 👈 大文字の SelectionOption から小文字の selection_options に変更
     suspend fun getOptionsByColumn(columnId: Int): List<SelectionOption>
 
     @Insert
@@ -211,6 +211,29 @@ interface MemoDao {
 
     @Query("UPDATE rotation_values SET startRotation = :start, currentRotation = :current, addRotation = :add WHERE machineId = :machineId")
     suspend fun updateAllRotationValues(machineId: Int, start: String, current: String, add: String)
+
+    // MemoDao.kt
+    // 修正前
+    //@Query("UPDATE MemoValue SET value = :newValue WHERE columnId = :columnId AND value = :oldValue")
+    //suspend fun updateMemoValuesText(columnId: Int, oldValue: String, newValue: String)
+
+    // 修正後（テーブル名を memo_values に統一）
+    @Query("UPDATE memo_values SET value = :newValue WHERE columnId = :columnId AND value = :oldValue")
+    suspend fun updateMemoValuesText(columnId: Int, oldValue: String, newValue: String): Int // 👈 ": Int" を追加
+
+    // --- 機種ごとの設定（MachineSetting）関連 ---
+
+    // 1. 指定した機種の設定を取得する（Flow版：リアルタイム監視用）
+    @Query("SELECT * FROM machine_settings WHERE machineId = :machineId LIMIT 1")
+    fun getMachineSettingFlow(machineId: Int): Flow<MachineSetting?>
+
+    // 2. 指定した機種の設定を取得する（一時取得用）
+    @Query("SELECT * FROM machine_settings WHERE machineId = :machineId LIMIT 1")
+    suspend fun getMachineSetting(machineId: Int): MachineSetting?
+
+    // 3. 機種ごとの設定を保存・更新する（存在しなければ新規作成、あれば上書き）
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveMachineSetting(setting: MachineSetting)
 
 
 }
